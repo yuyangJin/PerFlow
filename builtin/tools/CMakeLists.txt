@@ -1,0 +1,18 @@
+add_executable(pag_generation pag_generation.cpp)
+add_executable(mpi_mpag_generation mpi_mpag_generation.cpp)
+add_executable(static_pag_generation static_pag_generation.cpp)
+add_executable(pthread_mpag_generation_example pthread_mpag_generation_example.cpp)
+add_executable(omp_mpag_generation omp_mpag_generation.cpp)
+add_executable(sort_test sort_test.cpp)
+add_executable(dynamic_pcg_test dynamic_pcg_test.cpp)
+
+target_link_libraries(pag_generation PRIVATE graph_perf baguatool)
+target_link_libraries(mpi_mpag_generation PRIVATE graph_perf baguatool)
+target_link_libraries(static_pag_generation PRIVATE graph_perf baguatool)
+target_link_libraries(pthread_mpag_generation_example PRIVATE graph_perf baguatool)
+target_link_libraries(omp_mpag_generation PRIVATE graph_perf baguatool)
+target_link_libraries(sort_test PRIVATE graph_perf baguatool)
+target_link_libraries(dynamic_pcg_test PRIVATE graph_perf baguatool)
+
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/draw_pag.py ${CMAKE_CURRENT_BINARY_DIR}/draw_pag.py COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/critical_path.py ${CMAKE_CURRENT_BINARY_DIR}/critical_path.py COPYONLY)
