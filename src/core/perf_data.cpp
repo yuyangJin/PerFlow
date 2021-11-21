@@ -69,6 +69,9 @@ PerfData::~PerfData() {
 void PerfData::Read(const char* infile_name) {
   // char infile_name_str[MAX_CALL_PATH_LEN];
   // strcpy(infile_name_str, std::string(infile_name).c_str());
+
+  //dbg(infile_name);
+
   this->perf_data_in_file.open(std::string(infile_name), std::ios::in);
   if (!(this->perf_data_in_file.is_open())) {
     LOG_INFO("Failed to open %s\n", infile_name);
@@ -82,7 +85,7 @@ void PerfData::Read(const char* infile_name) {
   // this->perf_data_in_file.getline(line, MAX_CALL_PATH_LEN);
   getline(this->perf_data_in_file, line);
   unsigned long int count = strtoul(line.c_str(), 0, 10);
-  // dbg(count);
+  //dbg(count);
 
   // Read lines, each line is a VDS
   while (count-- && getline(this->perf_data_in_file, line)) {
@@ -132,7 +135,7 @@ void PerfData::Read(const char* infile_name) {
   // this->perf_data_in_file.getline(line, MAX_CALL_PATH_LEN);
   getline(this->perf_data_in_file, line);
   count = strtoul(line.c_str(), 0, 10);
-  // dbg(count);
+  //dbg(count);
 
   while (count-- && getline(this->perf_data_in_file, line)) {
     // Read a line

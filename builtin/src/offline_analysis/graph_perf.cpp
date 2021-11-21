@@ -1039,12 +1039,13 @@ void GPerf::GenerateOpenMPProgramAbstractionGraph(int num_threads) {
 std::map<type::vertex_t, type::vertex_t> pag_vid_to_pre_order_seq_id;
 
 void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
-  dbg("here");
+  //dbg("here");
   int pag_num_vertex = pag_vid_to_pre_order_seq_id.size();
   auto edge_data_size = comm_data->GetEdgeDataSize();
+  //dbg(edge_data_size);
   for (unsigned long int i = 0; i < edge_data_size; i++) {
     auto value = comm_data->GetEdgeDataValue(i);
-    if (value > 10000) {  // 10ms
+    if (value > 1000) {  // 1ms
       std::stack<unsigned long long> src_call_path;
 
       std::stack<unsigned long long> dest_call_path;
