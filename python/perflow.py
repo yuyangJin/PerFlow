@@ -1,6 +1,7 @@
 import os
 from pag import *
 from graphvizoutput import *
+from pag_type import *
 
 class PerFlow(object):
     def __init__(self):
@@ -52,7 +53,8 @@ class PerFlow(object):
         self.tdpag = ProgramAbstractionGraph.Read_GML('pag.gml')
         self.ppag = ProgramAbstractionGraph.Read_GML('mpi_mpag.gml')
 
-    def run(self, binary = "", cmd = "", nprocs = 0, sampling_count = 0):
+    # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
+    def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0):
         self.setBinary(binary)
         self.setCmdLine(cmd)
         self.setNumProcs(nprocs)
@@ -68,14 +70,23 @@ class PerFlow(object):
         if name != '':
             return V.select(name_attr = name)
         if type != '':
-            return V.select(type_attr = type)
+            return V.select(type_eq = type)
+
+
+    # def top(self, V, metric, n):
+    #     topk = []
+    #     k = n
+    #     for v in V:
+    #         if float(v['CYCAVGPERCENT']) > 0.05:
+    #             topk.append(v)
 
     def hotspot_detection(self, V, metric = '', n = 0):
         if metric == '':
             metric = 'time'
         if n == 0:
             n = 10
-        return V.sort_by(metric).top(n)
+        return V.select(lambda v: float(v['CYCAVGPERCENT']) >= 0.001)
+        #return V.sort_by(metric).top(n)
     
     def report(self, V, E, attrs=[]):
         if len(attrs) == 0:
