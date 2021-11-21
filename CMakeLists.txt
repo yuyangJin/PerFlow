@@ -132,6 +132,7 @@ add_subdirectory(${PROJECT_SOURCE_DIR}/builtin)
 if (ENABLE_TEST)
   # List what we want to test
   #add_subdirectory(${PROJECT_SOURCE_DIR}/test/igraph_test)
+  add_subdirectory(example)
 endif()
 
 
