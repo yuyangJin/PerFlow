@@ -16,11 +16,11 @@ class GraphvizOutput(Output):
         #self.tool = 'circo'
         #self.tool = 'neato'
         if output_file == "":
-            self.output_files = [self.tool + '.png', self.tool + '.pdf']
-            self.output_types = ['png', 'pdf']
+            self.output_files = [self.tool + '.pdf']
+            self.output_types = ['pdf']
         else:
-            self.output_files = [output_file + '.png', output_file + '.pdf']
-            self.output_types = ['png', 'pdf']
+            self.output_files = [output_file + '.pdf']
+            self.output_types = ['pdf']
         self.font_name = 'Verdana'
         self.font_size = 7
         self.group_font_size = 10
