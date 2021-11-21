@@ -1,7 +1,6 @@
 import os
 from pag import *
 from graphvizoutput import *
-from pag_type import *
 
 class PerFlow(object):
     def __init__(self):
@@ -35,14 +34,14 @@ class PerFlow(object):
     def dynamicAnalysis(self, sampling_count = 0):
         if sampling_count != 0:
             self.sampling_count = sampling_count
-        profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_sampler.so ' + self.dynamic_analysis_command_line
+        profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_omp_sampler.so ' + self.dynamic_analysis_command_line
         os.system(profiling_cmd_line)
         comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
         os.system(comm_cmd_line)
 
     def pagGeneration(self):
         communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
-        pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_mpag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
+        pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_mpag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
 
         print(communication_analysis_cmd_line)
         os.system(communication_analysis_cmd_line)
@@ -58,8 +57,8 @@ class PerFlow(object):
         self.setBinary(binary)
         self.setCmdLine(cmd)
         self.setNumProcs(nprocs)
-        self.staticAnalysis()
-        self.dynamicAnalysis(sampling_count)
+        #self.staticAnalysis()
+        #self.dynamicAnalysis(sampling_count)
         self.pagGeneration()
         return self.tdpag, self.ppag
 
