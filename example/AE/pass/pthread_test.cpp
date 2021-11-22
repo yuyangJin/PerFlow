@@ -19,45 +19,27 @@ typedef struct ct_sum {
 } ct_sum;
 void *add1(void *cnt) {
   double a = 0;
-  for (int i = 0; i < N / 4; i++) {
+  for (int i = 0; i < N / 2; i++) {
     a += i;
   }
-  // struct timeval start;
-  // struct timeval end;
-  // unsigned long diff;
-  // gettimeofday(&start, NULL);
+
   pthread_mutex_lock(&(((ct_sum *)cnt)->lock));
-  // gettimeofday(&end, NULL);
-  // diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
-  // printf("add1 lock is %ld\n", diff);
+
   int i;
-  // gettimeofday(&start, NULL);
   for (i = 0; i < N / 2; i++) {
     (*(ct_sum *)cnt).sum += i;
   }
-  // gettimeofday(&end, NULL);
-  // diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
-  // printf("add1 for is %ld\n", diff);
   pthread_mutex_unlock(&(((ct_sum *)cnt)->lock));
   return 0;
 }
 void *add2(void *cnt) {
-  // struct timeval start;
-  // struct timeval end;
-  // unsigned long diff;
-  // gettimeofday(&start, NULL);
+
   pthread_mutex_lock(&(((ct_sum *)cnt)->lock));
-  // gettimeofday(&end, NULL);
-  // diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
-  // printf("add2 lock is %ld\n", diff);
+
   int i;
-  // gettimeofday(&start, NULL);
   for (i = N; i < N * 2 + 1; i++) {
     (*(ct_sum *)cnt).sum += i;
   }
-  // gettimeofday(&end, NULL);
-  // diff = 1000000 * (end.tv_sec - start.tv_sec) + end.tv_usec - start.tv_usec;
-  // printf("add2 for is %ld\n", diff);
   pthread_mutex_unlock(&(((ct_sum *)cnt)->lock));
   return 0;
 }
