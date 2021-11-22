@@ -163,7 +163,7 @@ void HybridAnalysis::InterProceduralAnalysis() {
     pag->SetGraphAttributeFlag("scanned", false);
     if (strcmp(kv.first.c_str(), "main") == 0) {
       this->root_pag = pag;
-      std::cout << "Find 'main'" << std::endl;
+      //std::cout << "Find 'main'" << std::endl;
       // break;
     }
   }

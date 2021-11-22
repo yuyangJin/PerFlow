@@ -10,11 +10,11 @@ from graphvizoutput import *
 pflow = pf.PerFlow()
 
 # Run the binary and return a program abstraction graph
-tdpag, ppag = pflow.run(binary = "./pthread_test", cmd = "./pthread_test 300000000", mode = 'pthread')
+tdpag, ppag = pflow.run(binary = "./pthread", cmd = "./pthread 300000000", mode = 'pthread')
 
 
-pflow.draw(tdpag, save_pdf = './pthread_test.tdpag')
-pflow.draw(ppag, save_pdf = './pthread_test.ppag')
+pflow.draw(tdpag, save_pdf = './pthread.tdpag')
+pflow.draw(ppag, save_pdf = './pthread.ppag')
 
 
 # User-defind critical path pass
