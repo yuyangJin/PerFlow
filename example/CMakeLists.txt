@@ -1,1 +1,1 @@
-add_subdirectory(npb)
+add_subdirectory(AE)
