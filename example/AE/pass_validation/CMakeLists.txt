@@ -1,0 +1,6 @@
+set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+add_executable(pthread_test pthread_test.cpp)
+target_compile_options(pthread_test PRIVATE -O0 -g)
+target_link_libraries(pthread_test PRIVATE Threads::Threads)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/critical_path_pass.py ${CMAKE_CURRENT_BINARY_DIR}/critical_path_pass.py COPYONLY)
