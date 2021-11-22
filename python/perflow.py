@@ -6,6 +6,7 @@ class PerFlow(object):
     def __init__(self):
         self.static_analysis_binary_name = "init"
         self.dynamic_analysis_command_line = "init"
+        self.mode = 'mpi+omp'
         self.nprocs = 0
         self.sampling_count = 1000
 
@@ -19,6 +20,10 @@ class PerFlow(object):
     def setCmdLine(self, cmd_line = ""):
         if cmd_line != "":
             self.dynamic_analysis_command_line = cmd_line
+
+    def setProgMode(self, mode = ''):
+        if mode != '':
+            self.mode = mode
 
     def setNumProcs(self, nprocs = 0):
         if nprocs != 0:
@@ -34,19 +39,30 @@ class PerFlow(object):
     def dynamicAnalysis(self, sampling_count = 0):
         if sampling_count != 0:
             self.sampling_count = sampling_count
-        profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_omp_sampler.so ' + self.dynamic_analysis_command_line
-        os.system(profiling_cmd_line)
-        comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
-        os.system(comm_cmd_line)
+        
+        if self.mode == 'mpi+omp':
+            profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_omp_sampler.so ' + self.dynamic_analysis_command_line
+            os.system(profiling_cmd_line)
+            comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
+            os.system(comm_cmd_line)
+        
+        if self.mode == 'pthread':
+            profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libpthread_sampler.so ' + self.dynamic_analysis_command_line
+            os.system(profiling_cmd_line)
 
     def pagGeneration(self):
-        communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
-        pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_mpag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
-
-        print(communication_analysis_cmd_line)
-        os.system(communication_analysis_cmd_line)
-        print(pag_generation_cmd_line)
-        os.system(pag_generation_cmd_line)
+        
+        if self.mode == 'mpi+omp':
+            communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
+            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_mpag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
+            print(communication_analysis_cmd_line)
+            os.system(communication_analysis_cmd_line)
+            print(pag_generation_cmd_line)
+            os.system(pag_generation_cmd_line)
+        if self.mode == 'pthread':
+            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/pthread_mpag_generation_example ' + self.static_analysis_binary_name + ' ./SAMPLE*'
+            print(pag_generation_cmd_line)
+            os.system(pag_generation_cmd_line)
 
         #read pag
         self.tdpag = ProgramAbstractionGraph.Read_GML('pag.gml')
@@ -56,9 +72,10 @@ class PerFlow(object):
     def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0):
         self.setBinary(binary)
         self.setCmdLine(cmd)
+        self.setProgMode(mode)
         self.setNumProcs(nprocs)
-        #self.staticAnalysis()
-        #self.dynamicAnalysis(sampling_count)
+        self.staticAnalysis()
+        self.dynamicAnalysis(sampling_count)
         self.pagGeneration()
         return self.tdpag, self.ppag
 
