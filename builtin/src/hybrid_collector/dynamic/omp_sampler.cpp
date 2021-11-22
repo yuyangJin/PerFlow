@@ -55,7 +55,7 @@ int get_thread_gid() { return thread_global_id; }
 void RecordCallPath(int y) {
   record_perf_data_flag = true;
   baguatool::type::addr_t call_path[MAX_CALL_PATH_DEPTH] = {0};
-  int call_path_len = sampler->GetBacktrace(call_path, MAX_CALL_PATH_DEPTH, 7);
+  int call_path_len = sampler->GetBacktrace(call_path, MAX_CALL_PATH_DEPTH, 5);
   if (main_tid != gettid()) {
     perf_data->RecordVertexData(call_path, call_path_len, mpi_rank /* process_id */, record_thread_gid /* thread_id */,
                                 1);
@@ -118,7 +118,7 @@ static void init_mock() {
 /** User-defined what to do at destructor */
 static void fini_mock() {
   sampler->Stop();
-  dbg(perf_data->GetEdgeDataSize(), perf_data->GetVertexDataSize());
+  //dbg(perf_data->GetEdgeDataSize(), perf_data->GetVertexDataSize());
   char output_file_name[MAX_LINE_LEN] = {0};
   sprintf(output_file_name, "SAMPLE-%lu.TXT", gettid());
   perf_data->Dump(output_file_name);

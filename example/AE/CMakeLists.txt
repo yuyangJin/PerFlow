@@ -1,3 +1,4 @@
 add_subdirectory(pag_validation)
 add_subdirectory(pass_validation)
 add_subdirectory(perflowgraph_validation)
+add_subdirectory(model_validation)

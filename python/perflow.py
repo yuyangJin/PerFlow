@@ -46,6 +46,10 @@ class PerFlow(object):
             comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
             os.system(comm_cmd_line)
         
+        if self.mode == 'omp':
+            profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libomp_sampler.so ' + self.dynamic_analysis_command_line
+            os.system(profiling_cmd_line)
+
         if self.mode == 'pthread':
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libpthread_sampler.so ' + self.dynamic_analysis_command_line
             os.system(profiling_cmd_line)
@@ -57,12 +61,18 @@ class PerFlow(object):
 
         if self.mode == 'mpi+omp':
             communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
-            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_mpag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
+            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_pag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
             print(communication_analysis_cmd_line)
             os.system(communication_analysis_cmd_line)
             tdpag_file = 'pag.gml'
             ppag_file = 'mpi_mpag.gml'
 
+        if self.mode == 'omp':
+            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/omp_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE*TXT ./SOMAP*.TXT'
+            print(communication_analysis_cmd_line)
+            os.system(communication_analysis_cmd_line)
+            tdpag_file = 'pag.gml'
+            ppag_file = 'mpi_mpag.gml'
 
         if self.mode == 'pthread':
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/pthread_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE.TXT'
@@ -139,3 +149,16 @@ class PerFlow(object):
             graphviz_output.draw_edge(mark_edges, color=0.1)
         
         graphviz_output.show()
+
+
+    def mpi_profiler_model(self, tdpag = None, ppag = None):
+        if tdpag == None:
+            print("No top-down view of PAG")
+        
+        ## a filter pass
+        V_comm = self.filter(tdpag.vs, name = "mpi_")
+        ## a hotspot detection pass
+        V_hot = self.hotspot_detection(V_comm)
+        ## a report pass
+        attrs_list = ["name", "CYCAVGPERCENT", "saddr"] 
+        self.report(V = V_hot, attrs = attrs_list)

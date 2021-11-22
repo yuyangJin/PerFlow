@@ -219,11 +219,11 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
           callee_addr = call_path.top();
 
           if (type::IsTextAddr(callee_addr)) {
-            dbg(callee_addr);
+            //dbg(callee_addr);
             break;
           } else if (type::IsDynAddr(callee_addr)) {
             if (dyn_addr_to_debug_info.find(callee_addr) != dyn_addr_to_debug_info.end()) {
-              dbg(callee_addr);
+              //dbg(callee_addr);
               break;
             }
           }
@@ -238,23 +238,23 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
         if (visited_call_callee.find(call_callee_pair) != visited_call_callee.end()) {
           continue;
         }
-        dbg(call_addr, callee_addr);
+        //dbg(call_addr, callee_addr);
 
         auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
         if (edge_id != -1) {
           this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE);  // dynamic
-          dbg("find edge", edge_id);
+          //dbg("find edge", edge_id);
 
         } else {
           type::vertex_t call_vertex = this->pcg->GetCallVertexWithAddr(call_addr);
           if (call_vertex != -1) {
-            dbg("find call vertex", call_vertex);
+            //dbg("find call vertex", call_vertex);
 
             std::string &func_name = dyn_addr_to_debug_info[callee_addr]->GetFuncName();
             if (func_name.empty()) {
               continue;
             }
-            dbg(func_name);
+            //dbg(func_name);
             type::vertex_t new_func_vertex_id = this->pcg->AddVertex();
             this->pcg->SetVertexBasicInfo(new_func_vertex_id, type::FUNC_NODE, func_name.c_str());
             this->pcg->SetVertexDebugInfo(new_func_vertex_id, callee_addr, callee_addr);
@@ -535,7 +535,7 @@ void GPerf::DynamicInterProceduralAnalysis(core::PerfData *pthread_data) {
               pthread_join_vertex_id, metric, pthread_data->GetEdgeDataDestProcsId(j), dest_thread_id_join, join_value);
           // this->graph_perf_data->SetPerfData(pthread_join_vertex_id, perf_data->GetMetricName(), process_id,
           // thread_id, data);
-          dbg(pthread_join_vertex_id, join_value);
+          //dbg(pthread_join_vertex_id, join_value);
 
           FREE_CONTAINER(dest_call_path_join);
           FREE_CONTAINER(src_call_path_join);
@@ -636,13 +636,13 @@ void GPerf::DynamicInterProceduralAnalysis(core::PerfData *pthread_data) {
 void GPerf::InterProceduralAnalysis(core::PerfData *pthread_data) {
   /** Search root node , "name" is "main" */
   for (auto &kv : this->func_entry_addr_to_pag) {
-    printf("entry_addr: %llu, ", kv.first);
+    //printf("entry_addr: %llu, ", kv.first);
     auto pag = kv.second;
     pag->SetGraphAttributeFlag("scanned", false);
-    printf("func_name: %s \n", pag->GetVertexAttributeString("name", 0));
+    //printf("func_name: %s \n", pag->GetVertexAttributeString("name", 0));
     if (strcmp(pag->GetVertexAttributeString("name", 0), "main") == 0) {
       this->root_pag = pag;
-      std::cout << "Find 'main'" << std::endl;
+      //std::cout << "Find 'main'" << std::endl;
     }
   }
   if (!this->root_pag) {
@@ -675,7 +675,7 @@ void GPerf::StaticInterProceduralAnalysis() {
     pag->SetGraphAttributeFlag("scanned", false);
     if (strcmp(pag->GetVertexAttributeString("name", 0), "main") == 0) {
       this->root_pag = pag;
-      std::cout << "Find 'main'" << std::endl;
+      //std::cout << "Find 'main'" << std::endl;
     }
   }
   if (!this->root_pag) {
@@ -1056,20 +1056,20 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       type::vertex_t queried_vertex_id_src = GetVertexWithInterThreadAnalysis(0, src_call_path);
       type::vertex_t queried_vertex_id_dest = GetVertexWithInterThreadAnalysis(0, dest_call_path);
 
-      dbg(queried_vertex_id_src, queried_vertex_id_dest);
+      //dbg(queried_vertex_id_src, queried_vertex_id_dest);
       if (queried_vertex_id_dest == -1 || queried_vertex_id_src == -1) {
         continue;
       }
-      dbg(pag_vid_to_pre_order_seq_id[queried_vertex_id_src], pag_vid_to_pre_order_seq_id[queried_vertex_id_dest],
-          src_pid, dest_pid, pag_num_vertex);
+      //dbg(pag_vid_to_pre_order_seq_id[queried_vertex_id_src], pag_vid_to_pre_order_seq_id[queried_vertex_id_dest],
+      //    src_pid, dest_pid, pag_num_vertex);
       type::vertex_t mpag_src_vertex_id =
           pag_vid_to_pre_order_seq_id[queried_vertex_id_src] + src_pid * pag_num_vertex + 1;
       type::vertex_t mpag_dest_vertex_id =
           pag_vid_to_pre_order_seq_id[queried_vertex_id_dest] + dest_pid * pag_num_vertex + 1;
-      dbg(mpag_src_vertex_id, mpag_dest_vertex_id);
+      //dbg(mpag_src_vertex_id, mpag_dest_vertex_id);
 
       type::edge_t edge_id = this->root_mpag->AddEdge(mpag_src_vertex_id, mpag_dest_vertex_id);
-      dbg(edge_id);
+      //dbg(edge_id);
       if (edge_id != -1) {
         this->root_mpag->SetEdgeAttributeNum("time", edge_id, value);
       }
