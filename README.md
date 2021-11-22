@@ -1,51 +1,54 @@
 # PerFlow
 Domain-specific framework for performance analysis of parallel programs
 
-## For PPoPP22 AE review
-This file is only for PPoPP22 AE review. We seek two badges: Artifacts Available badge and Artifacts Evaluated badges.
+## Dependency and Build
 
-### Environment setup
+PerFlow is dependent on
+* [Dyninst](https://github.com/dyninst/dyninst)
+* Boost
+    Boost will be installed automatically with Dyninst.
+* [PAPI](https://bitbucket.org/icl/papi/src/master/)
+* [igraph](https://github.com/igraph/igraph)
+* cmake >= 3.16
 
-There are two ways to set up PerFlow enviroments for AE reviewers.
+Dyninst and PAPI need user to build themselves. ```igraph``` has been integrated into PerFlow as submodule. 
+```bash
+git submodule update --init
+```
 
-1. Follow the steps in INSTALL.md to build PerFlow.
+There are two ways to build PerFlow. One is to build dependency from source and specify their location when building PerFlow, the other is to use spack to build these.
 
-2. Directly access to our machines with preinstalled PerFlow and environments.
+### Build Dependency from Source
 
 ```bash
-ssh -p 3330 ppopp22_42_perflow@166.111.68.163
-cd PerFlow
-source PerFlow.bashrc
+cmake .. -DBOOST_ROOT=/path_to_your_boost_install_dir -DDyninst_DIR=/path_to_your_dyninst_install_dir/lib/cmake/Dyninst -DPAPI_PREFIX=/path_to_your_papi_install_dir
+
+# You should make sure that there is `DyninstConfig.cmake` in /path_to_your_dyninst_install_dir/lib/cmake/Dyninst
+# And there is `include` `lib` in /path_to_your_papi_install_dir
+# And there is `include` `lib` in /path_to_your_boost_install_dir, `boost` in /path_to_your_boost_install_dir/include
 ```
 
-### Artifacts Evaluated badges
+Note that if dyninst is built from source, the boost will be downloaded and installed automatically with it, in the install directory of dyninst.
 
-We think the functionality of PerFlow can be concluded as XX parts. We give details for validation of each part.
-
-
-#### A. Validation for Program Abstraction Graphs (Section 3) 
-Here we use the CG benchmark in NPB to analysis program behavior with **hybrid ststic-dynamic analysis** and show **Program Abstraction Graph** (PAG) with visualized graph format (pdf).
-
-``` bash
-cd example/AE/PAG
-python3 ./pag.py # python3 
+In this case, the cmake commands will be like
 ```
-We can see there are several files being generated.
-The `cg.B.8.pcg`, `cg.B.8.pag.map`, and `cg.B.8.pag/*` files are results of static analysis, while the `SAMPLE+*.TXT`, `MPI*.TXT` files, etc., are the results of dynamic analysis.
-Through data embedding, `tdpag.gml` amd `ppag.gml` are generated representing the top-down view and the parallel view of PAG, seperately.
-Besides, we draw the PAG in `tdpag.pdf` amd `ppag.pdf`.
-Please check these files.
-
-#### B. Validation for Performance Analysis Passes (Section 4.3)
-PerFlow provides low level APIs for building peformance analysis passes.
-Here we gives an example showing building a critical path pass with low level APIs.
-
-#### C. Validation for PerFlowGraph (Section 4.1 & 4.2)
-PerFlow provides high level APIs for building PerFlowGraphs as user-defined performance analytical tasks.
+cmake .. -DBOOST_ROOT=/path_to_your_dyninst_install_dir  -DDyninst_DIR=/path_to_your_dyninst_install_dir/lib/cmake/Dyninst -DPAPI_PREFIX=/path_to_your_papi_install_dir
+```
 
 
-#### D. Validation for Performance Analysis Models (Section 4.4)
-PerFlow provides builtin performance analysis models for developers to directly use them.
+### Build Dependency from Spack
+The recommended way to build Dyninst (with Boost) and PAPI is to use [Spack](https://github.com/spack/spack)
 
+```bash
+spack install dyninst # boost will be installed at the same time
+spack install papi
 
-#### E. Validation for Case Studies
+# before building PerFlow
+spack load dyninst # boost will be loaded at the same time
+spack load papi
+
+# build
+mkdir build
+cd build
+cmake ..
+```
