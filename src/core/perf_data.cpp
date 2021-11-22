@@ -106,6 +106,7 @@ void PerfData::Read(const char* infile_name) {
     if (cnt == 4 && procs_id >= 0) {
       unsigned long int x = __sync_fetch_and_add(&this->vertex_perf_data_count, 1);
 
+      //std::cout << count << " " << line_vec[1].c_str() <<std::endl;
       this->vertex_perf_data[x].value = atof(line_vec[1].c_str());
       this->vertex_perf_data[x].procs_id = atoi(line_vec[2].c_str());
       this->vertex_perf_data[x].thread_id = atoi(line_vec[3].c_str());

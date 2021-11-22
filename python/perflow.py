@@ -98,7 +98,8 @@ class PerFlow(object):
 
     def filter(self, V, name = '', type = ''):
         if name != '':
-            return V.select(name_attr = name)
+            #print(name)
+            return V.select(lambda v: (v["name"].find(name) != -1) )
         if type != '':
             return V.select(type_eq = type)
 
@@ -115,15 +116,18 @@ class PerFlow(object):
             metric = 'time'
         if n == 0:
             n = 10
-        return V.select(lambda v: float(v['CYCAVGPERCENT']) >= 0.001)
+        return V.select(lambda v: float(v['CYCAVGPERCENT']) > 0.0001)
         #return V.sort_by(metric).top(n)
     
-    def report(self, V, E, attrs=[]):
+    def report(self, V, attrs=[]):
         if len(attrs) == 0:
             attrs = ['name', 'type', 'time', 'debug']
+        for attr in attrs:
+            print(attr, end='\t')
+        print()
         for v in V:
             for attr in attrs:
-                print(v[attr], end=' ')
+                print(v[attr], end='\t')
             print()
 
     def draw(self, g, save_pdf = '', mark_edges = []):
