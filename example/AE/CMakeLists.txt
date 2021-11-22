@@ -1,1 +1,2 @@
-add_subdirectory(pass)
+add_subdirectory(pag_validation)
+add_subdirectory(pass_validation)

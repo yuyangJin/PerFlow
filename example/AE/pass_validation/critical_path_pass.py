@@ -17,8 +17,8 @@ pflow.draw(tdpag, save_pdf = './pthread_test.tdpag')
 pflow.draw(ppag, save_pdf = './pthread_test.ppag')
 
 
-# User-defind max flow search pass
-def max_flow_search():
+# User-defind critical path pass
+def critical_path():
 
   num_vextices = ppag.vcount()
   vertex_max_start_value = dict()
@@ -34,7 +34,7 @@ def max_flow_search():
   vertex_max_end_value[num_vextices-1] = 0
   vectex_end_critical_path[num_vextices-1] = []
 
-  # backward bfs
+  # max_flow_search implemented with backward bfs
   while len(vertex_queue):
     vid = vertex_queue[0]
     del(vertex_queue[0])
@@ -66,6 +66,6 @@ def max_flow_search():
     edge_set.append([vectex_start_critical_path[0][i+1], vectex_start_critical_path[0][i]])
   return edge_set
 
-edge_set = max_flow_search()
+edge_set = critical_path()
 
 pflow.draw(ppag, save_pdf = './critical_path', mark_edges = edge_set)
