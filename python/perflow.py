@@ -51,22 +51,36 @@ class PerFlow(object):
             os.system(profiling_cmd_line)
 
     def pagGeneration(self):
-        
+        pag_generation_cmd_line = ''
+        tdpag_file = ''
+        ppag_file =''
+
         if self.mode == 'mpi+omp':
             communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_mpag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
             print(communication_analysis_cmd_line)
             os.system(communication_analysis_cmd_line)
-            print(pag_generation_cmd_line)
-            os.system(pag_generation_cmd_line)
+            tdpag_file = 'pag.gml'
+            ppag_file = 'mpi_mpag.gml'
+
+
         if self.mode == 'pthread':
-            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/pthread_mpag_generation_example ' + self.static_analysis_binary_name + ' ./SAMPLE*'
-            print(pag_generation_cmd_line)
-            os.system(pag_generation_cmd_line)
+            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/pthread_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE.TXT'
+            tdpag_file = 'pthread_tdpag.gml'
+            ppag_file = 'pthread_ppag.gml'
+
+        if pag_generation_cmd_line == '':
+            exit()
+
+        print(pag_generation_cmd_line)
+        os.system(pag_generation_cmd_line)
+
 
         #read pag
-        self.tdpag = ProgramAbstractionGraph.Read_GML('pag.gml')
-        self.ppag = ProgramAbstractionGraph.Read_GML('mpi_mpag.gml')
+        if tdpag_file != '':
+            self.tdpag = ProgramAbstractionGraph.Read_GML(tdpag_file)
+        if ppag_file != '':
+            self.ppag = ProgramAbstractionGraph.Read_GML(ppag_file)
 
     # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
     def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0):
@@ -112,9 +126,12 @@ class PerFlow(object):
                 print(v[attr], end=' ')
             print()
 
-    def draw(self, g, save_pdf = ''):
+    def draw(self, g, save_pdf = '', mark_edges = []):
         if save_pdf == '':
             save_pdf = 'pag.gml'
         graphviz_output = GraphvizOutput(output_file = save_pdf)
         graphviz_output.draw(g, vertex_attrs = ["id", "name", "type", "saddr", "eaddr" , "TOTCYCAVG", "CYCAVGPERCENT"], edge_attrs = ["id"], vertex_color_depth_attr = "CYCAVGPERCENT") #, preserve_attrs = "preserve")
+        if mark_edges!= []:
+            graphviz_output.draw_edge(mark_edges, color=0.1)
+        
         graphviz_output.show()

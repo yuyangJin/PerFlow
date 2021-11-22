@@ -15,12 +15,12 @@ int main(int argc, char** argv) {
   baguatool::core::PerfData* perf_data = new baguatool::core::PerfData();
   perf_data->Read(perf_data_file_name);
 
-  std::string shared_obj_map_file_name = std::string(argv[3]);
+  //std::string shared_obj_map_file_name = std::string(argv[3]);
 
   auto gperf = std::make_unique<graph_perf::GPerf>();
 
   gperf->ReadFunctionAbstractionGraphs(pag_dir_name);
-  gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name);
+  //gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name);
   gperf->GenerateProgramCallGraph(bin_name, perf_data);
   gperf->GetProgramCallGraph()->DumpGraphGML("hy_pcg.gml");
 
@@ -28,7 +28,7 @@ int main(int argc, char** argv) {
 
   baguatool::core::ProgramAbstractionGraph* pag = gperf->GetProgramAbstractionGraph();
 
-  // pag->DumpGraphGML("root_1.gml");
+  //pag->DumpGraphGML("pthread_tdpag.gml");
 
   // pag->PreOrderTraversal(0);
 
@@ -47,8 +47,11 @@ int main(int argc, char** argv) {
   graph_perf_data->Dump(output_file_name_str);
 
   pag->DeleteExtraTailVertices();
+
+  pag->DumpGraphGML("pthread_tdpag.gml");
+
   // gperf->GetProgramAbstractionGraph()->PreserveHotVertices("CYCAVGPERCENT");
   gperf->GenerateMultiThreadProgramAbstractionGraph();
 
-  gperf->GetMultiProgramAbstractionGraph()->DumpGraphGML("multi_thread_pag.gml");
+  gperf->GetMultiProgramAbstractionGraph()->DumpGraphGML("pthread_ppag.gml");
 }
