@@ -27,7 +27,7 @@ target_link_libraries(binary_analyzer PRIVATE baguatool)
 target_link_libraries(sequential_sampler PRIVATE baguatool)
 target_link_libraries(mpi_sampler PUBLIC baguatool MPI::MPI_CXX)
 target_link_libraries(pthread_sampler PRIVATE baguatool)
-target_link_libraries(mpi_tracer PRIVATE baguatool MPI::MPI_CXX)
+target_link_libraries(mpi_tracer PUBLIC baguatool MPI::MPI_CXX unwind)
 
 
 # if(OpenMP_C_FOUND)
