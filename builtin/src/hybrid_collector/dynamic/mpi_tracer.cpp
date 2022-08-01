@@ -71,6 +71,7 @@ using namespace std;
 #define MAX_WAIT_REQ 100
 #define MAX_TRACE_SIZE 25000000
 #define TRACE_LOG_LINE_SIZE 100
+#define MY_BT
 
 #ifdef MPICH2
 #define SHIFT(COMM_ID) (((COMM_ID & 0xf0000000) >> 24) + (COMM_ID & 0x0000000f))
@@ -130,6 +131,29 @@ static char *addr_threshold;
 bool mpi_finalize_flag = false;
 
 // int mpiRank = 0;
+
+
+int my_backtrace(unw_word_t* buffer, int max_depth) {
+  unw_cursor_t cursor;
+  unw_context_t context;
+
+  // Initialize cursor to current frame for local unwinding.
+  unw_getcontext(&context);
+  unw_init_local(&cursor, &context);
+
+  // Unwind frames one by one, going up the frame stack.
+  int depth = 0;
+  while (unw_step(&cursor) > 0 && depth < max_depth) {
+    unw_word_t pc;
+    unw_get_reg(&cursor, UNW_REG_IP, &pc);
+    if (pc == 0) {
+      break;
+    }
+    buffer[depth] = pc;
+    depth++;
+  }
+  return depth;
+}
 
 // Dump mpi info log
 static void writeCollMpiInfoLog() {
@@ -231,10 +255,20 @@ static void fini() {
 // Record mpi info to log
 
 void TRACE_COLL(MPI_Comm comm, double exe_time) {
-  void *buffer[MAX_STACK_DEPTH] = {0};
+
+#ifdef MY_BT
+  unw_word_t buffer[MAX_STACK_DEPTH] = {0};
+#else
+  void* buffer[MAX_STACK_DEPTH];
+  memset(buffer, 0, sizeof(buffer));
+#endif
   unsigned int i, depth = 0;
   // memset(buffer, 0, sizeof(buffer));
+#ifdef MY_BT
+  depth = my_backtrace(buffer, MAX_STACK_DEPTH);
+#else
   depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+#endif
   char call_path[MAX_CALL_PATH_LEN] = {0};
   int offset = 0;
 
@@ -282,9 +316,19 @@ void TRACE_COLL(MPI_Comm comm, double exe_time) {
 }
 
 void TRACE_P2P(char type, int request_count, int *source, int *dest, int *tag, double exe_time) {
-  void *buffer[MAX_STACK_DEPTH] = {0};
+
+#ifdef MY_BT
+  unw_word_t buffer[MAX_STACK_DEPTH] = {0};
+#else
+  void* buffer[MAX_STACK_DEPTH];
+  memset(buffer, 0, sizeof(buffer));
+#endif
   unsigned int i, j, depth = 0;
+#ifdef MY_BT
+  depth = my_backtrace(buffer, MAX_STACK_DEPTH);
+#else
   depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+#endif
   char call_path[MAX_CALL_PATH_LEN] = {0};
   int offset = 0;
 
