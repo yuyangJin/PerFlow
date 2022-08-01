@@ -53,6 +53,7 @@ struct addr_debug_info_t {
   std::string file_name;
   std::string func_name;
   int line_num;
+  bool is_executable;
 
   type::addr_t GetAddress() { return this->addr; }
   std::string& GetFileName() { return this->file_name; }
@@ -63,6 +64,9 @@ struct addr_debug_info_t {
   void SetFileName(std::string& file_name) { this->file_name = std::string(file_name); }
   void SetFuncName(std::string& func_name) { this->func_name = std::string(func_name); }
   void SetLineNum(int line_num) { this->line_num = line_num; }
+  void SetIsExecutableFlag(bool flag) {this->is_executable = flag;}
+
+  bool IsExecutable(){return this->is_executable;}
 };
 
 /** Determine whether an address is in .text segment.
@@ -870,6 +874,15 @@ class PerfData {
    */
   void GetVertexDataCallPath(unsigned long int data_index, std::stack<unsigned long long>& call_path);
 
+  // /**
+  //  * @brief Set the Vertex Data Call Path object
+  //  * 
+  //  * @param data_index 
+  //  * @param call_path_stack 
+  //  */
+  // void SetVertexDataCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack);
+
+
   /** Query source call path of a piece of edge type performance data through index
    * @param data_index - index of the piece of data
    * @param call_path - call path of the queried piece of data
@@ -1143,7 +1156,7 @@ class SharedObjAnalysis {
   void GetDebugInfo(type::addr_t addr, type::addr_debug_info_t& debug_info);
 
   void GetDebugInfos(std::unordered_set<type::addr_t>& addrs,
-                     std::map<type::addr_t, type::addr_debug_info_t*>& debug_info_map);
+                     std::map<type::addr_t, type::addr_debug_info_t*>& debug_info_map, std::string& binary_name);
 };  // class SharedObjAnalysis
 
 }  // namespace collector

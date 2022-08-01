@@ -56,15 +56,57 @@ class GPerf {
    */
   std::map<type::addr_t, core::ControlFlowGraph*>& GetControlFlowGraphs();
 
-  /** Program Call Graph **/
-
-  void GenerateDynAddrDebugInfo(core::PerfData* perf_data, collector::SharedObjAnalysis* shared_obj_analysis);
-  /** Get debug infos of dynamic
-   *
+  /** Generate debug infos of dynamic executables or libraries
+   * @param perf_data - performance data
+   * @param all_shared_obj_analysis - shared object information of all processes
+   * @param binary_name
   */
-  void GenerateDynAddrDebugInfo(core::PerfData* perf_data, std::string& shared_obj_map_file_name);
+  void GenerateDynAddrDebugInfo(core::PerfData* perf_data, std::map<type::procs_t, collector::SharedObjAnalysis*>& all_shared_obj_analysis, std::string& binary_name);
+
+  /** Generate debug infos of dynamic executables or libraries
+   * @param perf_data - performance data
+   * @param shared_obj_map_file_name - file name of shared object
+  */
+  
+  void GenerateDynAddrDebugInfo(core::PerfData* perf_data, std::string& shared_obj_map_file_name, std::string& binary_name);
+
+    void GenerateDynAddrDebugInfo(core::PerfData* perf_data, std::string& shared_obj_map_file_name, const char* binary_name);
+
+  /** Generate debug infos of dynamic executables or libraries
+   * @param perf_data - performance data
+   * @param num_procs - the number of processes
+  */
+  void GenerateDynAddrDebugInfo(core::PerfData *perf_data, type::procs_t num_procs, std::string& binary_name);
+
+  /** Get debug infos of dynamic executables or libraries
+   * @param perf_data - performance data
+   * @param num_procs - the number of processes
+  */
+
+  void GenerateDynAddrDebugInfo(core::PerfData *perf_data, type::procs_t num_procs, const char* binary_name);
 
   std::map<type::addr_t, type::addr_debug_info_t*>& GetDynAddrDebugInfo();
+
+  /**
+   * @brief If debug infos of dynamic executables or libraries have been generated.
+   * 
+   * @return true 
+   * @return false 
+   */
+
+  bool HasDynAddrDebugInfo();
+
+  /**
+   * @brief Convert dynamic address of the executed executable to offset address.
+   * 
+   * @param call_path 
+   */
+
+  void ConvertDynAddrToOffset(type::call_path_t& call_path);
+
+
+
+  /** Program Call Graph **/
 
   /** Read static program call graph from an input file.
    * @param file_name - file name of static program call graph

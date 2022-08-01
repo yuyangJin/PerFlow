@@ -348,6 +348,16 @@ void PerfData::GetVertexDataCallPath(unsigned long int data_index, std::stack<ty
   return;
 }
 
+// void PerfData::SetVertexDataCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack) {
+//   VDS* data = &(this->vertex_perf_data[data_index]);
+//   int call_path_len = call_path_stack.size();
+//   for (int i = 0; i < call_path_len; i++) {
+//     data->call_path[call_path_len - i - 1] = call_path_stack.top();
+//     call_path_stack.pop();
+//   }
+//   return;
+// }
+
 void PerfData::GetEdgeDataSrcCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack) {
   EDS* data = &(this->edge_perf_data[data_index]);
   for (int i = 0; i < data->call_path_len; i++) {

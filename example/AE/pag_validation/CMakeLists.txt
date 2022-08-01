@@ -1,2 +1,2 @@
 configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pag_validation.py ${CMAKE_CURRENT_BINARY_DIR}/pag_validation.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cg.B.8 ${CMAKE_CURRENT_BINARY_DIR}/cg.B.8 COPYONLY)
+configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cg.B.x ${CMAKE_CURRENT_BINARY_DIR}/cg.B.x COPYONLY)

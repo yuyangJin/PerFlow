@@ -23,7 +23,7 @@ int main(int argc, char** argv) {
   auto gperf = std::make_unique<graph_perf::GPerf>();
 
   gperf->ReadFunctionAbstractionGraphs(pag_dir_name);
-  gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name);
+  gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name, bin_name);
   gperf->GenerateProgramCallGraph(bin_name, perf_data);
   gperf->GenerateProgramAbstractionGraph(perf_data);
 

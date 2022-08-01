@@ -101,36 +101,130 @@ core::ControlFlowGraph *GPerf::GetControlFlowGraph(type::addr_t entry_addr) {
 
 std::map<type::addr_t, core::ControlFlowGraph *> &GPerf::GetControlFlowGraphs() { return this->func_entry_addr_to_cfg; }
 
-void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, collector::SharedObjAnalysis *shared_obj_analysis) {
+
+
+void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, std::map<type::procs_t, collector::SharedObjAnalysis *>& all_shared_obj_analysis, std::string& binary_name) {
   /** Get debug info of shared object library addresses */
+  dbg(binary_name);
   auto data_size = perf_data->GetVertexDataSize();
-  std::unordered_set<type::addr_t> addrs;
+  std::map<type::procs_t, std::unordered_set<type::addr_t>> all_addrs;
   for (unsigned long int i = 0; i < data_size; i++) {
     std::stack<unsigned long long> call_path;
     perf_data->GetVertexDataCallPath(i, call_path);
+    auto procs_id = perf_data->GetVertexDataProcsId(i);
 
     while (!call_path.empty()) {
       type::addr_t call_addr = call_path.top();
       call_path.pop();
       if (type::IsDynAddr(call_addr)) {
-        addrs.insert(call_addr);
+        all_addrs[procs_id].insert(call_addr);
       }
     }
   }
-  shared_obj_analysis->GetDebugInfos(addrs, this->dyn_addr_to_debug_info);
+  // shared_obj_analysis->GetDebugInfos(addrs, this->dyn_addr_to_debug_info);
+  for (auto& kv: all_addrs){
+    type::procs_t procs_id = kv.first;
+    auto addrs = kv.second;
+    all_shared_obj_analysis[procs_id]->GetDebugInfos(addrs, this->dyn_addr_to_debug_info, binary_name);
+  }
+
   this->has_dyn_addr_debug_info = true;
+  
+  for (auto& kv: all_addrs){
+    FREE_CONTAINER(kv.second);
+  }
+  FREE_CONTAINER(all_addrs);
 }  // GPerf::GenerateDynAddrDebugInfo
 
-void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, std::string &shared_obj_map_file_name) {
+void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, std::string &shared_obj_map_file_name, std::string& binary_name) {
+  std::map<type::procs_t, collector::SharedObjAnalysis *> all_shared_obj_analysis;
   collector::SharedObjAnalysis *shared_obj_analysis = new baguatool::collector::SharedObjAnalysis();
   shared_obj_analysis->ReadSharedObjMap(shared_obj_map_file_name);
+  all_shared_obj_analysis[0] = shared_obj_analysis;
 
-  GenerateDynAddrDebugInfo(perf_data, shared_obj_analysis);
+  GenerateDynAddrDebugInfo(perf_data, all_shared_obj_analysis, binary_name);
+
+  delete shared_obj_analysis;
+  FREE_CONTAINER(all_shared_obj_analysis);
 }  // GPerf::GenerateDynAddrDebugInfo
+
+void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, std::string &shared_obj_map_file_name, const char* binary_name) {
+  std::string binary_name_str = std::string(binary_name);
+  GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name, binary_name_str);
+} // GPerf::GenerateDynAddrDebugInfo
+
+void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, type::procs_t num_procs, std::string& binary_name) {
+  std::map<type::procs_t, collector::SharedObjAnalysis *> all_shared_obj_analysis;
+  for (type::procs_t i = 0; i < num_procs; i++) {
+    std::string somap_file_name_str = std::string("SOMAP+") + std::to_string(i) + std::string(".TXT");
+    collector::SharedObjAnalysis *shared_obj_analysis = new baguatool::collector::SharedObjAnalysis();
+    shared_obj_analysis->ReadSharedObjMap(somap_file_name_str);
+    all_shared_obj_analysis[i] = shared_obj_analysis;
+  }
+
+  GenerateDynAddrDebugInfo(perf_data, all_shared_obj_analysis, binary_name);
+
+  for (auto& kv: all_shared_obj_analysis){
+    // FREE_CONTAINER((*(kv.second)));
+    delete kv.second;
+  }
+  FREE_CONTAINER(all_shared_obj_analysis);
+} // GPerf::GenerateDynAddrDebugInfo
+
+void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, type::procs_t num_procs, const char* binary_name) {
+  std::string binary_name_str = std::string(binary_name);
+  GenerateDynAddrDebugInfo(perf_data, num_procs, binary_name_str);
+} // GPerf::GenerateDynAddrDebugInfo
 
 std::map<type::addr_t, type::addr_debug_info_t *> &GPerf::GetDynAddrDebugInfo() {
   return dyn_addr_to_debug_info;
 }  // GPerf::GetDynAddrDebugInfo
+
+bool GPerf::HasDynAddrDebugInfo() {
+  return this->has_dyn_addr_debug_info;
+}
+
+void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
+    dbg("start converting dyn addr to offset");
+    auto dyn_addr_to_debug_info_map = this->GetDynAddrDebugInfo();
+
+    std::stack<type::addr_t> tmp;
+    while (!call_path.empty()) {
+      type::addr_t addr = call_path.top();
+      tmp.push(addr);
+      call_path.pop();
+    }
+
+    while (!tmp.empty()) {
+      type::addr_t addr = tmp.top();
+      
+      if (dyn_addr_to_debug_info_map.find(addr) == dyn_addr_to_debug_info_map.end()) { // not found
+        call_path.push(addr);
+        tmp.pop();
+        continue;
+      }
+      auto debug_info = dyn_addr_to_debug_info_map[addr];
+      if (debug_info->IsExecutable()) {
+        call_path.push(debug_info->GetAddress());
+        dbg(debug_info->GetAddress());
+      } else {
+        call_path.push(addr);
+      }
+      
+      tmp.pop();
+    }
+    FREE_CONTAINER(tmp);
+
+
+}
+
+
+
+
+
+
+
+
 
 void SetCallTypeAsStatic(core::ProgramCallGraph *pcg, type::edge_t edge_id, void *extra) {
   pcg->SetEdgeType(edge_id, type::STA_CALL_EDGE);  // static
@@ -743,6 +837,7 @@ type::vertex_t GPerf::GetVertexWithInterThreadAnalysis(type::thread_t thread_id,
 }
 
 void GPerf::DataEmbedding(core::PerfData *perf_data) {
+  dbg("start data embedding");
   if (!build_create_tid_to_callpath_and_tid_flag) {
     build_create_tid_to_callpath_and_tid(perf_data);
   }
@@ -758,8 +853,12 @@ void GPerf::DataEmbedding(core::PerfData *perf_data) {
     auto thread_id = perf_data->GetVertexDataThreadId(i);
 
     // type::vertex_t queried_vertex_id = this->root_pag->GetVertexWithCallPath(0, call_path);
+    if (HasDynAddrDebugInfo()) {
+      ConvertDynAddrToOffset(call_path);
+    }
+    dbg("start querying");
     auto queried_vertex_id = GetVertexWithInterThreadAnalysis(thread_id, call_path);
-    // dbg(queried_vertex_id);
+    dbg(queried_vertex_id);
     type::perf_data_t data = this->root_pag->GetGraphPerfData()->GetPerfData(
         queried_vertex_id, perf_data->GetMetricName(), process_id, thread_id);
     // dbg(data);

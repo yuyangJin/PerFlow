@@ -20,6 +20,7 @@ int main(int argc, char** argv) {
 
   /** Read confrol-flow graph and program call graph */
   graph_perf->ReadFunctionAbstractionGraphs(pag_dir_name);
+  // graph_perf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name);
   graph_perf->GenerateProgramCallGraph(bin_name, perf_data);
   // graph_perf->GetProgramCallGraph()->DumpGraphGML("hy_pcg.gml");
   graph_perf->GenerateProgramAbstractionGraph(perf_data);
@@ -27,7 +28,6 @@ int main(int argc, char** argv) {
   pag->DumpGraphGML("static_pag.gml");
 
   /** Data embedding */
-  graph_perf->GenerateDynAddrDebugInfo(perf_data, num_procs, bin_name);
   graph_perf->DataEmbedding(perf_data);
   auto graph_perf_data = pag->GetGraphPerfData();
   std::string output_file_name_str("output.json");

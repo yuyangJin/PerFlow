@@ -30,7 +30,22 @@ void SharedObjAnalysis::CollectSharedObjMap() {
         split(line_vec[0], "-", line_vec_1);
         type::addr_t start_addr = strtoull(line_vec_1[0].c_str(), 0, 16);
         type::addr_t end_addr = strtoull(line_vec_1[1].c_str(), 0, 16);
-        this->shared_obj_map.push_back(std::make_tuple(start_addr, end_addr, std::string(line_vec[5])));
+        
+        auto shared_obj_map_size = this->shared_obj_map.size();
+        if(shared_obj_map_size > 0) {
+          auto last_shared_obj = this->shared_obj_map[shared_obj_map_size - 1];
+          auto last_shared_obj_name = std::get<2>(last_shared_obj);
+          if (last_shared_obj_name == std::string(line_vec[5])){ // If last object is same as current one, only update the end address
+            std::get<1>(this->shared_obj_map[shared_obj_map_size - 1]) = end_addr;
+          } else {
+            this->shared_obj_map.push_back(std::make_tuple(start_addr, end_addr, std::string(line_vec[5])));
+          }
+        } else {
+          this->shared_obj_map.push_back(std::make_tuple(start_addr, end_addr, std::string(line_vec[5])));
+        }
+        
+
+        
       }
     }
     FREE_CONTAINER(line_vec);
@@ -154,7 +169,7 @@ void SharedObjAnalysis::GetDebugInfo(type::addr_t addr, type::addr_debug_info_t&
 }
 
 void SharedObjAnalysis::GetDebugInfos(std::unordered_set<type::addr_t>& addrs,
-                                      std::map<type::addr_t, type::addr_debug_info_t*>& debug_info_map) {
+                                      std::map<type::addr_t, type::addr_debug_info_t*>& debug_info_map, std::string& binary_name) {
   /** Classify addrs by shared_obj_name */
   std::map<std::string, std::vector<std::pair<type::addr_t, type::addr_t>>>
       shared_obj_to_addrs;  // map < shared_obj_name, vector < offest, address > >
@@ -169,57 +184,75 @@ void SharedObjAnalysis::GetDebugInfos(std::unordered_set<type::addr_t>& addrs,
 
   /** Get debug infos */
   for (auto& kv : shared_obj_to_addrs) {
-    if (kv.first.find(".so") == std::string::npos || kv.first.find("sampler.so") != std::string::npos ||
+    if (// kv.first.find(".so") == std::string::npos || 
+        kv.first.find("sampler.so") != std::string::npos ||
         // kv.first.find("baguatool") != std::string::npos ||
         kv.first.find("papi") != std::string::npos) {
       continue;
     }
-    struct link_map* lm = (struct link_map*)dlopen(kv.first.c_str(), RTLD_LAZY | RTLD_GLOBAL);
-    if (!lm) {
-      fputs(dlerror(), stderr);
-      exit(1);
-    }
-    type::addr_t base_addr = lm->l_addr;
+    // struct link_map* lm = (struct link_map*)dlopen(kv.first.c_str(), RTLD_LAZY | RTLD_GLOBAL);
+    // if (!lm) {
+    //   fputs(dlerror(), stderr);
+    //   exit(1);
+    // }
+    // type::addr_t base_addr = lm->l_addr;
+    // for (auto& p : kv.second) {
+    //   type::addr_t offset = p.first;
+    //   type::addr_t raw_addr = p.second;
+    //   type::addr_t new_load_addr = offset + base_addr;
+    //   std::string func_name;
+
+    //   /** Use dladdr() to get function of address */
+    //   Dl_info DlInfo;
+    //   int ret = dladdr((void*)new_load_addr, &DlInfo);
+
+    //   if (ret && DlInfo.dli_sname) { /** If dladdr obtains function name successfully */
+    //     int status = 0;
+    //     char* cpp_name = abi::__cxa_demangle(DlInfo.dli_sname, 0, 0, &status);
+    //     if (status >= 0) {
+    //       func_name = std::string(cpp_name);
+    //     } else {
+    //       func_name = std::string(DlInfo.dli_sname);
+    //     }
+    //   }
+    //   /**
+    //    * TODO: use addr2line to analyze a sequence of addresses, now is one by one.
+    //   */
+    //   else { /** If dladdr fails to obtain function name */
+    //     std::stringstream offset_ss;
+    //     offset_ss << std::hex << offset;
+    //     std::string result;
+    //     std::string cmd_line =
+    //         std::string("addr2line -fC -e ") + std::string(DlInfo.dli_fname) + std::string(" ") + offset_ss.str();
+    //     execute_cmd(cmd_line.c_str(), result);
+    //     std::stringstream ss(result);
+    //     ss >> func_name;
+    //   }
+
+    //   dbg(raw_addr, DlInfo.dli_fname, func_name);
+    //   type::addr_debug_info_t* debug_info = new type::addr_debug_info_t();
+    //   debug_info->SetAddress(offset);
+    //   debug_info->SetFuncName(func_name);
+    //   if(kv.first.find(binary_name) != std::string::npos){
+    //     debug_info->SetIsExecutableFlag(true);
+    //   } else {
+    //     debug_info->SetIsExecutableFlag(false);
+    //   }
+    //   debug_info_map[raw_addr] = debug_info;
+    // }
+    // dlclose(lm);
     for (auto& p : kv.second) {
       type::addr_t offset = p.first;
       type::addr_t raw_addr = p.second;
-      type::addr_t new_load_addr = offset + base_addr;
-      std::string func_name;
-
-      /** Use dladdr() to get function of address */
-      Dl_info DlInfo;
-      int ret = dladdr((void*)new_load_addr, &DlInfo);
-
-      if (ret && DlInfo.dli_sname) { /** If dladdr obtains function name successfully */
-        int status = 0;
-        char* cpp_name = abi::__cxa_demangle(DlInfo.dli_sname, 0, 0, &status);
-        if (status >= 0) {
-          func_name = std::string(cpp_name);
-        } else {
-          func_name = std::string(DlInfo.dli_sname);
-        }
-      }
-      /**
-       * TODO: use addr2line to analyze a sequence of addresses, now is one by one.
-      */
-      else { /** If dladdr fails to obtain function name */
-        std::stringstream offset_ss;
-        offset_ss << std::hex << offset;
-        std::string result;
-        std::string cmd_line =
-            std::string("addr2line -fC -e ") + std::string(DlInfo.dli_fname) + std::string(" ") + offset_ss.str();
-        execute_cmd(cmd_line.c_str(), result);
-        std::stringstream ss(result);
-        ss >> func_name;
-      }
-
-      dbg(raw_addr, DlInfo.dli_fname, func_name);
       type::addr_debug_info_t* debug_info = new type::addr_debug_info_t();
       debug_info->SetAddress(offset);
-      debug_info->SetFuncName(func_name);
+      if(kv.first.find(binary_name) != std::string::npos){
+        debug_info->SetIsExecutableFlag(true);
+      } else {
+        debug_info->SetIsExecutableFlag(false);
+      }
       debug_info_map[raw_addr] = debug_info;
     }
-    dlclose(lm);
   }
 
   for (auto& kv : shared_obj_to_addrs) {
