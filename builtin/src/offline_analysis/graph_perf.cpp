@@ -847,6 +847,7 @@ void GPerf::DataEmbedding(core::PerfData *perf_data) {
   for (unsigned long int i = 0; i < data_size; i++) {
     type::call_path_t call_path;
     perf_data->GetVertexDataCallPath(i, call_path);
+    call_path.pop();
 
     auto value = perf_data->GetVertexDataValue(i);
     auto process_id = perf_data->GetVertexDataProcsId(i);
