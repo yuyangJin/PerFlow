@@ -20,7 +20,7 @@ int main(int argc, char** argv) {
   std::string shared_obj_map_file_name = std::string(argv[3]);
 
   gperf->ReadFunctionAbstractionGraphs(pag_dir_name);
-  gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name);
+  gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name, bin_name);
   gperf->GenerateProgramCallGraph(bin_name, perf_data);
   gperf->GetProgramCallGraph()->DumpGraphGML("hy_pcg.gml");
 }
