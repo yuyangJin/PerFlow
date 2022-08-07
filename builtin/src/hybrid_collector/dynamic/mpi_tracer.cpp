@@ -49,6 +49,8 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 // Use index to record all communication traces
 //
 
+#define UNW_LOCAL_ONLY // must define before including libunwind.h
+
 #include <libunwind.h>
 #include <mpi.h>
 #include <stdio.h>
@@ -58,6 +60,7 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 #include <iostream>
 #include <map>
 #include <string>
+
 
 using namespace std;
 

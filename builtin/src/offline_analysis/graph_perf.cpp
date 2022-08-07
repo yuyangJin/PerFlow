@@ -185,7 +185,7 @@ bool GPerf::HasDynAddrDebugInfo() {
 }
 
 void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
-    dbg("start converting dyn addr to offset");
+    // dbg("start converting dyn addr to offset");
     auto dyn_addr_to_debug_info_map = this->GetDynAddrDebugInfo();
 
     std::stack<type::addr_t> tmp;
@@ -206,7 +206,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
       auto debug_info = dyn_addr_to_debug_info_map[addr];
       if (debug_info->IsExecutable()) {
         call_path.push(debug_info->GetAddress());
-        dbg(debug_info->GetAddress());
+        // dbg(debug_info->GetAddress());
       } else {
         call_path.push(addr);
       }
@@ -857,9 +857,9 @@ void GPerf::DataEmbedding(core::PerfData *perf_data) {
     if (HasDynAddrDebugInfo()) {
       ConvertDynAddrToOffset(call_path);
     }
-    dbg("start querying");
+    // dbg("start querying");
     auto queried_vertex_id = GetVertexWithInterThreadAnalysis(thread_id, call_path);
-    dbg(queried_vertex_id);
+    // dbg(queried_vertex_id);
     type::perf_data_t data = this->root_pag->GetGraphPerfData()->GetPerfData(
         queried_vertex_id, perf_data->GetMetricName(), process_id, thread_id);
     // dbg(data);
