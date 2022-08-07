@@ -1,4 +1,6 @@
 import os
+import json
+import numpy
 from pag import *
 from graphvizoutput import *
 
@@ -12,6 +14,9 @@ class PerFlow(object):
 
         self.tdpag = None
         self.ppag = None
+
+        self.tdpag_perf_data = None
+        self.ppag_perf_data = None
     
     def setBinary(self, bin_name = ""):
         if bin_name != "":
@@ -86,11 +91,26 @@ class PerFlow(object):
         os.system(pag_generation_cmd_line)
 
 
-        #read pag
+        # read pag
         if tdpag_file != '':
             self.tdpag = ProgramAbstractionGraph.Read_GML(tdpag_file)
         if ppag_file != '':
             self.ppag = ProgramAbstractionGraph.Read_GML(ppag_file)
+        
+        # read pag performance data
+        with open('output.json', 'r') as f:
+            tdpag_perf_data = json.load(f)
+        f.close()
+        self.tdpag_perf_data = tdpag_perf_data
+
+        print(self.tdpag_perf_data)
+
+        with open('mpag_perf_data.json', 'r') as f:
+            ppag_perf_data = json.load(f)
+        f.close()
+        self.ppag_perf_data = ppag_perf_data
+
+
 
     # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
     def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0):
@@ -128,6 +148,30 @@ class PerFlow(object):
             n = 10
         return V.select(lambda v: float(v['CYCAVGPERCENT']) > 0.0001)
         #return V.sort_by(metric).top(n)
+
+    def imbalance_analysis(self, V):
+        for v in V:
+            if str(int(v['id'])) in self.tdpag_perf_data.keys():
+                print(int(v['id']), self.tdpag_perf_data[str(int(v['id']))])
+                data = self.tdpag_perf_data[str(int(v['id']))]
+                for metric, metric_data in data.items():
+                    # gather all procs data
+                    metric_data_list = []
+                    for procs, procs_data in metric_data.items():
+                        # gather all thread data
+                        procs_data_tot_num = 0.0
+                        for thread, thread_data in procs_data.items():
+                            procs_data_tot_num += thread_data
+                        metric_data_list.append(procs_data_tot_num)
+                    
+                    # Calculate variance
+                    mean = numpy.mean(metric_data_list)
+                    var = numpy.var(metric_data_list)
+                    std_var = numpy.std(metric_data_list)
+                    if std_var > 70:
+                        print(metric, "mean:", mean, "variance:", var, "standard variance:", std_var)
+                        
+
     
     def report(self, V, attrs=[]):
         if len(attrs) == 0:
