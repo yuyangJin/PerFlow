@@ -31,9 +31,11 @@ namespace baguatool::core {
 
 //   void GenerateControlFlowGraphs();
 
-//   std::unique_ptr<ControlFlowGraph> GetControlFlowGraph(std::string func_name);
+//   std::unique_ptr<ControlFlowGraph> GetControlFlowGraph(std::string
+//   func_name);
 
-//   std::map<std::string, std::unique_ptr<ControlFlowGraph>>& GetControlFlowGraphs();
+//   std::map<std::string, std::unique_ptr<ControlFlowGraph>>&
+//   GetControlFlowGraphs();
 
 //   /** Program Call Graph **/
 
@@ -47,9 +49,11 @@ namespace baguatool::core {
 
 //   /** Intra-procedural Analysis **/
 
-//   std::unique_ptr<ProgramAbstractionGraph> GetFunctionAbstractionGraph(std::string func_name);
+//   std::unique_ptr<ProgramAbstractionGraph>
+//   GetFunctionAbstractionGraph(std::string func_name);
 
-//   std::map<std::string, std::unique_ptr<ProgramAbstractionGraph>>& GetFunctionAbstractionGraphs();
+//   std::map<std::string, std::unique_ptr<ProgramAbstractionGraph>>&
+//   GetFunctionAbstractionGraphs();
 
 //   void IntraProceduralAnalysis();
 
@@ -59,9 +63,10 @@ namespace baguatool::core {
 
 //   void GenerateProgramAbstractionGraph();
 
-//   // void ConnectCallerCallee(ProgramAbstractionGraph* pag, int vertex_id, void* extra);
+//   // void ConnectCallerCallee(ProgramAbstractionGraph* pag, int vertex_id,
+//   void* extra);
 // };  // class HybridAnalysis
 
-}  // namespace baguatool::core
+} // namespace baguatool::core
 
 #endif

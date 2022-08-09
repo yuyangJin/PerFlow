@@ -1,15 +1,17 @@
 #include "core/pg.h"
-#include <stack>
 #include "baguatool.h"
 #include "common/common.h"
 #include "vertex_type.h"
+#include <stack>
 
 namespace baguatool::core {
 
 ProgramGraph::ProgramGraph() {}
 ProgramGraph::~ProgramGraph() {}
 
-void ProgramGraph::VertexTraversal(void (*CALL_BACK_FUNC)(ProgramGraph *, int, void *), void *extra) {
+void ProgramGraph::VertexTraversal(void (*CALL_BACK_FUNC)(ProgramGraph *, int,
+                                                          void *),
+                                   void *extra) {
   // this->DeleteExtraTailVertices();
   igraph_vs_t vs;
   igraph_vit_t vit;
@@ -36,7 +38,9 @@ void ProgramGraph::VertexTraversal(void (*CALL_BACK_FUNC)(ProgramGraph *, int, v
   // printf("Function %s End\n", this->GetGraphAttributeString("name"));
 }
 
-void ProgramGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramGraph *, int, void *), void *extra) {
+void ProgramGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramGraph *, int,
+                                                        void *),
+                                 void *extra) {
   // this->DeleteExtraTailVertices();
   igraph_es_t es;
   igraph_eit_t eit;
@@ -63,13 +67,16 @@ void ProgramGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramGraph *, int, voi
   // printf("Function %s End\n", this->GetGraphAttributeString("name"));
 }
 
-int ProgramGraph::SetVertexBasicInfo(const type::vertex_t vertex_id, const int vertex_type, const char *vertex_name) {
+int ProgramGraph::SetVertexBasicInfo(const type::vertex_t vertex_id,
+                                     const int vertex_type,
+                                     const char *vertex_name) {
   SETVAN(&ipag_->graph, "type", vertex_id, (type::num_t)vertex_type);
   SETVAS(&ipag_->graph, "name", vertex_id, vertex_name);
   return 0;
 }
 
-int ProgramGraph::SetVertexDebugInfo(const type::vertex_t vertex_id, const type::addr_t entry_addr,
+int ProgramGraph::SetVertexDebugInfo(const type::vertex_t vertex_id,
+                                     const type::addr_t entry_addr,
                                      const type::addr_t exit_addr) {
   SETVAN(&ipag_->graph, "saddr", vertex_id, (type::num_t)entry_addr);
   SETVAN(&ipag_->graph, "eaddr", vertex_id, (type::num_t)exit_addr);
@@ -78,7 +85,7 @@ int ProgramGraph::SetVertexDebugInfo(const type::vertex_t vertex_id, const type:
 
 int ProgramGraph::GetVertexType(type::vertex_t vertex_id) {
   return this->GetVertexAttributeNum("type", vertex_id);
-}  // function GetVertexType
+} // function GetVertexType
 
 int ProgramGraph::SetEdgeType(const type::edge_t edge_id, const int edge_type) {
   this->SetEdgeAttributeNum("type", edge_id, edge_type);
@@ -87,15 +94,16 @@ int ProgramGraph::SetEdgeType(const type::edge_t edge_id, const int edge_type) {
 
 int ProgramGraph::GetEdgeType(type::edge_t edge_id) {
   return this->GetEdgeAttributeNum("type", edge_id);
-}  // function GetEdgeType
+} // function GetEdgeType
 
-int ProgramGraph::GetEdgeType(type::vertex_t src_vertex_id, type::vertex_t dest_vertex_id) {
+int ProgramGraph::GetEdgeType(type::vertex_t src_vertex_id,
+                              type::vertex_t dest_vertex_id) {
   type::edge_t edge_id = QueryEdge(src_vertex_id, dest_vertex_id);
   if (edge_id != -1) {
     return this->GetEdgeAttributeNum("type", edge_id);
   }
   return type::NONE_EDGE_TYPE;
-}  // function GetEdgeType
+} // function GetEdgeType
 
 type::addr_t ProgramGraph::GetVertexEntryAddr(type::vertex_t vertex_id) {
   return this->GetVertexAttributeNum("saddr", vertex_id);
@@ -105,7 +113,8 @@ type::addr_t ProgramGraph::GetVertexExitAddr(type::vertex_t vertex_id) {
   return this->GetVertexAttributeNum("eaddr", vertex_id);
 }
 
-type::vertex_t ProgramGraph::GetChildVertexWithAddr(type::vertex_t root_vertex, type::addr_t addr) {
+type::vertex_t ProgramGraph::GetChildVertexWithAddr(type::vertex_t root_vertex,
+                                                    type::addr_t addr) {
   // std::vector<type::vertex_t> children = GetChildVertexSet(root_vertex);
   std::vector<type::vertex_t> children;
   GetChildVertexSet(root_vertex, children);
@@ -119,7 +128,8 @@ type::vertex_t ProgramGraph::GetChildVertexWithAddr(type::vertex_t root_vertex, 
     unsigned long long int e_addr = GetVertexAttributeNum("eaddr", child);
     // dbg(addr, s_addr, e_addr);
     int type = GetVertexType(child);
-    if (type == type::CALL_NODE || type == type::CALL_REC_NODE || type == type::CALL_IND_NODE) {
+    if (type == type::CALL_NODE || type == type::CALL_REC_NODE ||
+        type == type::CALL_IND_NODE) {
       if (addr >= s_addr - 4 && addr <= e_addr + 4) {
         return child;
       }
@@ -135,11 +145,13 @@ type::vertex_t ProgramGraph::GetChildVertexWithAddr(type::vertex_t root_vertex, 
 
   // Not found
   return -1;
-}  // function GetChildVertexWithAddr
+} // function GetChildVertexWithAddr
 
-type::vertex_t ProgramGraph::GetVertexWithCallPath(type::vertex_t root_vertex,
-                                                   std::stack<unsigned long long> &call_path_stack) {
-  // if call path stack is empty, it means the call path points to current vertex, so return it.
+type::vertex_t ProgramGraph::GetVertexWithCallPath(
+    type::vertex_t root_vertex,
+    std::stack<unsigned long long> &call_path_stack) {
+  // if call path stack is empty, it means the call path points to current
+  // vertex, so return it.
   if (call_path_stack.empty()) {
     return root_vertex;
   }
@@ -147,7 +159,7 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(type::vertex_t root_vertex,
   // Get the top addr of the stack
   type::addr_t addr = call_path_stack.top();
 
-// dbg(addr);
+  // dbg(addr);
 
 #ifdef IGNORE_SHARED_OBJ
   /** Step over .dynamic address */
@@ -175,9 +187,11 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(type::vertex_t root_vertex,
     }
     found_vertex = child_vertex;
 
-    // If found_vertex is type::FUNC_NODE or type::LOOP_NODE, then continue searching child_vertex
+    // If found_vertex is type::FUNC_NODE or type::LOOP_NODE, then continue
+    // searching child_vertex
     auto found_vertex_type = GetVertexType(found_vertex);
-    if (type::FUNC_NODE != found_vertex_type && type::LOOP_NODE != found_vertex_type &&
+    if (type::FUNC_NODE != found_vertex_type &&
+        type::LOOP_NODE != found_vertex_type &&
         type::BB_NODE != found_vertex_type) {
       break;
     }
@@ -193,13 +207,13 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(type::vertex_t root_vertex,
   // From the found_vertex, recursively search vertex with current call path
   return GetVertexWithCallPath(found_vertex, call_path_stack);
 
-}  // function GetVertexWithCallPath
+} // function GetVertexWithCallPath
 
 // void
 typedef struct CallVertexWithAddrArg {
-  type::addr_t addr;              // input
-  type::vertex_t vertex_id = -1;  // output
-  bool find_flag = false;         // find flag
+  type::addr_t addr;             // input
+  type::vertex_t vertex_id = -1; // output
+  bool find_flag = false;        // find flag
 } CVWAArg;
 
 void CallVertexWithAddr(ProgramGraph *pg, int vertex_id, void *extra) {
@@ -211,8 +225,10 @@ void CallVertexWithAddr(ProgramGraph *pg, int vertex_id, void *extra) {
   if (pg->GetVertexAttributeNum("type", vertex_id) == type::CALL_NODE ||
       pg->GetVertexAttributeNum("type", vertex_id) == type::CALL_IND_NODE ||
       pg->GetVertexAttributeNum("type", vertex_id) == type::CALL_REC_NODE) {
-    type::addr_t s_addr = (type::addr_t)pg->GetVertexAttributeNum("saddr", vertex_id);
-    type::addr_t e_addr = (type::addr_t)pg->GetVertexAttributeNum("eaddr", vertex_id);
+    type::addr_t s_addr =
+        (type::addr_t)pg->GetVertexAttributeNum("saddr", vertex_id);
+    type::addr_t e_addr =
+        (type::addr_t)pg->GetVertexAttributeNum("eaddr", vertex_id);
     if (addr >= s_addr - 4 && addr <= e_addr + 4) {
       arg->vertex_id = vertex_id;
       arg->find_flag = true;
@@ -238,8 +254,10 @@ void FuncVertexWithAddr(ProgramGraph *pg, int vertex_id, void *extra) {
   }
   type::addr_t addr = arg->addr;
   if (pg->GetVertexAttributeNum("type", vertex_id) == type::FUNC_NODE) {
-    type::addr_t s_addr = (type::addr_t)pg->GetVertexAttributeNum("saddr", vertex_id);
-    type::addr_t e_addr = (type::addr_t)pg->GetVertexAttributeNum("eaddr", vertex_id);
+    type::addr_t s_addr =
+        (type::addr_t)pg->GetVertexAttributeNum("saddr", vertex_id);
+    type::addr_t e_addr =
+        (type::addr_t)pg->GetVertexAttributeNum("eaddr", vertex_id);
 
     if (addr >= s_addr - 4 && addr <= e_addr + 4) {
       arg->vertex_id = vertex_id;
@@ -259,7 +277,8 @@ type::vertex_t ProgramGraph::GetFuncVertexWithAddr(type::addr_t addr) {
   return vertex_id;
 }
 
-int ProgramGraph::AddEdgeWithAddr(type::addr_t call_addr, type::addr_t callee_addr) {
+int ProgramGraph::AddEdgeWithAddr(type::addr_t call_addr,
+                                  type::addr_t callee_addr) {
   type::vertex_t call_vertex = GetCallVertexWithAddr(call_addr);
   type::vertex_t callee_vertex = GetFuncVertexWithAddr(callee_addr);
   if (call_vertex == -1 || callee_vertex == -1) {
@@ -342,7 +361,8 @@ type::addr_t ProgramGraph::GetCalleeEntryAddr(type::vertex_t vertex_id) {
   return 0;
 }
 
-type::addr_t ProgramGraph::GetCalleeEntryAddr(type::vertex_t vertex_id, int input_type) {
+type::addr_t ProgramGraph::GetCalleeEntryAddr(type::vertex_t vertex_id,
+                                              int input_type) {
   // dbg(GetVertexAttributeString("name", vertex_id));
   std::vector<type::vertex_t> children;
   GetChildVertexSet(vertex_id, children);
@@ -367,7 +387,8 @@ type::addr_t ProgramGraph::GetCalleeEntryAddr(type::vertex_t vertex_id, int inpu
   return 0;
 }
 
-void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id, std::vector<type::addr_t> &entry_addrs) {
+void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id,
+                                       std::vector<type::addr_t> &entry_addrs) {
   // dbg(GetVertexAttributeString("name", vertex_id));
   std::vector<type::vertex_t> children;
   GetChildVertexSet(vertex_id, children);
@@ -378,7 +399,8 @@ void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id, std::vector<typ
   for (auto &child : children) {
     if (GetVertexType(child) == type::FUNC_NODE) {
       // dbg(GetVertexAttributeString("name", child));
-      type::addr_t entry_addr = (type::addr_t)GetVertexAttributeNum("saddr", child);
+      type::addr_t entry_addr =
+          (type::addr_t)GetVertexAttributeNum("saddr", child);
       entry_addrs.push_back(entry_addr);
     }
   }
@@ -388,7 +410,9 @@ void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id, std::vector<typ
   return;
 }
 
-void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id, std::vector<type::addr_t> &entry_addrs, int input_type) {
+void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id,
+                                       std::vector<type::addr_t> &entry_addrs,
+                                       int input_type) {
   // dbg(GetVertexAttributeString("name", vertex_id));
   std::vector<type::vertex_t> children;
   GetChildVertexSet(vertex_id, children);
@@ -402,7 +426,8 @@ void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id, std::vector<typ
         continue;
       }
       // dbg(GetVertexAttributeString("name", child));
-      type::addr_t entry_addr = (type::addr_t)GetVertexAttributeNum("saddr", child);
+      type::addr_t entry_addr =
+          (type::addr_t)GetVertexAttributeNum("saddr", child);
       entry_addrs.push_back(entry_addr);
     }
   }
@@ -415,7 +440,9 @@ void ProgramGraph::GetCalleeEntryAddrs(type::vertex_t vertex_id, std::vector<typ
 struct compare_addr {
   const std::vector<unsigned long long> &_v;
   compare_addr(const std::vector<unsigned long long> &v) : _v(v) {}
-  inline bool operator()(std::size_t i, std::size_t j) const { return _v[i] > _v[j]; }
+  inline bool operator()(std::size_t i, std::size_t j) const {
+    return _v[i] > _v[j];
+  }
 };
 
 struct IdAndAddr {
@@ -454,10 +481,12 @@ void SortChild(ProgramGraph *pg, int vertex_id, void *extra) {
   // dbg(children, children_id);
   /* Sorting complete */
 
-  /* Swap vertices, children is original sequence, children_id is sorted sequence */
+  /* Swap vertices, children is original sequence, children_id is sorted
+   * sequence */
   int num_children = children.size();
   std::map<type::vertex_t, type::vertex_t> vertex_id_to_tmp_vertex_id;
-  std::map<type::vertex_t, std::vector<type::edge_t>> vertex_id_to_tmp_edge_id_vec;
+  std::map<type::vertex_t, std::vector<type::edge_t>>
+      vertex_id_to_tmp_edge_id_vec;
   for (int i = 0; i < num_children; i++) {
     if (children[i] != children_id[i]) {
       // Get and record children of children[i]
@@ -472,9 +501,11 @@ void SortChild(ProgramGraph *pg, int vertex_id, void *extra) {
       // Copy attributes except "id"
       type::vertex_t tmp_vertex_id = pg->AddVertex();
       pg->CopyVertex(tmp_vertex_id, pg, children[i]);
-      // If children_id[i] is covered, use tmp_vertex in vertex_id_to_tmp_vertex_id
+      // If children_id[i] is covered, use tmp_vertex in
+      // vertex_id_to_tmp_vertex_id
       if (vertex_id_to_tmp_vertex_id.count(children_id[i]) > 0) {
-        pg->CopyVertex(children[i], pg, vertex_id_to_tmp_vertex_id[children_id[i]]);
+        pg->CopyVertex(children[i], pg,
+                       vertex_id_to_tmp_vertex_id[children_id[i]]);
         // pg->SetVertexAttributeNum("id", children[i], children_id[i]);
       } else {
         pg->CopyVertex(children[i], pg, children_id[i]);
@@ -483,13 +514,15 @@ void SortChild(ProgramGraph *pg, int vertex_id, void *extra) {
 
       // TODO : can not understand now
       // Delete all edges of children[i]
-      std::vector<type::vertex_t> &children_children = vertex_id_to_tmp_edge_id_vec[children[i]];
+      std::vector<type::vertex_t> &children_children =
+          vertex_id_to_tmp_edge_id_vec[children[i]];
       for (auto &child_child : children_children) {
         // dbg(children[i], child_child);
         pg->DeleteEdge(children[i], child_child);
       }
       if (vertex_id_to_tmp_edge_id_vec.count(children_id[i]) > 0) {
-        std::vector<type::vertex_t> &tmp_children_children = vertex_id_to_tmp_edge_id_vec[children_id[i]];
+        std::vector<type::vertex_t> &tmp_children_children =
+            vertex_id_to_tmp_edge_id_vec[children_id[i]];
         for (auto &child_child : tmp_children_children) {
           // dbg(children[i], child_child);
           pg->AddEdge(children[i], child_child);
@@ -538,5 +571,7 @@ void ProgramGraph::VertexSortChild() {
   return;
 }
 
-void ProgramGraph::SortByAddr(type::vertex_t starting_vertex) { this->SortBy(starting_vertex, "eaddr"); }
+void ProgramGraph::SortByAddr(type::vertex_t starting_vertex) {
+  this->SortBy(starting_vertex, "eaddr");
 }
+} // namespace baguatool::core

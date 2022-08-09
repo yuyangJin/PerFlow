@@ -3,5 +3,5 @@
 
 #include "core/pg.h"
 
-namespace baguatool::core {}  // namespace baguatool::core
-#endif                        // PCG_H
+namespace baguatool::core {} // namespace baguatool::core
+#endif                       // PCG_H

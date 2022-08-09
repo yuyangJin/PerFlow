@@ -3,6 +3,6 @@
 
 #include "core/pag.h"
 
-namespace baguatool::core {}  // namespace baguatool::core
+namespace baguatool::core {} // namespace baguatool::core
 
 #endif // MPAG_H_

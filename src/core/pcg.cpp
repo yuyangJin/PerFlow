@@ -7,7 +7,9 @@ namespace baguatool::core {
 ProgramCallGraph::ProgramCallGraph() {}
 ProgramCallGraph::~ProgramCallGraph() {}
 
-void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *), void *extra) {
+void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *,
+                                                            int, void *),
+                                     void *extra) {
   igraph_es_t es;
   igraph_eit_t eit;
   // printf("Function %s Start:\n", this->GetGraphAttributeString("name"));
@@ -33,8 +35,8 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
   // printf("Function %s End\n", this->GetGraphAttributeString("name"));
 }
 
-// int ProgramCallGraph::SetVertexBasicInfo(const type::vertex_t vertex_id, const int vertex_type, const char
-// *vertex_name) {
+// int ProgramCallGraph::SetVertexBasicInfo(const type::vertex_t vertex_id,
+// const int vertex_type, const char *vertex_name) {
 //   //
 //   // SetVertexAttributeNum("type", vertex_id, (igraph_real_t)vertex_type);
 //   SETVAN(&ipag_->graph, "type", vertex_id, (igraph_real_t)vertex_type);
@@ -42,7 +44,8 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
 //   return 0;
 // }
 
-// int ProgramCallGraph::SetVertexDebugInfo(const type::vertex_t vertex_id, const int addr) {
+// int ProgramCallGraph::SetVertexDebugInfo(const type::vertex_t vertex_id,
+// const int addr) {
 //   //
 //   SETVAN(&ipag_->graph, "addr", vertex_id, (igraph_real_t)addr);
 //   return 0;
@@ -52,7 +55,8 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
 //   return this->GetVertexAttributeNum("type", vertex);
 // } // function GetVertexType
 
-// type::vertex_t ProgramCallGraph::GetChildVertexWithAddress(type::vertex_t root_vertex, unsigned long long addr) {
+// type::vertex_t ProgramCallGraph::GetChildVertexWithAddress(type::vertex_t
+// root_vertex, unsigned long long addr) {
 //   std::vector<type::vertex_t> children = GetChildVertexSet(root_vertex);
 //   if (0 == children.size()) {
 //     return -1;
@@ -72,10 +76,10 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
 //   return -1;
 // }  // function GetChildVertexWithAddress
 
-// type::vertex_t ProgramCallGraph::GetVertexWithCallPath(type::vertex_t root_vertex, std::stack<unsigned long long>&
-// call_path_stack ) {
-//   // if call path stack is empty, it means the call path points to current vertex, so return it.
-//   if (call_path_stack.empty()) {
+// type::vertex_t ProgramCallGraph::GetVertexWithCallPath(type::vertex_t
+// root_vertex, std::stack<unsigned long long>& call_path_stack ) {
+//   // if call path stack is empty, it means the call path points to current
+//   vertex, so return it. if (call_path_stack.empty()) {
 //     return root_vertex;
 //   }
 
@@ -90,7 +94,8 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
 //   // Find the CALL vertex of current addr, addr is from calling context
 //   type::vertex_t found_vertex = root_vertex;
 //   while (1) {
-//     type::vertex_t child_vertex = GetChildVertexWithAddress(found_vertex, addr);
+//     type::vertex_t child_vertex = GetChildVertexWithAddress(found_vertex,
+//     addr);
 
 //     found_vertex = child_vertex;
 //     // if child_vertex is not found
@@ -102,9 +107,10 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
 //       break;
 //     }
 
-//     // If found_vertex is FUNC_NODE or LOOP_NODE, then continue searching child_vertex
-//     auto found_vertex_type = GetVertexType(found_vertex);
-//     if (FUNC_NODE != found_vertex_type && LOOP_NODE != found_vertex_type && BB_NODE != found_vertex_type) {
+//     // If found_vertex is FUNC_NODE or LOOP_NODE, then continue searching
+//     child_vertex auto found_vertex_type = GetVertexType(found_vertex); if
+//     (FUNC_NODE != found_vertex_type && LOOP_NODE != found_vertex_type &&
+//     BB_NODE != found_vertex_type) {
 //       break;
 //     }
 //   }
@@ -127,11 +133,12 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, 
 //   VertexTraversal();
 // }
 
-// int ProgramCallGraph::AddEdgeWithAddr(unsigned long long call_addr, unsigned long long callee_addr) {
+// int ProgramCallGraph::AddEdgeWithAddr(unsigned long long call_addr, unsigned
+// long long callee_addr) {
 //   type::vertex_t call_vertex = GetVertexWithAddress(call_addr);
 //   type::vertex_t callee_vertex = GetVertexWithAddress(callee_addr);
 //   if (!this->QueryEdgeWithSrcDest(call_vertex, callee_vertex)) {
 //     this->AddEdge(call_vertex, callee_vertex);
 //   }
 // }
-}
+} // namespace baguatool::core

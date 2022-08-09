@@ -4,9 +4,9 @@
 #include <map>
 #include <string>
 
-#include <vector>
 #include "baguatool.h"
 #include "igraph.h"
+#include <vector>
 
 namespace baguatool::core {
 
@@ -22,7 +22,8 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
   // // delete ipag_;
 }
 
-// int ProgramAbstractionGraph::SetVertexBasicInfo(const type::vertex_t vertex_id, const int vertex_type,
+// int ProgramAbstractionGraph::SetVertexBasicInfo(const type::vertex_t
+// vertex_id, const int vertex_type,
 //                                                 const char *vertex_name) {
 //   //
 //   // SetVertexAttributeNum("type", vertex_id, (igraph_real_t)vertex_type);
@@ -31,8 +32,8 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
 //   return 0;
 // }
 
-// int ProgramAbstractionGraph::SetVertexDebugInfo(const type::vertex_t vertex_id, const int entry_addr, const int
-// exit_addr)
+// int ProgramAbstractionGraph::SetVertexDebugInfo(const type::vertex_t
+// vertex_id, const int entry_addr, const int exit_addr)
 // {
 //   //
 //   SETVAN(&ipag_->graph, "s_addr", vertex_id, (igraph_real_t)entry_addr);
@@ -44,8 +45,9 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
 //   return this->GetVertexAttributeNum("type", vertex);
 // } // function GetVertexType
 
-// type::vertex_t ProgramAbstractionGraph::GetChildVertexWithAddress(type::vertex_t root_vertex, unsigned long long
-// addr) {
+// type::vertex_t
+// ProgramAbstractionGraph::GetChildVertexWithAddress(type::vertex_t
+// root_vertex, unsigned long long addr) {
 //   std::vector<type::vertex_t> children = GetChildVertexSet(root_vertex);
 //   if (0 == children.size()) {
 //     return -1;
@@ -65,11 +67,10 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
 //   return -1;
 // }  // function GetChildVertexWithAddress
 
-// type::vertex_t ProgramAbstractionGraph::GetVertexWithCallPath(type::vertex_t root_vertex, std::stack<unsigned long
-// long>&
-// call_path_stack ) {
-//   // if call path stack is empty, it means the call path points to current vertex, so return it.
-//   if (call_path_stack.empty()) {
+// type::vertex_t ProgramAbstractionGraph::GetVertexWithCallPath(type::vertex_t
+// root_vertex, std::stack<unsigned long long>& call_path_stack ) {
+//   // if call path stack is empty, it means the call path points to current
+//   vertex, so return it. if (call_path_stack.empty()) {
 //     return root_vertex;
 //   }
 
@@ -84,7 +85,8 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
 //   // Find the CALL vertex of current addr, addr is from calling context
 //   type::vertex_t found_vertex = root_vertex;
 //   while (1) {
-//     type::vertex_t child_vertex = GetChildVertexWithAddress(found_vertex, addr);
+//     type::vertex_t child_vertex = GetChildVertexWithAddress(found_vertex,
+//     addr);
 
 //     found_vertex = child_vertex;
 //     // if child_vertex is not found
@@ -96,9 +98,10 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
 //       break;
 //     }
 
-//     // If found_vertex is FUNC_NODE or LOOP_NODE, then continue searching child_vertex
-//     auto found_vertex_type = GetVertexType(found_vertex);
-//     if (FUNC_NODE != found_vertex_type && LOOP_NODE != found_vertex_type && BB_NODE != found_vertex_type) {
+//     // If found_vertex is FUNC_NODE or LOOP_NODE, then continue searching
+//     child_vertex auto found_vertex_type = GetVertexType(found_vertex); if
+//     (FUNC_NODE != found_vertex_type && LOOP_NODE != found_vertex_type &&
+//     BB_NODE != found_vertex_type) {
 //       break;
 //     }
 //   }
@@ -115,8 +118,9 @@ ProgramAbstractionGraph::~ProgramAbstractionGraph() {
 
 // }  // function GetVertexWithCallPath
 
-void ProgramAbstractionGraph::VertexTraversal(void (*CALL_BACK_FUNC)(ProgramAbstractionGraph *, int, void *),
-                                              void *extra) {
+void ProgramAbstractionGraph::VertexTraversal(
+    void (*CALL_BACK_FUNC)(ProgramAbstractionGraph *, int, void *),
+    void *extra) {
   igraph_vs_t vs;
   igraph_vit_t vit;
   // printf("Function %s Start:\n", this->GetGraphAttributeString("name"));
@@ -147,28 +151,37 @@ struct pag_dfs_call_back_t {
   void *extra;
 };
 
-igraph_bool_t pag_in_callback(const igraph_t *graph, igraph_integer_t vid, igraph_integer_t dist, void *extra) {
-  struct pag_dfs_call_back_t *extra_wrapper = (struct pag_dfs_call_back_t *)extra;
+igraph_bool_t pag_in_callback(const igraph_t *graph, igraph_integer_t vid,
+                              igraph_integer_t dist, void *extra) {
+  struct pag_dfs_call_back_t *extra_wrapper =
+      (struct pag_dfs_call_back_t *)extra;
   if (extra_wrapper->IN_CALL_BACK_FUNC != nullptr) {
-    (*(extra_wrapper->IN_CALL_BACK_FUNC))(extra_wrapper->g, vid, extra_wrapper->extra);
+    (*(extra_wrapper->IN_CALL_BACK_FUNC))(extra_wrapper->g, vid,
+                                          extra_wrapper->extra);
   }
   return 0;
 }
 
-igraph_bool_t pag_out_callback(const igraph_t *graph, igraph_integer_t vid, igraph_integer_t dist, void *extra) {
-  struct pag_dfs_call_back_t *extra_wrapper = (struct pag_dfs_call_back_t *)extra;
+igraph_bool_t pag_out_callback(const igraph_t *graph, igraph_integer_t vid,
+                               igraph_integer_t dist, void *extra) {
+  struct pag_dfs_call_back_t *extra_wrapper =
+      (struct pag_dfs_call_back_t *)extra;
   if (extra_wrapper->OUT_CALL_BACK_FUNC != nullptr) {
-    (*(extra_wrapper->OUT_CALL_BACK_FUNC))(extra_wrapper->g, vid, extra_wrapper->extra);
+    (*(extra_wrapper->OUT_CALL_BACK_FUNC))(extra_wrapper->g, vid,
+                                           extra_wrapper->extra);
   }
   return 0;
 }
 
-void ProgramAbstractionGraph::DFS(type::vertex_t root,
-                                  void (*IN_CALL_BACK_FUNC)(ProgramAbstractionGraph *, int, void *),
-                                  void (*OUT_CALL_BACK_FUNC)(ProgramAbstractionGraph *, int, void *), void *extra) {
+void ProgramAbstractionGraph::DFS(
+    type::vertex_t root,
+    void (*IN_CALL_BACK_FUNC)(ProgramAbstractionGraph *, int, void *),
+    void (*OUT_CALL_BACK_FUNC)(ProgramAbstractionGraph *, int, void *),
+    void *extra) {
   // ProgramAbstractionGraph* new_graph = new ProgramAbstractionGraph();
   // new_graph->GraphInit();
-  struct pag_dfs_call_back_t *extra_wrapper = new (struct pag_dfs_call_back_t)();
+  struct pag_dfs_call_back_t *extra_wrapper =
+      new (struct pag_dfs_call_back_t)();
   extra_wrapper->IN_CALL_BACK_FUNC = IN_CALL_BACK_FUNC;
   extra_wrapper->OUT_CALL_BACK_FUNC = OUT_CALL_BACK_FUNC;
   extra_wrapper->g = this;
@@ -177,11 +190,13 @@ void ProgramAbstractionGraph::DFS(type::vertex_t root,
   igraph_dfs(&(this->ipag_->graph), /*root=*/root, /*neimode=*/IGRAPH_OUT,
              /*unreachable=*/1, /*order=*/0, /*order_out=*/0,
              /*father=*/0, /*dist=*/0,
-             /*in_callback=*/pag_in_callback, /*out_callback=*/pag_out_callback, /*extra=*/extra_wrapper);
+             /*in_callback=*/pag_in_callback, /*out_callback=*/pag_out_callback,
+             /*extra=*/extra_wrapper);
   ///*in_callback=*/0, /*out_callback=*/0, /*extra=*/extra_wrapper);
 }
 
-type::perf_data_t ReduceOperation(std::vector<type::perf_data_t> &perf_data, int num, std::string &op) {
+type::perf_data_t ReduceOperation(std::vector<type::perf_data_t> &perf_data,
+                                  int num, std::string &op) {
   if (num == 0) {
     return 0.0;
   }
@@ -214,7 +229,8 @@ typedef struct ReducePerfDataArg {
   type::perf_data_t total_reduced_data = 0.0;
 } RPDArg;
 
-void ReducePerfData(core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
+void ReducePerfData(core::ProgramAbstractionGraph *pag, int vertex_id,
+                    void *extra) {
   RPDArg *arg = (RPDArg *)extra;
   core::GraphPerfData *graph_perf_data = arg->graph_perf_data;
   std::string metric(arg->metric);
@@ -224,15 +240,18 @@ void ReducePerfData(core::ProgramAbstractionGraph *pag, int vertex_id, void *ext
 
   // TODO: (FIX) need to return list of procs
   std::vector<type::procs_t> procs_list;
-  int num_procs = graph_perf_data->GetMetricsPerfDataProcsNum(vertex_id, metric, procs_list);
+  int num_procs = graph_perf_data->GetMetricsPerfDataProcsNum(vertex_id, metric,
+                                                              procs_list);
 
   std::vector<type::perf_data_t> im_reduced_data;
 
   for (int i = 0; i < num_procs; i++) {
     // type::perf_data_t* procs_perf_data = nullptr;
     std::map<type::thread_t, type::perf_data_t> procs_perf_data_map;
-    graph_perf_data->GetProcsPerfData(vertex_id, metric, procs_list[i], procs_perf_data_map);
-    // int num_thread = graph_perf_data->GetProcsPerfDataThreadNum(vertex_id, metric, i);
+    graph_perf_data->GetProcsPerfData(vertex_id, metric, procs_list[i],
+                                      procs_perf_data_map);
+    // int num_thread = graph_perf_data->GetProcsPerfDataThreadNum(vertex_id,
+    // metric, i);
     int num_thread = procs_perf_data_map.size();
     // dbg(num_thread);
     std::vector<type::perf_data_t> procs_perf_data;
@@ -241,7 +260,8 @@ void ReducePerfData(core::ProgramAbstractionGraph *pag, int vertex_id, void *ext
       for (auto &kv : procs_perf_data_map) {
         procs_perf_data.push_back(kv.second);
       }
-      im_reduced_data.push_back(ReduceOperation(procs_perf_data, num_thread, op));
+      im_reduced_data.push_back(
+          ReduceOperation(procs_perf_data, num_thread, op));
       // dbg(im_reduced_data[i]);
     } else {
       im_reduced_data.push_back(0.0);
@@ -250,22 +270,26 @@ void ReducePerfData(core::ProgramAbstractionGraph *pag, int vertex_id, void *ext
     FREE_CONTAINER(procs_perf_data);
   }
 
-  type::perf_data_t reduced_data = ReduceOperation(im_reduced_data, num_procs, op);
+  type::perf_data_t reduced_data =
+      ReduceOperation(im_reduced_data, num_procs, op);
   // if (num_procs) {
   //   dbg(num_procs, reduced_data);
   // }
 
   FREE_CONTAINER(im_reduced_data);
 
-  pag->SetVertexAttributeString(std::string(metric + std::string("_") + op).c_str(), (type::vertex_t)vertex_id,
-                                std::to_string(reduced_data).c_str());
+  pag->SetVertexAttributeString(
+      std::string(metric + std::string("_") + op).c_str(),
+      (type::vertex_t)vertex_id, std::to_string(reduced_data).c_str());
 
   arg->total_reduced_data += reduced_data;
   FREE_CONTAINER(procs_list);
 }
 
 // Reduce each vertex's perf data
-type::perf_data_t ProgramAbstractionGraph::ReduceVertexPerfData(std::string &metric, std::string &op) {
+type::perf_data_t
+ProgramAbstractionGraph::ReduceVertexPerfData(std::string &metric,
+                                              std::string &op) {
   RPDArg *arg = new RPDArg();
   arg->graph_perf_data = this->GetGraphPerfData();
   arg->metric = std::string(metric);
@@ -288,20 +312,24 @@ typedef struct PerfDataToPercentArg {
   //...
 } PDTPArg;
 
-void PerfDataToPercent(ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
+void PerfDataToPercent(ProgramAbstractionGraph *pag, int vertex_id,
+                       void *extra) {
   PDTPArg *arg = (PDTPArg *)extra;
   std::string new_metric(arg->new_metric);
   std::string metric(arg->metric);
   type::perf_data_t total = arg->total;
 
-  type::perf_data_t data = strtod(pag->GetVertexAttributeString(metric.c_str(), (type::vertex_t)vertex_id), NULL);
+  type::perf_data_t data = strtod(
+      pag->GetVertexAttributeString(metric.c_str(), (type::vertex_t)vertex_id),
+      NULL);
   type::perf_data_t percent = data / total;
-  pag->SetVertexAttributeString(new_metric.c_str(), (type::vertex_t)vertex_id, std::to_string(percent).c_str());
+  pag->SetVertexAttributeString(new_metric.c_str(), (type::vertex_t)vertex_id,
+                                std::to_string(percent).c_str());
 }
 
 // convert vertex's reduced data to percent
-void ProgramAbstractionGraph::ConvertVertexReducedDataToPercent(std::string &metric, type::perf_data_t total,
-                                                                std::string &new_metric) {
+void ProgramAbstractionGraph::ConvertVertexReducedDataToPercent(
+    std::string &metric, type::perf_data_t total, std::string &new_metric) {
   PDTPArg *arg = new PDTPArg();
   arg->new_metric = std::string(new_metric);
   arg->metric = std::string(metric);
@@ -317,20 +345,24 @@ struct hot_spot_t {
   // bool preserve;
 };
 
-void in_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
+void in_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
+             void *extra) {
   // struct hot_spot_t* extra_ = (struct hot_spot_t*)extra;
   // extra_->preserve = false;
 
   pag->SetVertexAttributeFlag("preserve", vertex_id, false);
 }
 
-void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
+void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
+              void *extra) {
   struct hot_spot_t *extra_ = (struct hot_spot_t *)extra;
   const char *metric_name = extra_->metric_name;
 
   bool preserve_flag = false;
   type::perf_data_t data =
-      strtod(pag->GetVertexAttributeString(std::string(metric_name).c_str(), (type::vertex_t)vertex_id), NULL);
+      strtod(pag->GetVertexAttributeString(std::string(metric_name).c_str(),
+                                           (type::vertex_t)vertex_id),
+             NULL);
   if (data > 0.0) {
     preserve_flag = true;
   } else {
@@ -344,8 +376,9 @@ void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id, void
   }
 
   // dbg(vertex_id, metric_name,
-  //     strtod(pag->GetVertexAttributeString(std::string(metric_name).c_str(), (type::vertex_t)vertex_id), NULL),
-  //     preserve_flag);  //, extra_->preserve);
+  //     strtod(pag->GetVertexAttributeString(std::string(metric_name).c_str(),
+  //     (type::vertex_t)vertex_id), NULL), preserve_flag);  //,
+  //     extra_->preserve);
 
   pag->SetVertexAttributeFlag("preserve", vertex_id, preserve_flag);
 }
@@ -358,4 +391,4 @@ void ProgramAbstractionGraph::PreserveHotVertices(char *metric_name) {
   this->DFS(0, in_func, out_func, arg);
 }
 
-}  // namespace baguatool::core
+} // namespace baguatool::core

@@ -13,7 +13,7 @@ struct graph_t {
 struct vertex_set_t {
   igraph_vs_t vertices;
 };
-}
+} // namespace baguatool::type
 
 namespace baguatool::core {
 
@@ -36,12 +36,9 @@ namespace baguatool::core {
 //   void GraphInit(const char* graph_name);
 //   int GetCurVertexNum();
 //   PAG_vertex_t AddVertex();
-//   PAG_edge_t AddEdge(const PAG_vertex_t src_vertex_id, const PAG_vertex_t dest_vertex_id);
-//   void AddGraph(ProgramAbstractionGraph* g);
-//   void DeleteVertex();
-//   void DeleteEdge();
-//   void QueryVertex();
-//   void QueryEdge();
+//   PAG_edge_t AddEdge(const PAG_vertex_t src_vertex_id, const PAG_vertex_t
+//   dest_vertex_id); void AddGraph(ProgramAbstractionGraph* g); void
+//   DeleteVertex(); void DeleteEdge(); void QueryVertex(); void QueryEdge();
 //   int GetEdgeSrc(PAG_edge_t edge_id);
 //   int GetEdgeDest(PAG_edge_t edge_id);
 //   void QueryEdgeOtherSide();
@@ -49,12 +46,11 @@ namespace baguatool::core {
 //   void SetEdgeAttribute();
 //   void GetVertexAttribute();
 //   int GetVertexAttributeNum(const char* attr_name, PAG_vertex_t vertex_id);
-//   const char* GetVertexAttributeString(const char* attr_name, PAG_vertex_t vertex_id);
-//   void GetEdgeAttribute();
-//   const char* GetGraphAttributeString(const char* attr_name);
-//   void MergeVertices();
-//   void SplitVertex();
-//   void CopyVertex(PAG_vertex_t new_vertex_id, Graph* g, PAG_vertex_t vertex_id);
+//   const char* GetVertexAttributeString(const char* attr_name, PAG_vertex_t
+//   vertex_id); void GetEdgeAttribute(); const char*
+//   GetGraphAttributeString(const char* attr_name); void MergeVertices(); void
+//   SplitVertex(); void CopyVertex(PAG_vertex_t new_vertex_id, Graph* g,
+//   PAG_vertex_t vertex_id);
 //   // TODO: do not expose inner igraph
 //   void DeleteVertices(PAG_vertex_set_t* vs);
 //   void DeleteExtraTailVertices();
@@ -63,9 +59,10 @@ namespace baguatool::core {
 //   void DumpGraph(const char* file_name);
 //   void DumpGraphDot(const char* file_name);
 
-//   void VertexTraversal(void (*CALL_BACK_FUNC)(Graph*, PAG_vertex_t, void*), void* extra);
+//   void VertexTraversal(void (*CALL_BACK_FUNC)(Graph*, PAG_vertex_t, void*),
+//   void* extra);
 // };
 
-}  // namespace baguatool::core
+} // namespace baguatool::core
 
-#endif  // GRAPH_H_
+#endif // GRAPH_H_

@@ -4,7 +4,7 @@
 namespace baguatool::core {
 
 /** TODO: need to rename these two functions */
-void preserve_call_path_tail_so_addr(std::stack<type::addr_t>& call_path) {
+void preserve_call_path_tail_so_addr(std::stack<type::addr_t> &call_path) {
   std::stack<type::addr_t> tmp;
   while (!call_path.empty()) {
     type::addr_t addr = call_path.top();
@@ -27,7 +27,7 @@ void preserve_call_path_tail_so_addr(std::stack<type::addr_t>& call_path) {
   FREE_CONTAINER(tmp);
 }
 
-void delete_all_so_addr(std::stack<type::addr_t>& call_path) {
+void delete_all_so_addr(std::stack<type::addr_t> &call_path) {
   std::stack<type::addr_t> tmp;
   while (!call_path.empty()) {
     type::addr_t addr = call_path.top();
@@ -66,7 +66,7 @@ PerfData::~PerfData() {
 }
 
 // Sequential read
-void PerfData::Read(const char* infile_name) {
+void PerfData::Read(const char *infile_name) {
   // char infile_name_str[MAX_CALL_PATH_LEN];
   // strcpy(infile_name_str, std::string(infile_name).c_str());
 
@@ -75,7 +75,8 @@ void PerfData::Read(const char* infile_name) {
   this->perf_data_in_file.open(std::string(infile_name), std::ios::in);
   if (!(this->perf_data_in_file.is_open())) {
     LOG_INFO("Failed to open %s\n", infile_name);
-    this->vertex_perf_data_count = __sync_and_and_fetch(&this->vertex_perf_data_count, 0);
+    this->vertex_perf_data_count =
+        __sync_and_and_fetch(&this->vertex_perf_data_count, 0);
     return;
   }
 
@@ -104,9 +105,10 @@ void PerfData::Read(const char* infile_name) {
     // dbg(cnt);
 
     if (cnt == 4 && procs_id >= 0) {
-      unsigned long int x = __sync_fetch_and_add(&this->vertex_perf_data_count, 1);
+      unsigned long int x =
+          __sync_fetch_and_add(&this->vertex_perf_data_count, 1);
 
-      //std::cout << count << " " << line_vec[1].c_str() <<std::endl;
+      // std::cout << count << " " << line_vec[1].c_str() <<std::endl;
       this->vertex_perf_data[x].value = atof(line_vec[1].c_str());
       this->vertex_perf_data[x].procs_id = atoi(line_vec[2].c_str());
       this->vertex_perf_data[x].thread_id = atoi(line_vec[3].c_str());
@@ -117,12 +119,15 @@ void PerfData::Read(const char* infile_name) {
       int call_path_len = addr_vec.size();
       this->vertex_perf_data[x].call_path_len = call_path_len;
       for (int i = 0; i < call_path_len; i++) {
-        this->vertex_perf_data[x].call_path[i] = strtoul(addr_vec[i].c_str(), 0, 16);
+        this->vertex_perf_data[x].call_path[i] =
+            strtoul(addr_vec[i].c_str(), 0, 16);
         // dbg(this->vertex_perf_data[x].call_path[i]);
       }
 
-      // LOG_INFO("DATA[%lu]: %s | %lf | %d |%d\n", x, line_vec[0].c_str(), this->vertex_perf_data[x].value,
-      //         this->vertex_perf_data[x].procs_id, this->vertex_perf_data[x].thread_id);
+      // LOG_INFO("DATA[%lu]: %s | %lf | %d |%d\n", x, line_vec[0].c_str(),
+      // this->vertex_perf_data[x].value,
+      //         this->vertex_perf_data[x].procs_id,
+      //         this->vertex_perf_data[x].thread_id);
 
       FREE_CONTAINER(addr_vec);
     } else {
@@ -154,7 +159,8 @@ void PerfData::Read(const char* infile_name) {
 
     if (cnt == 7) {
       // First fetch as x, then add 1
-      unsigned long int x = __sync_fetch_and_add(&this->edge_perf_data_count, 1);
+      unsigned long int x =
+          __sync_fetch_and_add(&this->edge_perf_data_count, 1);
 
       this->edge_perf_data[x].value = atof(line_vec[2].c_str());
       this->edge_perf_data[x].procs_id = atoi(line_vec[3].c_str());
@@ -168,7 +174,8 @@ void PerfData::Read(const char* infile_name) {
       int call_path_len = addr_vec.size();
       this->edge_perf_data[x].call_path_len = call_path_len;
       for (int i = 0; i < call_path_len; i++) {
-        this->edge_perf_data[x].call_path[i] = strtoul(addr_vec[i].c_str(), 0, 16);
+        this->edge_perf_data[x].call_path[i] =
+            strtoul(addr_vec[i].c_str(), 0, 16);
       }
       FREE_CONTAINER(addr_vec);
 
@@ -176,7 +183,8 @@ void PerfData::Read(const char* infile_name) {
       int out_call_path_len = addr_vec.size();
       this->edge_perf_data[x].out_call_path_len = out_call_path_len;
       for (int i = 0; i < out_call_path_len; i++) {
-        this->edge_perf_data[x].out_call_path[i] = strtoul(addr_vec[i].c_str(), 0, 16);
+        this->edge_perf_data[x].out_call_path[i] =
+            strtoul(addr_vec[i].c_str(), 0, 16);
       }
       FREE_CONTAINER(addr_vec);
 
@@ -192,7 +200,7 @@ void PerfData::Read(const char* infile_name) {
   this->perf_data_in_file.close();
 }
 
-void PerfData::Dump(const char* output_file_name) {
+void PerfData::Dump(const char *output_file_name) {
   if (output_file_name != nullptr) {
     strcpy(this->file_name, output_file_name);
   }
@@ -200,49 +208,66 @@ void PerfData::Dump(const char* output_file_name) {
     this->perf_data_fp = fopen(this->file_name, "w");
     if (!this->perf_data_fp) {
       LOG_INFO("Failed to open %s\n", this->file_name);
-      this->vertex_perf_data_count = __sync_and_and_fetch(&this->vertex_perf_data_count, 0);
+      this->vertex_perf_data_count =
+          __sync_and_and_fetch(&this->vertex_perf_data_count, 0);
       return;
     }
   }
 
-  // LOG_INFO("Rank %d : WRITE %d ADDR to %d TXT\n", mpiRank, call_path_addr_log_pointer[i], i);
+  // LOG_INFO("Rank %d : WRITE %d ADDR to %d TXT\n", mpiRank,
+  // call_path_addr_log_pointer[i], i);
   fprintf(this->perf_data_fp, "%lu\n", this->vertex_perf_data_count);
   for (unsigned long int i = 0; i < this->vertex_perf_data_count; i++) {
     for (int j = 0; j < this->vertex_perf_data[i].call_path_len; j++) {
-      fprintf(this->perf_data_fp, "%llx ", this->vertex_perf_data[i].call_path[j]);
+      fprintf(this->perf_data_fp, "%llx ",
+              this->vertex_perf_data[i].call_path[j]);
     }
-    fprintf(this->perf_data_fp, " | %lf | %d | %d\n", this->vertex_perf_data[i].value,
-            this->vertex_perf_data[i].procs_id, this->vertex_perf_data[i].thread_id);
+    fprintf(this->perf_data_fp, " | %lf | %d | %d\n",
+            this->vertex_perf_data[i].value, this->vertex_perf_data[i].procs_id,
+            this->vertex_perf_data[i].thread_id);
     fflush(this->perf_data_fp);
   }
-  this->vertex_perf_data_count = __sync_and_and_fetch(&this->vertex_perf_data_count, 0);
+  this->vertex_perf_data_count =
+      __sync_and_and_fetch(&this->vertex_perf_data_count, 0);
 
   fprintf(this->perf_data_fp, "%lu\n", this->edge_perf_data_count);
   for (unsigned long int i = 0; i < this->edge_perf_data_count; i++) {
     for (int j = 0; j < this->edge_perf_data[i].call_path_len; j++) {
-      fprintf(this->perf_data_fp, "%llx ", this->edge_perf_data[i].call_path[j]);
+      fprintf(this->perf_data_fp, "%llx ",
+              this->edge_perf_data[i].call_path[j]);
     }
     fprintf(this->perf_data_fp, " | ");
     for (int j = 0; j < this->edge_perf_data[i].out_call_path_len; j++) {
-      fprintf(this->perf_data_fp, "%llx ", this->edge_perf_data[i].out_call_path[j]);
+      fprintf(this->perf_data_fp, "%llx ",
+              this->edge_perf_data[i].out_call_path[j]);
     }
-    fprintf(this->perf_data_fp, " | %lf | %d | %d | %d | %d\n", this->edge_perf_data[i].value,
-            this->edge_perf_data[i].procs_id, this->edge_perf_data[i].out_procs_id, this->edge_perf_data[i].thread_id,
+    fprintf(this->perf_data_fp, " | %lf | %d | %d | %d | %d\n",
+            this->edge_perf_data[i].value, this->edge_perf_data[i].procs_id,
+            this->edge_perf_data[i].out_procs_id,
+            this->edge_perf_data[i].thread_id,
             this->edge_perf_data[i].out_thread_id);
     fflush(this->perf_data_fp);
   }
-  this->edge_perf_data_count = __sync_and_and_fetch(&this->edge_perf_data_count, 0);
+  this->edge_perf_data_count =
+      __sync_and_and_fetch(&this->edge_perf_data_count, 0);
 }
 
-unsigned long int PerfData::GetVertexDataSize() { return this->vertex_perf_data_count; }
+unsigned long int PerfData::GetVertexDataSize() {
+  return this->vertex_perf_data_count;
+}
 
-unsigned long int PerfData::GetEdgeDataSize() { return this->edge_perf_data_count; }
+unsigned long int PerfData::GetEdgeDataSize() {
+  return this->edge_perf_data_count;
+}
 
-std::string& PerfData::GetMetricName() { return this->metric_name; }
+std::string &PerfData::GetMetricName() { return this->metric_name; }
 
-void PerfData::SetMetricName(std::string& metric_name) { this->metric_name = std::string(metric_name); }
+void PerfData::SetMetricName(std::string &metric_name) {
+  this->metric_name = std::string(metric_name);
+}
 
-bool CallPathCmp(type::addr_t* cp_1, int cp_1_len, type::addr_t* cp_2, int cp_2_len) {
+bool CallPathCmp(type::addr_t *cp_1, int cp_1_len, type::addr_t *cp_2,
+                 int cp_2_len) {
   if (cp_1_len != cp_2_len) {
     return false;
   } else {
@@ -255,12 +280,15 @@ bool CallPathCmp(type::addr_t* cp_1, int cp_1_len, type::addr_t* cp_2, int cp_2_
   return true;
 }
 
-int PerfData::QueryVertexData(type::addr_t* call_path, int call_path_len, int procs_id, int thread_id) {
+int PerfData::QueryVertexData(type::addr_t *call_path, int call_path_len,
+                              int procs_id, int thread_id) {
   for (unsigned long int i = 0; i < this->vertex_perf_data_count; i++) {
     // call_path
-    if (CallPathCmp(call_path, call_path_len, this->vertex_perf_data[i].call_path,
+    if (CallPathCmp(call_path, call_path_len,
+                    this->vertex_perf_data[i].call_path,
                     this->vertex_perf_data[i].call_path_len) == true &&
-        this->vertex_perf_data[i].thread_id == thread_id && this->vertex_perf_data[i].procs_id == procs_id) {
+        this->vertex_perf_data[i].thread_id == thread_id &&
+        this->vertex_perf_data[i].procs_id == procs_id) {
       return i;
     }
   }
@@ -268,15 +296,19 @@ int PerfData::QueryVertexData(type::addr_t* call_path, int call_path_len, int pr
   return -1;
 }
 
-int PerfData::QueryEdgeData(type::addr_t* call_path, int call_path_len, type::addr_t* out_call_path,
-                            int out_call_path_len, int procs_id, int out_procs_id, int thread_id, int out_thread_id) {
+int PerfData::QueryEdgeData(type::addr_t *call_path, int call_path_len,
+                            type::addr_t *out_call_path, int out_call_path_len,
+                            int procs_id, int out_procs_id, int thread_id,
+                            int out_thread_id) {
   for (unsigned long int i = 0; i < this->edge_perf_data_count; i++) {
     // call_path
     if (CallPathCmp(call_path, call_path_len, this->edge_perf_data[i].call_path,
                     this->edge_perf_data[i].call_path_len) == true &&
-        CallPathCmp(out_call_path, out_call_path_len, this->edge_perf_data[i].out_call_path,
+        CallPathCmp(out_call_path, out_call_path_len,
+                    this->edge_perf_data[i].out_call_path,
                     this->edge_perf_data[i].out_call_path_len) == true &&
-        this->edge_perf_data[i].thread_id == thread_id && this->edge_perf_data[i].procs_id == procs_id &&
+        this->edge_perf_data[i].thread_id == thread_id &&
+        this->edge_perf_data[i].procs_id == procs_id &&
         this->edge_perf_data[i].out_thread_id == out_thread_id &&
         this->edge_perf_data[i].out_procs_id == out_procs_id) {
       return i;
@@ -286,16 +318,20 @@ int PerfData::QueryEdgeData(type::addr_t* call_path, int call_path_len, type::ad
   return -1;
 }
 
-// TODO: Modify current aggregation mode to non-aggregation mode, users can do aggregation with our APIs
-void PerfData::RecordVertexData(type::addr_t* call_path, int call_path_len, int procs_id, int thread_id,
+// TODO: Modify current aggregation mode to non-aggregation mode, users can do
+// aggregation with our APIs
+void PerfData::RecordVertexData(type::addr_t *call_path, int call_path_len,
+                                int procs_id, int thread_id,
                                 perf_data_t value) {
-  int index = this->QueryVertexData(call_path, call_path_len, procs_id, thread_id);
+  int index =
+      this->QueryVertexData(call_path, call_path_len, procs_id, thread_id);
 
   if (index >= 0) {
     this->vertex_perf_data[index].value += value;
   } else {
     // Thread-safe, first fetch a index, then record data
-    unsigned long long int x = __sync_fetch_and_add(&this->vertex_perf_data_count, 1);
+    unsigned long long int x =
+        __sync_fetch_and_add(&this->vertex_perf_data_count, 1);
 
     this->vertex_perf_data[x].call_path_len = call_path_len;
     for (int i = 0; i < call_path_len; i++) {
@@ -312,11 +348,14 @@ void PerfData::RecordVertexData(type::addr_t* call_path, int call_path_len, int 
   }
 }
 
-void PerfData::RecordEdgeData(type::addr_t* call_path, int call_path_len, type::addr_t* out_call_path,
-                              int out_call_path_len, int procs_id, int out_procs_id, int thread_id, int out_thread_id,
-                              perf_data_t value) {
+void PerfData::RecordEdgeData(type::addr_t *call_path, int call_path_len,
+                              type::addr_t *out_call_path,
+                              int out_call_path_len, int procs_id,
+                              int out_procs_id, int thread_id,
+                              int out_thread_id, perf_data_t value) {
   // Thread-safe, first fetch a index, then record data
-  unsigned long long int x = __sync_fetch_and_add(&this->edge_perf_data_count, 1);
+  unsigned long long int x =
+      __sync_fetch_and_add(&this->edge_perf_data_count, 1);
 
   this->edge_perf_data[x].call_path_len = call_path_len;
   for (int i = 0; i < call_path_len; i++) {
@@ -339,8 +378,9 @@ void PerfData::RecordEdgeData(type::addr_t* call_path, int call_path_len, type::
   }
 }
 
-void PerfData::GetVertexDataCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack) {
-  VDS* data = &(this->vertex_perf_data[data_index]);
+void PerfData::GetVertexDataCallPath(
+    unsigned long int data_index, std::stack<type::addr_t> &call_path_stack) {
+  VDS *data = &(this->vertex_perf_data[data_index]);
   for (int i = 0; i < data->call_path_len; i++) {
     call_path_stack.push(data->call_path[i]);
   }
@@ -348,7 +388,8 @@ void PerfData::GetVertexDataCallPath(unsigned long int data_index, std::stack<ty
   return;
 }
 
-// void PerfData::SetVertexDataCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack) {
+// void PerfData::SetVertexDataCallPath(unsigned long int data_index,
+// std::stack<type::addr_t>& call_path_stack) {
 //   VDS* data = &(this->vertex_perf_data[data_index]);
 //   int call_path_len = call_path_stack.size();
 //   for (int i = 0; i < call_path_len; i++) {
@@ -358,8 +399,9 @@ void PerfData::GetVertexDataCallPath(unsigned long int data_index, std::stack<ty
 //   return;
 // }
 
-void PerfData::GetEdgeDataSrcCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+void PerfData::GetEdgeDataSrcCallPath(
+    unsigned long int data_index, std::stack<type::addr_t> &call_path_stack) {
+  EDS *data = &(this->edge_perf_data[data_index]);
   for (int i = 0; i < data->call_path_len; i++) {
     call_path_stack.push(data->call_path[i]);
   }
@@ -368,8 +410,9 @@ void PerfData::GetEdgeDataSrcCallPath(unsigned long int data_index, std::stack<t
   return;
 }
 
-void PerfData::GetEdgeDataDestCallPath(unsigned long int data_index, std::stack<type::addr_t>& call_path_stack) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+void PerfData::GetEdgeDataDestCallPath(
+    unsigned long int data_index, std::stack<type::addr_t> &call_path_stack) {
+  EDS *data = &(this->edge_perf_data[data_index]);
   for (int i = 0; i < data->out_call_path_len; i++) {
     call_path_stack.push(data->out_call_path[i]);
   }
@@ -379,43 +422,43 @@ void PerfData::GetEdgeDataDestCallPath(unsigned long int data_index, std::stack<
 }
 
 perf_data_t PerfData::GetVertexDataValue(unsigned long int data_index) {
-  VDS* data = &(this->vertex_perf_data[data_index]);
+  VDS *data = &(this->vertex_perf_data[data_index]);
   return data->value;
 }
 
 perf_data_t PerfData::GetEdgeDataValue(unsigned long int data_index) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+  EDS *data = &(this->edge_perf_data[data_index]);
   return data->value;
 }
 
 int PerfData::GetVertexDataProcsId(unsigned long int data_index) {
-  VDS* data = &(this->vertex_perf_data[data_index]);
+  VDS *data = &(this->vertex_perf_data[data_index]);
   return data->procs_id;
 }
 
 int PerfData::GetEdgeDataSrcProcsId(unsigned long int data_index) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+  EDS *data = &(this->edge_perf_data[data_index]);
   return data->procs_id;
 }
 
 int PerfData::GetEdgeDataDestProcsId(unsigned long int data_index) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+  EDS *data = &(this->edge_perf_data[data_index]);
   return data->out_procs_id;
 }
 
 int PerfData::GetVertexDataThreadId(unsigned long int data_index) {
-  VDS* data = &(this->vertex_perf_data[data_index]);
+  VDS *data = &(this->vertex_perf_data[data_index]);
   return data->thread_id;
 }
 
 int PerfData::GetEdgeDataSrcThreadId(unsigned long int data_index) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+  EDS *data = &(this->edge_perf_data[data_index]);
   return data->thread_id;
 }
 
 int PerfData::GetEdgeDataDestThreadId(unsigned long int data_index) {
-  EDS* data = &(this->edge_perf_data[data_index]);
+  EDS *data = &(this->edge_perf_data[data_index]);
   return data->out_thread_id;
 }
 
-}  // namespace baguatool::core
+} // namespace baguatool::core

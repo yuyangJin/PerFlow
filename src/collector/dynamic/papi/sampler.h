@@ -4,14 +4,14 @@
 //#define _GNU_SOURCE
 #define UNW_LOCAL_ONLY
 
+#include "baguatool.h"
+#include "common/tprintf.h"
 #include <assert.h>
 #include <dlfcn.h>
 #include <execinfo.h>
 #include <libunwind.h>
 #include <malloc.h>
 #include <papi.h>
-#include <pthread.h>
-#include <pthread.h>
 #include <pthread.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -21,22 +21,21 @@
 #include <sys/time.h>
 #include <sys/types.h>
 #include <unistd.h>
-#include "baguatool.h"
-#include "common/tprintf.h"
 
-#define TRY(func, flag)                                                               \
-  {                                                                                   \
-    int retval = func;                                                                \
-    if (retval != flag) LOG_ERROR("%s, ErrCode: %s\n", #func, PAPI_strerror(retval)); \
+#define TRY(func, flag)                                                        \
+  {                                                                            \
+    int retval = func;                                                         \
+    if (retval != flag)                                                        \
+      LOG_ERROR("%s, ErrCode: %s\n", #func, PAPI_strerror(retval));            \
   }
 
 #define RESOLVE_SYMBOL_VERSIONED 1
 #define RESOLVE_SYMBOL_UNVERSIONED 2
 #define PTHREAD_VERSION "GLIBC_2.3.2"
 
-#define DEFAULT_CYC_SAMPLE_COUNT (1000)       // 10ms
-#define DEFAULT_INS_SAMPLE_COUNT (20000000)  // 10ms
-#define DEFAULT_CM_SAMPLE_COUNT (100000)     // 10ms
+#define DEFAULT_CYC_SAMPLE_COUNT (1000)     // 10ms
+#define DEFAULT_INS_SAMPLE_COUNT (20000000) // 10ms
+#define DEFAULT_CM_SAMPLE_COUNT (100000)    // 10ms
 
 #ifndef MAX_STACK_DEPTH
 #define MAX_STACK_DEPTH 100
@@ -65,14 +64,14 @@ struct LongLongVec {
 };
 
 class SamplerImpl {
- private:
+private:
   int mpiRank = -1;
 
   // thread_local static int EventSet;
   // void (*func_at_overflow)(int);
   int cyc_sample_count;
 
- public:
+public:
   SamplerImpl() {
     // EventSet = PAPI_NULL;
     // func_at_overflow = nullptr;
@@ -88,16 +87,18 @@ class SamplerImpl {
   void SetOverflow(void (*FUNC_AT_OVERFLOW)(int));
   void Start();
   void Stop();
-  int GetOverflowEvent(LongLongVec* overflow_vector);
-  int GetBacktrace(type::addr_t* call_path, int max_call_path_depth);
-  int GetBacktrace(type::addr_t* call_path, int max_call_path_depth, int start_depth);
+  int GetOverflowEvent(LongLongVec *overflow_vector);
+  int GetBacktrace(type::addr_t *call_path, int max_call_path_depth);
+  int GetBacktrace(type::addr_t *call_path, int max_call_path_depth,
+                   int start_depth);
 };
 
-int my_backtrace(unw_word_t* buffer, int max_depth);
+int my_backtrace(unw_word_t *buffer, int max_depth);
 
 // static void* resolve_symbol(const char* symbol_name, int config);
 
-static void papi_handler(int EventSet, void* address, long_long overflow_vector, void* context);
+static void papi_handler(int EventSet, void *address, long_long overflow_vector,
+                         void *context);
 
-}  // namespace baguatool::graph_sd
-#endif  // SAMPLER_H_
+} // namespace baguatool::collector
+#endif // SAMPLER_H_

@@ -5,10 +5,10 @@
 
 #include <string>
 
-#include <igraph.h>
 #include "common/common.h"
 #include "core/pg.h"
 #include "vertex_type.h"
+#include <igraph.h>
 
 namespace baguatool::core {
 
@@ -28,5 +28,5 @@ struct PAG_vertex_set_t {
 //   igraph_integer_t edge_id;
 // };
 
-}  // namespace baguatool::core
-#endif  // PAG_H
+} // namespace baguatool::core
+#endif // PAG_H

@@ -3,5 +3,5 @@
 
 #include "core/graph.h"
 
-namespace baguatool::core {}  // namespace baguatool::core
-#endif                        // PG_H
+namespace baguatool::core {} // namespace baguatool::core
+#endif                       // PG_H

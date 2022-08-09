@@ -39,13 +39,21 @@ using namespace InstructionAPI;
 
 namespace baguatool::collector {
 
-StaticAnalysis::StaticAnalysis(char *binary_name) { this->sa = std::make_unique<StaticAnalysisImpl>(binary_name); }
+StaticAnalysis::StaticAnalysis(char *binary_name) {
+  this->sa = std::make_unique<StaticAnalysisImpl>(binary_name);
+}
 
 StaticAnalysis::~StaticAnalysis() {}
 
-void StaticAnalysis::IntraProceduralAnalysis() { sa->IntraProceduralAnalysis(); }
-void StaticAnalysis::InterProceduralAnalysis() { sa->InterProceduralAnalysis(); }
-void StaticAnalysis::CaptureProgramCallGraph() { sa->CaptureProgramCallGraph(); }
+void StaticAnalysis::IntraProceduralAnalysis() {
+  sa->IntraProceduralAnalysis();
+}
+void StaticAnalysis::InterProceduralAnalysis() {
+  sa->InterProceduralAnalysis();
+}
+void StaticAnalysis::CaptureProgramCallGraph() {
+  sa->CaptureProgramCallGraph();
+}
 void StaticAnalysis::DumpAllControlFlowGraph() { sa->DumpAllFunctionGraph(); }
 void StaticAnalysis::DumpProgramCallGraph() { sa->DumpProgramCallGraph(); }
 void StaticAnalysis::GetBinaryName() { sa->GetBinaryName(); }
@@ -61,7 +69,8 @@ StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
   std::vector<std::string> binary_name_vec;
   split(binary_name, "/", binary_name_vec);
 
-  strcpy(this->binary_name, binary_name_vec[binary_name_vec.size() - 1].c_str());
+  strcpy(this->binary_name,
+         binary_name_vec[binary_name_vec.size() - 1].c_str());
 }
 
 StaticAnalysisImpl::~StaticAnalysisImpl() {
@@ -74,7 +83,8 @@ StaticAnalysisImpl::~StaticAnalysisImpl() {
 
   // TODO: it is better to use unique_ptr instead of raw pointer?
   // for (auto &it : func_2_graph) delete it.second;
-  for (auto &it : entry_addr_to_graph) delete it.second;
+  for (auto &it : entry_addr_to_graph)
+    delete it.second;
 }
 
 // Capture a Program Call Graph (PCG)
@@ -97,7 +107,8 @@ void StaticAnalysisImpl::CaptureProgramCallGraph() {
 
     // Add Function as a vertex
     type::vertex_t func_vertex_id = this->pcg->AddVertex();
-    this->pcg->SetVertexBasicInfo(func_vertex_id, type::FUNC_NODE, func->name().c_str());
+    this->pcg->SetVertexBasicInfo(func_vertex_id, type::FUNC_NODE,
+                                  func->name().c_str());
     this->pcg->SetVertexDebugInfo(func_vertex_id, func->addr(), exit_addr);
     addr_2_vertex_id[func->addr()] = func_vertex_id;
   }
@@ -129,7 +140,8 @@ void StaticAnalysisImpl::CaptureProgramCallGraph() {
 }
 
 // Capture function call structure in this function but not in the loop
-void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg, std::vector<Block *> &bvec,
+void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
+                                              std::vector<Block *> &bvec,
                                               int parent_id) {
   // Traverse through all blocks
   for (auto b : bvec) {
@@ -155,26 +167,37 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg, 
 #ifdef DEBUG_COUT
           std::cout
               << "Call : "
-              << decoder.decode((unsigned char *)func->isrc()->getPtrToInstruction((*it)->src()->start())).format();
+              << decoder
+                     .decode((unsigned char *)func->isrc()->getPtrToInstruction(
+                         (*it)->src()->start()))
+                     .format();
 #endif
           Address entry_addr = inst->src()->last();
           Address exit_addr = inst->src()->last();
-          std::string call_name = this->addr_2_func_name[this->call_graph_map[entry_addr]];
+          std::string call_name =
+              this->addr_2_func_name[this->call_graph_map[entry_addr]];
           type::vertex_t call_vertex_id = 0;
 
           // Add a CALL vertex, including MPI_CALL, INDIRECT_CALL, and CALL
-          auto startsWith = [](const std::string &s, const std::string &sub) -> bool { return s.find(sub) == 0; };
-          if (startsWith(call_name, "MPI_") || startsWith(call_name, "_MPI_") || startsWith(call_name, "mpi_") ||
-              startsWith(call_name, "_mpi_")) {  // MPI communication calls
+          auto startsWith = [](const std::string &s,
+                               const std::string &sub) -> bool {
+            return s.find(sub) == 0;
+          };
+          if (startsWith(call_name, "MPI_") || startsWith(call_name, "_MPI_") ||
+              startsWith(call_name, "mpi_") ||
+              startsWith(call_name, "_mpi_")) { // MPI communication calls
             call_vertex_id = func_cfg->AddVertex();
-            func_cfg->SetVertexBasicInfo(call_vertex_id, type::MPI_NODE, call_name.c_str());
-          } else if (call_name.empty()) {  // Function calls that are not
-                                           // analyzed at static analysis
+            func_cfg->SetVertexBasicInfo(call_vertex_id, type::MPI_NODE,
+                                         call_name.c_str());
+          } else if (call_name.empty()) { // Function calls that are not
+                                          // analyzed at static analysis
             call_vertex_id = func_cfg->AddVertex();
-            func_cfg->SetVertexBasicInfo(call_vertex_id, type::CALL_IND_NODE, call_name.c_str());
-          } else {  // Common function calls
+            func_cfg->SetVertexBasicInfo(call_vertex_id, type::CALL_IND_NODE,
+                                         call_name.c_str());
+          } else { // Common function calls
             call_vertex_id = func_cfg->AddVertex();
-            func_cfg->SetVertexBasicInfo(call_vertex_id, type::CALL_NODE, call_name.c_str());
+            func_cfg->SetVertexBasicInfo(call_vertex_id, type::CALL_NODE,
+                                         call_name.c_str());
           }
 
           func_cfg->SetVertexDebugInfo(call_vertex_id, entry_addr, exit_addr);
@@ -187,9 +210,10 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg, 
 #endif
 
 #ifdef DEBUG_COUT
-          for (int i = 0; i < 1; i++) cout << "  ";
-          std::cout << "Call : " << std::call_name << " addr : " << std::hex << entry_addr << " - " << exit_addr
-                    << std::dec << endl;
+          for (int i = 0; i < 1; i++)
+            cout << "  ";
+          std::cout << "Call : " << std::call_name << " addr : " << std::hex
+                    << entry_addr << " - " << exit_addr << std::dec << endl;
 #endif
         } else {
 #ifndef LOOP_GRANULARITY
@@ -198,7 +222,8 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg, 
           /** Add all non-call instructions as vertex **/
           type::vertex_t inst_vertex_id = func_cfg->AddVertex();
           func_cfg->SetVertexBasicInfo(inst_vertex_id, core::INST_NODE, "INS");
-          func_cfg->SetVertexDebugInfo(inst_vertex_id, inst_entry_addr, inst_exit_addr);
+          func_cfg->SetVertexDebugInfo(inst_vertex_id, inst_entry_addr,
+                                       inst_exit_addr);
           func_cfg->AddEdge(bb_vertex_id, inst_vertex_id);
 #endif
         }
@@ -207,8 +232,9 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg, 
   }
 }
 
-void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg, LoopTreeNode *loop_tree, int depth,
-                                              int parent_id) {
+void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg,
+                                              LoopTreeNode *loop_tree,
+                                              int depth, int parent_id) {
   if (loop_tree == nullptr) {
     return;
   }
@@ -235,14 +261,17 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg, 
 
   std::sort(child_loop_list.begin(), child_loop_list.end(),
             [&loop_min_entry_addr](LoopTreeNode *a, LoopTreeNode *b) -> bool {
-              return loop_min_entry_addr[a->loop] < loop_min_entry_addr[b->loop];
+              return loop_min_entry_addr[a->loop] <
+                     loop_min_entry_addr[b->loop];
             });
 
   for (auto loop_tree_node : child_loop_list) {
     std::vector<Block *> blocks;
     loop_tree_node->loop->getLoopBasicBlocks(blocks);
 
-    std::sort(blocks.begin(), blocks.end(), [](Block *a, Block *b) -> bool { return a->start() < b->start(); });
+    std::sort(blocks.begin(), blocks.end(), [](Block *a, Block *b) -> bool {
+      return a->start() < b->start();
+    });
 
     Address entry_addr = blocks.front()->start();
     Address exit_addr = blocks.back()->end();
@@ -250,18 +279,21 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg, 
     std::string loop_name = loop_tree_node->name();
 
     int loop_vertex_id = func_cfg->AddVertex();
-    func_cfg->SetVertexBasicInfo(loop_vertex_id, type::LOOP_NODE, loop_name.c_str());
+    func_cfg->SetVertexBasicInfo(loop_vertex_id, type::LOOP_NODE,
+                                 loop_name.c_str());
     func_cfg->SetVertexDebugInfo(loop_vertex_id, entry_addr - 8, exit_addr - 8);
 
     func_cfg->AddEdge(parent_id, loop_vertex_id);
 
 #ifdef DEBUG_COUT
-    for (int i = 0; i < depth; i++) cout << "  ";
-    std::cout << "Loop : " << std::loop_name << " addr : " << std::hex << entry_addr << " - " << exit_addr << std::dec
-              << std::endl;
+    for (int i = 0; i < depth; i++)
+      cout << "  ";
+    std::cout << "Loop : " << std::loop_name << " addr : " << std::hex
+              << entry_addr << " - " << exit_addr << std::dec << std::endl;
 #endif
 
-    this->ExtractLoopStructure(func_cfg, loop_tree_node, depth + 1, loop_vertex_id);
+    this->ExtractLoopStructure(func_cfg, loop_tree_node, depth + 1,
+                               loop_vertex_id);
     if (loop_tree_node->numCallees() > 0) {
       this->ExtractCallStructure(func_cfg, blocks, loop_vertex_id);
     }
@@ -284,7 +316,9 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
 
     const ParseAPI::Function::blocklist &blist = func->blocks();
     std::vector<Block *> bvec(blist.begin(), blist.end());
-    std::sort(bvec.begin(), bvec.end(), [](Block *a, Block *b) -> bool { return a->start() < b->start(); });
+    std::sort(bvec.begin(), bvec.end(), [](Block *a, Block *b) -> bool {
+      return a->start() < b->start();
+    });
 
     entry_addr = bvec.front()->start();
     Address exit_addr = bvec.back()->last();
@@ -296,14 +330,15 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
     if (status >= 0) {
       func_cfg->SetVertexBasicInfo(func_vertex_id, type::FUNC_NODE, cpp_name);
     } else {
-      func_cfg->SetVertexBasicInfo(func_vertex_id, type::FUNC_NODE, func_name.c_str());
+      func_cfg->SetVertexBasicInfo(func_vertex_id, type::FUNC_NODE,
+                                   func_name.c_str());
     }
     // Add DebugInfo attributes
     func_cfg->SetVertexDebugInfo(func_vertex_id, entry_addr, exit_addr);
 
 #ifdef DEBUG_COUT
-    std::cout << "Function : " << func_name << " addr : " << hex << entry_addr << "/" << entry_addr << " - "
-              << exit_addr << dec << std::endl;
+    std::cout << "Function : " << func_name << " addr : " << hex << entry_addr
+              << "/" << entry_addr << " - " << exit_addr << dec << std::endl;
 #endif
 
     // Capture loop structure in this function
@@ -316,7 +351,8 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
   }
 }
 
-void StaticAnalysisImpl::DumpFunctionGraph(core::ControlFlowGraph *func_cfg, const char *file_name) {
+void StaticAnalysisImpl::DumpFunctionGraph(core::ControlFlowGraph *func_cfg,
+                                           const char *file_name) {
   func_cfg->DeleteExtraTailVertices();
   func_cfg->SortByAddr(0);
   func_cfg->DumpGraphGML(file_name);
@@ -324,12 +360,12 @@ void StaticAnalysisImpl::DumpFunctionGraph(core::ControlFlowGraph *func_cfg, con
 
 void StaticAnalysisImpl::DumpAllFunctionGraph() {
 #ifdef LOOP_GRANULARITY
-  std::string dir_name =
-      std::string(getcwd(NULL, 0)) + std::string("/") + std::string(this->binary_name) + std::string(".pag");
+  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+                         std::string(this->binary_name) + std::string(".pag");
 
 #else
-  std::string dir_name =
-      std::string(getcwd(NULL, 0)) + std::string("/") + std::string(this->binary_name) + std::string(".cfg");
+  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+                         std::string(this->binary_name) + std::string(".cfg");
 #endif
   printf("%s\n", dir_name.c_str());
   // TODO: this syscall needs to be wrapped
@@ -391,4 +427,4 @@ void StaticAnalysisImpl::GetBinaryName() {
 
 void StaticAnalysisImpl::InterProceduralAnalysis() { UNIMPLEMENTED(); }
 
-}  // namespace baguatool::graph_sd
+} // namespace baguatool::collector

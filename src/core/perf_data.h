@@ -1,15 +1,15 @@
 #ifndef PERF_DATA_
 #define PERF_DATA_
 
-#include <stdlib.h>
+#include "baguatool.h"
+#include "common/tprintf.h"
+#include "common/utils.h"
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
 #include <stack>
+#include <stdlib.h>
 #include <string>
-#include "baguatool.h"
-#include "common/tprintf.h"
-#include "common/utils.h"
 
 #ifndef MAX_CALL_PATH_DEPTH
 #define MAX_CALL_PATH_DEPTH 50
@@ -30,23 +30,23 @@ typedef unsigned long long int addr_t;
 
 // size : 8 * 50 + 4 + 4 + 4 + 4 = 432
 typedef struct VERTEX_DATA_STRUCT {
-  type::addr_t call_path[MAX_CALL_PATH_DEPTH] = {0};  //
-  int call_path_len = 0;                              //
-  perf_data_t value = 0;                              //
-  int procs_id = 0;                                   // process id
-  int thread_id = 0;                                  // user-defined thread id
+  type::addr_t call_path[MAX_CALL_PATH_DEPTH] = {0}; //
+  int call_path_len = 0;                             //
+  perf_data_t value = 0;                             //
+  int procs_id = 0;                                  // process id
+  int thread_id = 0;                                 // user-defined thread id
 } VDS;
 
 typedef struct EDGE_DATA_STRUCT {
-  type::addr_t call_path[MAX_CALL_PATH_DEPTH] = {0};      //
-  int call_path_len = 0;                                  //
-  type::addr_t out_call_path[MAX_CALL_PATH_DEPTH] = {0};  //
-  int out_call_path_len = 0;                              //
-  perf_data_t value = 0;                                  //
-  int procs_id = 0;                                       // process id
-  int out_procs_id = 0;                                   // process id of communication process
-  int thread_id = 0;                                      // user-defined thread id
-  int out_thread_id = 0;                                  // user-defined thread id of a created thread
+  type::addr_t call_path[MAX_CALL_PATH_DEPTH] = {0};     //
+  int call_path_len = 0;                                 //
+  type::addr_t out_call_path[MAX_CALL_PATH_DEPTH] = {0}; //
+  int out_call_path_len = 0;                             //
+  perf_data_t value = 0;                                 //
+  int procs_id = 0;                                      // process id
+  int out_procs_id = 0;  // process id of communication process
+  int thread_id = 0;     // user-defined thread id
+  int out_thread_id = 0; // user-defined thread id of a created thread
 } EDS;
 
 // class PerfData {
@@ -73,20 +73,24 @@ typedef struct EDGE_DATA_STRUCT {
 //   void SetMetricName(std::string& metric_name);
 //   std::string& GetMetricName();
 
-//   int QueryVertexData(type::addr_t* call_path, int call_path_len, int procs_id, int thread_id);
-//   int QueryEdgeData(type::addr_t* call_path, int call_path_len, type::addr_t* out_call_path, int out_call_path_len,
-//   int procs_id,
+//   int QueryVertexData(type::addr_t* call_path, int call_path_len, int
+//   procs_id, int thread_id); int QueryEdgeData(type::addr_t* call_path, int
+//   call_path_len, type::addr_t* out_call_path, int out_call_path_len, int
+//   procs_id,
 //                     int out_procs_id, int thread_id, int out_thread_id);
 
-//   void RecordVertexData(type::addr_t* call_path, int call_path_len, int procs_id, int thread_id, perf_data_t value);
-//   void RecordEdgeData(type::addr_t* call_path, int call_path_len, type::addr_t* out_call_path, int out_call_path_len,
-//   int
-//   procs_id,
-//                       int out_procs_id, int thread_id, int out_thread_id, perf_data_t value);
+//   void RecordVertexData(type::addr_t* call_path, int call_path_len, int
+//   procs_id, int thread_id, perf_data_t value); void
+//   RecordEdgeData(type::addr_t* call_path, int call_path_len, type::addr_t*
+//   out_call_path, int out_call_path_len, int procs_id,
+//                       int out_procs_id, int thread_id, int out_thread_id,
+//                       perf_data_t value);
 
-//   void GetVertexDataCallPath(unsigned long int data_index, std::stack<unsigned long long>&);
-//   void GetEdgeDataSrcCallPath(unsigned long int data_index, std::stack<unsigned long long>&);
-//   void GetEdgeDataDestCallPath(unsigned long int data_index, std::stack<unsigned long long>&);
+//   void GetVertexDataCallPath(unsigned long int data_index,
+//   std::stack<unsigned long long>&); void GetEdgeDataSrcCallPath(unsigned long
+//   int data_index, std::stack<unsigned long long>&); void
+//   GetEdgeDataDestCallPath(unsigned long int data_index, std::stack<unsigned
+//   long long>&);
 
 //   perf_data_t GetVertexDataValue(unsigned long int data_index);
 //   perf_data_t GetEdgeDataValue(unsigned long int data_index);
@@ -100,6 +104,6 @@ typedef struct EDGE_DATA_STRUCT {
 //   int GetEdgeDataDestThreadId(unsigned long int data_index);
 // };
 
-}  // namespace baguatool::core
+} // namespace baguatool::core
 
 #endif

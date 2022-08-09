@@ -3,4 +3,4 @@
 
 #include "baguatool.h"
 
-#endif  // BAGUA_TYPE_H_
+#endif // BAGUA_TYPE_H_

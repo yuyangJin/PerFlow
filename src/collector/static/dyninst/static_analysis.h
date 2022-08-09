@@ -7,7 +7,7 @@
 #include <LineInformation.h>
 #include <Symtab.h>
 
-#include <cxxabi.h>  // needed for abi::__cxa_demangle
+#include <cxxabi.h> // needed for abi::__cxa_demangle
 #include <map>
 #include <unordered_map>
 
@@ -20,7 +20,7 @@ using namespace ParseAPI;
 // using namespace SymtabAPI;
 using namespace InstructionAPI;
 typedef unsigned long int VMA;
-typedef long int VMASigned;  // useful for offsets
+typedef long int VMASigned; // useful for offsets
 
 //#define DEBUG_COUT
 
@@ -40,7 +40,7 @@ typedef long int VMASigned;  // useful for offsets
 namespace baguatool::collector {
 
 class StaticAnalysisImpl {
- private:
+private:
   SymtabCodeSource *sts;
   CodeObject *co;
   std::unordered_map<Block *, bool> visited_block_map;
@@ -53,22 +53,24 @@ class StaticAnalysisImpl {
   std::unordered_map<Address, core::ControlFlowGraph *> entry_addr_to_graph;
   char binary_name[MAX_STR_LEN];
 
- public:
+public:
   StaticAnalysisImpl(char *binary_name);
 
   ~StaticAnalysisImpl();
 
   void IntraProceduralAnalysis();
-  void ExtractLoopStructure(core::ControlFlowGraph *func_struct_graph, LoopTreeNode *loop_tree, int depth,
-                            int parent_id);
-  void ExtractCallStructure(core::ControlFlowGraph *func_struct_graph, std::vector<Block *> &bvec, int parent_id);
+  void ExtractLoopStructure(core::ControlFlowGraph *func_struct_graph,
+                            LoopTreeNode *loop_tree, int depth, int parent_id);
+  void ExtractCallStructure(core::ControlFlowGraph *func_struct_graph,
+                            std::vector<Block *> &bvec, int parent_id);
   void InterProceduralAnalysis();
   void CaptureProgramCallGraph();
-  void DumpFunctionGraph(core::ControlFlowGraph *func_struct_graph, const char *file_name);
+  void DumpFunctionGraph(core::ControlFlowGraph *func_struct_graph,
+                         const char *file_name);
   void DumpAllFunctionGraph();
   void GetBinaryName();
   void DumpProgramCallGraph();
 };
-}  // namespace baguatool::graph_sd
+} // namespace baguatool::collector
 
 #endif
