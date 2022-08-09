@@ -730,6 +730,44 @@ class ProgramAbstractionGraph : public ProgramGraph {
   void PreserveHotVertices(char* metric_name);
 };
 
+class MultiProgramAbstractionGraph : public ProgramAbstractionGraph {
+ private:
+  json j_pag_to_mpag_map;
+ public:
+  /** Default Constructor
+   */
+  MultiProgramAbstractionGraph();
+  /** Default Destructor
+   */
+  ~MultiProgramAbstractionGraph();
+  /** [Graph Algorithm] Traverse all vertices and execute CALL_BACK_FUNC when accessing each vertex.
+   * @param CALL_BACK_FUNC - callback function when a vertex is accessed. The input parameters of this function contain
+   * a pointer to the graph being traversed, id of the accessed vertex, and an extra pointer for developers to pass more
+   * parameters.
+   * @param extra - a pointer for developers to pass more parameters as the last parameter of CALL_BACK_FUNC
+   */
+  void VertexTraversal(void (*CALL_BACK_FUNC)(MultiProgramAbstractionGraph*, int, void*), void* extra);
+
+  /** [Graph Algorithm] Traverse all edges and execute CALL_BACK_FUNC when accessing each edge.
+   * @param CALL_BACK_FUNC - callback function when an edge is accessed. The input parameters of this function contain
+   * a pointer to the graph being traversed, id of the accessed edge, and an extra pointer for developers to pass more
+   * parameters.
+   * @param extra - a pointer for developers to pass more parameters as the last parameter of CALL_BACK_FUNC
+   */
+  void EdgeTraversal(void (*CALL_BACK_FUNC)(MultiProgramAbstractionGraph*, int, void*), void* extra);
+
+  /** DFS
+   *
+  */
+  void DFS(type::vertex_t root, void (*IN_CALL_BACK_FUNC)(MultiProgramAbstractionGraph*, int, void*),
+           void (*OUT_CALL_BACK_FUNC)(MultiProgramAbstractionGraph*, int, void*), void* extra);
+
+  void SetPagToMpagMap(type::vertex_t pag_vertex_id, type::procs_t procs_id, type::thread_t thread_id, type::vertex_t mpag_vertex_id);
+
+  void DumpPagToMpagMap(std::string& file_name);
+
+};
+
 class ControlFlowGraph : public ProgramGraph {
  private:
  public:

@@ -52,6 +52,9 @@ int main(int argc, char** argv) {
 
   auto mpag = graph_perf->GetMultiProgramAbstractionGraph();
 
+  std::string pag_to_mpag_map_str("pag_to_mpag.json");
+  mpag->DumpPagToMpagMap(pag_to_mpag_map_str);
+
   auto mpag_graph_perf_data = mpag->GetGraphPerfData();
   std::string mpag_output_file_name_str("mpag_perf_data.json");
   mpag_graph_perf_data->Dump(mpag_output_file_name_str);

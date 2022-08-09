@@ -42,7 +42,7 @@ void build_create_tid_to_callpath_and_tid(core::PerfData *perf_data) {
 }
 
 GPerf::GPerf() {
-  this->root_mpag = new core::ProgramAbstractionGraph();
+  this->root_mpag = new core::MultiProgramAbstractionGraph();
   this->has_dyn_addr_debug_info = false;
 }
 
@@ -872,14 +872,14 @@ void GPerf::DataEmbedding(core::PerfData *perf_data) {
 }  // function Dataembedding
 
 struct pthread_expansion_arg_t {
-  core::ProgramAbstractionGraph *mpag;
+  core::MultiProgramAbstractionGraph *mpag;
   std::map<type::vertex_t, type::vertex_t> *pag_vertex_id_2_mpag_vertex_id;
   type::vertex_t src_vertex_id;
 };
 
 void in_pthread_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
   struct pthread_expansion_arg_t *arg = (struct pthread_expansion_arg_t *)extra;
-  core::ProgramAbstractionGraph *mpag = arg->mpag;
+  core::MultiProgramAbstractionGraph *mpag = arg->mpag;
   std::map<type::vertex_t, type::vertex_t> *pag_vertex_id_2_mpag_vertex_id = arg->pag_vertex_id_2_mpag_vertex_id;
 
   type::vertex_t new_vertex_id = mpag->AddVertex();
@@ -906,7 +906,7 @@ void in_pthread_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, voi
 
 void out_pthread_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
   struct pthread_expansion_arg_t *arg = (struct pthread_expansion_arg_t *)extra;
-  // core::ProgramAbstractionGraph *mpag = arg->mpag;
+  // core::MultiProgramAbstractionGraph *mpag = arg->mpag;
   std::map<type::vertex_t, type::vertex_t> *pag_vertex_id_2_mpag_vertex_id = arg->pag_vertex_id_2_mpag_vertex_id;
 
   type::vertex_t parent_vertex_id = pag->GetParentVertex(vertex_id);
@@ -917,7 +917,7 @@ void out_pthread_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, vo
   }
 }
 
-void add_unlock_to_lock_edge(core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
+void add_unlock_to_lock_edge(core::MultiProgramAbstractionGraph *pag, int vertex_id, void *extra) {
   std::map<type::vertex_t, type::vertex_t> *pag_vertex_id_2_mpag_vertex_id =
       (std::map<type::vertex_t, type::vertex_t> *)extra;
 
@@ -1013,14 +1013,14 @@ bool openmp_seq_record_flag = false;
 std::vector<type::vertex_t> openmp_seq;
 
 struct openmp_expansion_arg_t {
-  core::ProgramAbstractionGraph *mpag;
+  core::MultiProgramAbstractionGraph *mpag;
   type::vertex_t src_vertex_id;
   int num_threads;
 };
 
 void in_openmp_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
   struct openmp_expansion_arg_t *arg = (struct openmp_expansion_arg_t *)extra;
-  core::ProgramAbstractionGraph *mpag = arg->mpag;
+  core::MultiProgramAbstractionGraph *mpag = arg->mpag;
   // std::map<type::vertex_t, type::vertex_t> *pag_vertex_id_2_mpag_vertex_id = arg->pag_vertex_id_2_mpag_vertex_id;
 
   if (openmp_seq_record_flag) {
@@ -1049,7 +1049,7 @@ void in_openmp_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, void
 
 void out_openmp_expansion(core::ProgramAbstractionGraph *pag, int vertex_id, void *extra) {
   struct openmp_expansion_arg_t *arg = (struct openmp_expansion_arg_t *)extra;
-  core::ProgramAbstractionGraph *mpag = arg->mpag;
+  core::MultiProgramAbstractionGraph *mpag = arg->mpag;
   auto pag_graph_perf_data = pag->GetGraphPerfData();
   auto mpag_graph_perf_data = mpag->GetGraphPerfData();
 
@@ -1211,6 +1211,7 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(type::vertex_t starting_
   // Build for each process
   auto pag_graph_perf_data = this->root_pag->GetGraphPerfData();
   auto mpag_graph_perf_data = this->root_mpag->GetGraphPerfData();
+
   for (int i = 0; i < num_procs; i++) {
     type::vertex_t last_new_vertex_id = root_vertex_id;
     for (auto vertex_id : *pre_order_vertex_seq) {
@@ -1228,6 +1229,9 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(type::vertex_t starting_
         mpag_graph_perf_data->SetProcsPerfData(new_vertex_id, metric, i, proc_perf_data);
         FREE_CONTAINER(proc_perf_data);
       }
+
+      this->root_mpag->SetPagToMpagMap(vertex_id, i, 0, new_vertex_id);
+
       last_new_vertex_id = new_vertex_id;
     }
   }
@@ -1239,6 +1243,6 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(type::vertex_t starting_
 
 void GPerf::GenerateMultiProgramAbstractionGraph() {}
 
-core::ProgramAbstractionGraph *GPerf::GetMultiProgramAbstractionGraph() { return root_mpag; }
+core::MultiProgramAbstractionGraph *GPerf::GetMultiProgramAbstractionGraph() { return root_mpag; }
 
 }  // graph_perf

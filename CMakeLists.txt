@@ -43,6 +43,7 @@ add_library(
   src/core/graph.cpp
   src/core/pg.cpp
   src/core/pag.cpp
+  src/core/mpag.cpp
   src/core/pcg.cpp
   src/core/cfg.cpp
   src/core/perf_data.cpp

@@ -22,7 +22,8 @@ class GPerf {
   std::map<int, type::addr_t> hash_to_entry_addr;
   std::map<type::addr_t, type::addr_debug_info_t*> dyn_addr_to_debug_info;
   core::ProgramAbstractionGraph* root_pag;  /**<an overall program abstraction graph for a program */
-  core::ProgramAbstractionGraph* root_mpag; /**<an overall multi-* program abstraction graph for a parallel program*/
+  core::MultiProgramAbstractionGraph* root_mpag; /**<an overall multi-* program abstraction graph for a parallel program*/
+
   bool has_dyn_addr_debug_info;
 
  public:
@@ -231,7 +232,7 @@ class GPerf {
   /** Get multi-thread or multi-process program abstraction graph.
    * @return multi-thread or multi-process program abstraction graph
   */
-  core::ProgramAbstractionGraph* GetMultiProgramAbstractionGraph();
+  core::MultiProgramAbstractionGraph* GetMultiProgramAbstractionGraph();
 };
 
 }  // namespace graph_perf
