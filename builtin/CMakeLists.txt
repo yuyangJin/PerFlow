@@ -7,8 +7,8 @@ add_library(sequential_sampler SHARED src/hybrid_collector/dynamic/sequential_sa
 add_library(mpi_sampler SHARED src/hybrid_collector/dynamic/mpi_sampler.cpp src/hybrid_collector/dynamic/mpi_init.cpp)
 add_library(pthread_sampler SHARED src/hybrid_collector/dynamic/pthread_sampler.cpp)
 add_library(omp_sampler SHARED src/hybrid_collector/dynamic/omp_sampler.cpp)
-add_library(mpi_omp_sampler SHARED src/hybrid_collector/dynamic/mpi_omp_sampler.cpp src/hybrid_collector/dynamic/mpi_init.cpp)
-add_library(mpi_tracer SHARED src/hybrid_collector/dynamic/mpi_tracer.cpp)
+add_library(mpi_omp_sampler SHARED src/hybrid_collector/dynamic/mpi_omp_sampler.cpp src/hybrid_collector/dynamic/mpi_tracer.cpp)
+# add_library(mpi_tracer SHARED src/hybrid_collector/dynamic/mpi_tracer.cpp)
 add_executable(comm_dep_analysis src/hybrid_collector/dynamic/comm_dep_analysis.cpp)
 add_executable(comm_dep_approxi_analysis src/hybrid_collector/dynamic/comm_dep_approxi_analysis.cpp)
 
@@ -27,7 +27,7 @@ target_link_libraries(binary_analyzer PRIVATE baguatool)
 target_link_libraries(sequential_sampler PRIVATE baguatool)
 target_link_libraries(mpi_sampler PUBLIC baguatool MPI::MPI_CXX)
 target_link_libraries(pthread_sampler PRIVATE baguatool)
-target_link_libraries(mpi_tracer PRIVATE baguatool unwind MPI::MPI_CXX)
+# target_link_libraries(mpi_tracer PRIVATE baguatool unwind MPI::MPI_CXX)
 
 
 # if(OpenMP_C_FOUND)

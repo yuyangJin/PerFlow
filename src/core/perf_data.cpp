@@ -70,7 +70,7 @@ void PerfData::Read(const char* infile_name) {
   // char infile_name_str[MAX_CALL_PATH_LEN];
   // strcpy(infile_name_str, std::string(infile_name).c_str());
 
-  //dbg(infile_name);
+  // dbg(infile_name);
 
   this->perf_data_in_file.open(std::string(infile_name), std::ios::in);
   if (!(this->perf_data_in_file.is_open())) {
@@ -85,7 +85,7 @@ void PerfData::Read(const char* infile_name) {
   // this->perf_data_in_file.getline(line, MAX_CALL_PATH_LEN);
   getline(this->perf_data_in_file, line);
   unsigned long int count = strtoul(line.c_str(), 0, 10);
-  //dbg(count);
+  // dbg(count);
 
   // Read lines, each line is a VDS
   while (count-- && getline(this->perf_data_in_file, line)) {
@@ -136,7 +136,7 @@ void PerfData::Read(const char* infile_name) {
   // this->perf_data_in_file.getline(line, MAX_CALL_PATH_LEN);
   getline(this->perf_data_in_file, line);
   count = strtoul(line.c_str(), 0, 10);
-  //dbg(count);
+  // dbg(count);
 
   while (count-- && getline(this->perf_data_in_file, line)) {
     // Read a line
@@ -363,7 +363,8 @@ void PerfData::GetEdgeDataSrcCallPath(unsigned long int data_index, std::stack<t
   for (int i = 0; i < data->call_path_len; i++) {
     call_path_stack.push(data->call_path[i]);
   }
-  delete_all_so_addr(call_path_stack);
+  // delete_all_so_addr(call_path_stack);
+  preserve_call_path_tail_so_addr(call_path_stack);
   return;
 }
 
@@ -372,7 +373,8 @@ void PerfData::GetEdgeDataDestCallPath(unsigned long int data_index, std::stack<
   for (int i = 0; i < data->out_call_path_len; i++) {
     call_path_stack.push(data->out_call_path[i]);
   }
-  delete_all_so_addr(call_path_stack);
+  // delete_all_so_addr(call_path_stack);
+  preserve_call_path_tail_so_addr(call_path_stack);
   return;
 }
 

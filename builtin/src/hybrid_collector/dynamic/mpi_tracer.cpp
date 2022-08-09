@@ -60,7 +60,7 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 #include <iostream>
 #include <map>
 #include <string>
-
+#include "mpi_init.h"
 
 using namespace std;
 
@@ -128,12 +128,12 @@ static unsigned long long int trace_log_pointer = 0;
 
 map<RequestConverter, pair<int, int>> request_converter;
 
-int mpiRank = -1;
+// int mpi_rank = -1;
 static int module_init = 0;
 static char *addr_threshold;
 bool mpi_finalize_flag = false;
 
-// int mpiRank = 0;
+// int mpi_rank = 0;
 
 
 int my_backtrace(unw_word_t* buffer, int max_depth) {
@@ -160,7 +160,7 @@ int my_backtrace(unw_word_t* buffer, int max_depth) {
 
 // Dump mpi info log
 static void writeCollMpiInfoLog() {
-  ofstream outputStream((string("MPID") + to_string(mpiRank) + string(".TXT")), ios_base::app);
+  ofstream outputStream((string("MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
   if (!outputStream.good()) {
     cout << "Failed to open sample file\n";
     return;
@@ -195,7 +195,7 @@ static void writeCollMpiInfoLog() {
 }
 
 static void writeP2PMpiInfoLog() {
-  ofstream outputStream((string("MPID") + to_string(mpiRank) + string(".TXT")), ios_base::app);
+  ofstream outputStream((string("MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
   if (!outputStream.good()) {
     cout << "Failed to open sample file\n";
     return;
@@ -220,7 +220,7 @@ static void writeP2PMpiInfoLog() {
 }
 
 static void writeTraceLog() {
-  ofstream outputStream((string("MPIT") + to_string(mpiRank) + string(".TXT")), ios_base::app);
+  ofstream outputStream((string("MPIT") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
   if (!outputStream.good()) {
     cout << "Failed to open sample file\n";
     return;
@@ -429,7 +429,7 @@ _EXTERN_C_ int MPI_Init(int *argc, char ***argv) {
       _wrap_py_return_val = PMPI_Init(argc, argv);
     }
 
-    PMPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+    PMPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   }
   return _wrap_py_return_val;
 }
@@ -481,7 +481,7 @@ _EXTERN_C_ int MPI_Send(const void *buf, int count, MPI_Datatype datatype, int d
     int dest_list[1];
     int tag_list[1];
 
-    source_list[0] = mpiRank;
+    source_list[0] = mpi_rank;
     dest_list[0] = dest;
     tag_list[0] = tag;
 #ifdef DEBUG
@@ -543,12 +543,12 @@ _EXTERN_C_ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype, int 
     int dest_list[1] = {-1};
     int tag_list[1] = {-1};
 
-    source_list[0] = mpiRank;
+    source_list[0] = mpi_rank;
     dest_list[0] = dest;
     tag_list[0] = tag;
-    // if (mpiRank == 0){
-    // printf("isend record %x %d %d\n",request, mpiRank , tag);}
-    request_converter[RequestConverter(request)] = pair<int, int>(mpiRank, tag);
+    // if (mpi_rank == 0){
+    // printf("isend record %x %d %d\n",request, mpi_rank , tag);}
+    request_converter[RequestConverter(request)] = pair<int, int>(mpi_rank, tag);
 #ifdef DEBUG
     printf("%s\n", "MPI_Isend");
 #endif
@@ -614,7 +614,7 @@ _EXTERN_C_ int MPI_Recv(void *buf, int count, MPI_Datatype datatype, int source,
     int tag_list[1];
 
     source_list[0] = source;
-    dest_list[0] = mpiRank;
+    dest_list[0] = mpi_rank;
     tag_list[0] = tag;
 #ifdef DEBUG
     printf("%s\n", "MPI_Recv");
@@ -681,10 +681,10 @@ _EXTERN_C_ int MPI_Irecv(void *buf, int count, MPI_Datatype datatype, int source
     int tag_list[1] = {-1};
 
     source_list[0] = source;
-    dest_list[0] = mpiRank;
+    dest_list[0] = mpi_rank;
     tag_list[0] = tag;
 #ifdef DEBUG
-    if (mpiRank == 0) {
+    if (mpi_rank == 0) {
       printf("irecv record %x %d %d\n", request, source, tag);
     }
 #endif
@@ -745,7 +745,7 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *request, MPI_Status *status) {
     int dest_list[1] = {-1};
     int tag_list[1] = {-1};
 
-    dest_list[0] = mpiRank;
+    dest_list[0] = mpi_rank;
     bool valid_flag = false;
 
     map<RequestConverter, pair<int, int>>::iterator iter;
@@ -832,7 +832,7 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Statu
     memset(valid_flag, 0, count * sizeof(char));
 
     for (int i = 0; i < count; i++) {
-      dest_list[i] = mpiRank;
+      dest_list[i] = mpi_rank;
 
       map<RequestConverter, pair<int, int>>::iterator iter;
       iter = request_converter.find(RequestConverter(&array_of_requests[i]));
@@ -843,7 +843,7 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Statu
         source_list[i] = p.first;
         tag_list[i] = p.second;
 #ifdef DEBUG
-        if (mpiRank == 0) {
+        if (mpi_rank == 0) {
           printf("convert wait %d %d\n", p.first, p.second);
         }
 #endif
@@ -865,7 +865,7 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[], MPI_Statu
         tag_list[i] = array_of_statuses[i].MPI_TAG;
 // printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE, array_of_statuses[i].MPI_TAG);
 #ifdef DEBUG
-        if (mpiRank == 0) {
+        if (mpi_rank == 0) {
           printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE, array_of_statuses[i].MPI_TAG);
         }
 #endif

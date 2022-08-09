@@ -121,6 +121,35 @@ void GPerf::GenerateDynAddrDebugInfo(core::PerfData *perf_data, std::map<type::p
       }
     }
   }
+  auto edge_data_size = perf_data->GetEdgeDataSize();
+  for (unsigned long int i = 0; i < edge_data_size; i++) {
+    std::stack<unsigned long long> src_call_path;
+    std::stack<unsigned long long> dest_call_path;
+    perf_data->GetEdgeDataSrcCallPath(i, src_call_path);
+    perf_data->GetEdgeDataDestCallPath(i, dest_call_path);
+    auto src_pid = perf_data->GetEdgeDataSrcProcsId(i);
+    auto dest_pid = perf_data->GetEdgeDataDestProcsId(i);
+
+    while (!src_call_path.empty()) {
+      type::addr_t call_addr = src_call_path.top();
+      src_call_path.pop();
+      if (type::IsDynAddr(call_addr)) {
+        // if (this->dyn_addr_to_debug_info.find(call_addr) != this->dyn_addr_to_debug_info.end()){
+          all_addrs[src_pid].insert(call_addr);
+        // }
+      }
+    }
+
+    while (!dest_call_path.empty()) {
+      type::addr_t call_addr = dest_call_path.top();
+      dest_call_path.pop();
+      if (type::IsDynAddr(call_addr)) {
+        // if (this->dyn_addr_to_debug_info.find(call_addr) != this->dyn_addr_to_debug_info.end()){
+          all_addrs[dest_pid].insert(call_addr);
+        // }
+      }
+    }
+  }
   // shared_obj_analysis->GetDebugInfos(addrs, this->dyn_addr_to_debug_info);
   for (auto& kv: all_addrs){
     type::procs_t procs_id = kv.first;
@@ -197,7 +226,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
 
     while (!tmp.empty()) {
       type::addr_t addr = tmp.top();
-      
+      dbg(addr);
       if (dyn_addr_to_debug_info_map.find(addr) == dyn_addr_to_debug_info_map.end()) { // not found
         call_path.push(addr);
         tmp.pop();
@@ -206,7 +235,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
       auto debug_info = dyn_addr_to_debug_info_map[addr];
       if (debug_info->IsExecutable()) {
         call_path.push(debug_info->GetAddress());
-        // dbg(debug_info->GetAddress());
+        dbg(debug_info->GetAddress());
       } else {
         call_path.push(addr);
       }
@@ -803,7 +832,7 @@ core::ProgramAbstractionGraph *GPerf::GetProgramAbstractionGraph() { return this
 
 type::vertex_t GPerf::GetVertexWithInterThreadAnalysis(type::thread_t thread_id, type::call_path_t &call_path) {
   if (call_path.empty()) {
-    return 0;
+    return -1;
   } else {
     if (thread_id == 0) {
       call_path.pop();
@@ -812,7 +841,7 @@ type::vertex_t GPerf::GetVertexWithInterThreadAnalysis(type::thread_t thread_id,
 
   if (thread_id == 0) {
     if (call_path.empty()) {
-      return 0;
+      return -1;
     }
     auto vertex_id = this->root_pag->GetVertexWithCallPath(0, call_path);
     return vertex_id;
@@ -847,6 +876,8 @@ void GPerf::DataEmbedding(core::PerfData *perf_data) {
   for (unsigned long int i = 0; i < data_size; i++) {
     type::call_path_t call_path;
     perf_data->GetVertexDataCallPath(i, call_path);
+    
+    // For cluster yes, the first address of the call path is _start_main
     call_path.pop();
 
     auto value = perf_data->GetVertexDataValue(i);
@@ -1136,6 +1167,24 @@ void GPerf::GenerateOpenMPProgramAbstractionGraph(int num_threads) {
   delete arg;
 }
 
+void DumpCallPath(type::call_path_t& call_path){
+  std::stack<type::addr_t> tmp;
+  while (!call_path.empty()) {
+    type::addr_t addr = call_path.top();
+    call_path.pop();
+    tmp.push(addr);
+  }
+  
+  while (!tmp.empty()) {
+    type::addr_t addr = tmp.top();
+    tmp.pop();
+      call_path.push(addr);
+      std::cout << addr << " ";
+  }
+  std::cout << std::endl;
+  FREE_CONTAINER(tmp);
+}
+
 std::map<type::vertex_t, type::vertex_t> pag_vid_to_pre_order_seq_id;
 
 void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
@@ -1153,8 +1202,29 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       comm_data->GetEdgeDataDestCallPath(i, dest_call_path);
       type::procs_t src_pid = comm_data->GetEdgeDataSrcProcsId(i);
       type::procs_t dest_pid = comm_data->GetEdgeDataDestProcsId(i);
+      
+      DumpCallPath(src_call_path);
+      DumpCallPath(dest_call_path);
+
+      // For cluster yes, the first address of the call path is _start_main
+      if (!src_call_path.empty()){
+        src_call_path.pop();
+      }
+      if (!dest_call_path.empty()) {
+        dest_call_path.pop();
+      }
+
+      dbg(HasDynAddrDebugInfo());
+      if (this->HasDynAddrDebugInfo()) {
+        this->ConvertDynAddrToOffset(src_call_path);
+        this->ConvertDynAddrToOffset(dest_call_path);
+      }
+
       type::vertex_t queried_vertex_id_src = GetVertexWithInterThreadAnalysis(0, src_call_path);
       type::vertex_t queried_vertex_id_dest = GetVertexWithInterThreadAnalysis(0, dest_call_path);
+
+      dbg(queried_vertex_id_src);
+      dbg(queried_vertex_id_dest);
 
       //dbg(queried_vertex_id_src, queried_vertex_id_dest);
       if (queried_vertex_id_dest == -1 || queried_vertex_id_src == -1) {

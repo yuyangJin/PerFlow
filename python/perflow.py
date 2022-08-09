@@ -48,8 +48,8 @@ class PerFlow(object):
         if self.mode == 'mpi+omp':
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_omp_sampler.so ' + self.dynamic_analysis_command_line
             os.system(profiling_cmd_line)
-            comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
-            os.system(comm_cmd_line)
+            # comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
+            # os.system(comm_cmd_line)
         
         if self.mode == 'omp':
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libomp_sampler.so ' + self.dynamic_analysis_command_line

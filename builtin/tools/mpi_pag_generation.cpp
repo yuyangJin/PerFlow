@@ -48,6 +48,7 @@ int main(int argc, char** argv) {
   baguatool::core::PerfData* comm_data = new baguatool::core::PerfData();
   const char* comm_data_file_name = argv[4];
   comm_data->Read(comm_data_file_name);
+  graph_perf->GenerateDynAddrDebugInfo(comm_data, num_procs, bin_name);
   graph_perf->AddCommEdgesToMPAG(comm_data);
 
   auto mpag = graph_perf->GetMultiProgramAbstractionGraph();
