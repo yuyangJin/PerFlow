@@ -226,7 +226,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
 
     while (!tmp.empty()) {
       type::addr_t addr = tmp.top();
-      dbg(addr);
+      // dbg(addr);
       if (dyn_addr_to_debug_info_map.find(addr) == dyn_addr_to_debug_info_map.end()) { // not found
         call_path.push(addr);
         tmp.pop();
@@ -235,7 +235,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t& call_path) {
       auto debug_info = dyn_addr_to_debug_info_map[addr];
       if (debug_info->IsExecutable()) {
         call_path.push(debug_info->GetAddress());
-        dbg(debug_info->GetAddress());
+        // dbg(debug_info->GetAddress());
       } else {
         call_path.push(addr);
       }
@@ -866,7 +866,7 @@ type::vertex_t GPerf::GetVertexWithInterThreadAnalysis(type::thread_t thread_id,
 }
 
 void GPerf::DataEmbedding(core::PerfData *perf_data) {
-  dbg("start data embedding");
+  // dbg("start data embedding");
   if (!build_create_tid_to_callpath_and_tid_flag) {
     build_create_tid_to_callpath_and_tid(perf_data);
   }
@@ -1203,8 +1203,8 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       type::procs_t src_pid = comm_data->GetEdgeDataSrcProcsId(i);
       type::procs_t dest_pid = comm_data->GetEdgeDataDestProcsId(i);
       
-      DumpCallPath(src_call_path);
-      DumpCallPath(dest_call_path);
+      // DumpCallPath(src_call_path);
+      // DumpCallPath(dest_call_path);
 
       // For cluster yes, the first address of the call path is _start_main
       if (!src_call_path.empty()){
@@ -1214,7 +1214,7 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
         dest_call_path.pop();
       }
 
-      dbg(HasDynAddrDebugInfo());
+      // dbg(HasDynAddrDebugInfo());
       if (this->HasDynAddrDebugInfo()) {
         this->ConvertDynAddrToOffset(src_call_path);
         this->ConvertDynAddrToOffset(dest_call_path);
@@ -1223,8 +1223,8 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       type::vertex_t queried_vertex_id_src = GetVertexWithInterThreadAnalysis(0, src_call_path);
       type::vertex_t queried_vertex_id_dest = GetVertexWithInterThreadAnalysis(0, dest_call_path);
 
-      dbg(queried_vertex_id_src);
-      dbg(queried_vertex_id_dest);
+      // dbg(queried_vertex_id_src);
+      // dbg(queried_vertex_id_dest);
 
       //dbg(queried_vertex_id_src, queried_vertex_id_dest);
       if (queried_vertex_id_dest == -1 || queried_vertex_id_src == -1) {

@@ -1,6 +1,12 @@
 import os
 import json
 import numpy
+import matplotlib.pyplot as plt
+import scipy
+from scipy.cluster.hierarchy import dendrogram, linkage
+import sklearn
+from sklearn.cluster import AgglomerativeClustering
+from sklearn.preprocessing import normalize
 from pag import *
 from graphvizoutput import *
 
@@ -11,6 +17,9 @@ class PerFlow(object):
         self.mode = 'mpi+omp'
         self.nprocs = 0
         self.sampling_count = 1000
+
+        self.tdpag_file = ''
+        self.ppag_file =''
 
         self.tdpag = None
         self.ppag = None
@@ -46,6 +55,8 @@ class PerFlow(object):
             self.sampling_count = sampling_count
         
         if self.mode == 'mpi+omp':
+            remove_cmd_line = 'rm -rf ./MPID* ./MPIT* ./SAMPLE* ./SOMAP*'
+            os.system(remove_cmd_line)
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_omp_sampler.so ' + self.dynamic_analysis_command_line
             os.system(profiling_cmd_line)
             # comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
@@ -61,28 +72,25 @@ class PerFlow(object):
 
     def pagGeneration(self):
         pag_generation_cmd_line = ''
-        tdpag_file = ''
-        ppag_file =''
 
         if self.mode == 'mpi+omp':
             communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_pag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
             print(communication_analysis_cmd_line)
             os.system(communication_analysis_cmd_line)
-            tdpag_file = 'pag.gml'
-            ppag_file = 'mpi_mpag.gml'
+
 
         if self.mode == 'omp':
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/omp_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE*TXT ./SOMAP*.TXT'
             print(communication_analysis_cmd_line)
             os.system(communication_analysis_cmd_line)
-            tdpag_file = 'pag.gml'
-            ppag_file = 'mpi_mpag.gml'
+            self.tdpag_file = 'pag.gml'
+            self.ppag_file = 'mpi_mpag.gml'
 
         if self.mode == 'pthread':
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/pthread_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE.TXT'
-            tdpag_file = 'pthread_tdpag.gml'
-            ppag_file = 'pthread_ppag.gml'
+            self.tdpag_file = 'pthread_tdpag.gml'
+            self.ppag_file = 'pthread_ppag.gml'
 
         if pag_generation_cmd_line == '':
             exit()
@@ -90,25 +98,38 @@ class PerFlow(object):
         print(pag_generation_cmd_line)
         os.system(pag_generation_cmd_line)
 
-
+    def readPagAndPerfData(self):
+        
         # read pag
-        if tdpag_file != '':
-            self.tdpag = ProgramAbstractionGraph.Read_GML(tdpag_file)
-        if ppag_file != '':
-            self.ppag = ProgramAbstractionGraph.Read_GML(ppag_file)
+        
+        if self.mode == 'mpi+omp':
+            self.tdpag_file = 'pag.gml'
+            self.ppag_file = 'mpi_mpag.gml'
+        if self.mode == 'omp':
+            self.tdpag_file = 'pag.gml'
+            self.ppag_file = 'mpi_mpag.gml'
+        if self.mode == 'pthread':
+            self.tdpag_file = 'pthread_tdpag.gml'
+            self.ppag_file = 'pthread_ppag.gml'
+        
+
+        if self.tdpag_file != '':
+            self.tdpag = ProgramAbstractionGraph.Read_GML(self.tdpag_file)
+        if self.ppag_file != '':
+            self.ppag = ProgramAbstractionGraph.Read_GML(self.ppag_file)
         
         # read pag performance data
         with open('output.json', 'r') as f:
-            tdpag_perf_data = json.load(f)
+            self.tdpag_perf_data = json.load(f)
         f.close()
-        self.tdpag_perf_data = tdpag_perf_data
+        # self.tdpag_perf_data = tdpag_perf_data
 
-        print(self.tdpag_perf_data)
+        # print(self.tdpag_perf_data)
 
         with open('mpag_perf_data.json', 'r') as f:
-            ppag_perf_data = json.load(f)
+            self.ppag_perf_data = json.load(f)
         f.close()
-        self.ppag_perf_data = ppag_perf_data
+        # self.ppag_perf_data = ppag_perf_data
 
 
 
@@ -121,6 +142,8 @@ class PerFlow(object):
         self.staticAnalysis()
         self.dynamicAnalysis(sampling_count)
         self.pagGeneration()
+
+        self.readPagAndPerfData()
         return self.tdpag, self.ppag
 
 
@@ -171,6 +194,90 @@ class PerFlow(object):
                     if std_var > 70:
                         print(metric, "mean:", mean, "variance:", var, "standard variance:", std_var)
                         
+    def process_similarity_analysis(self, V, nprocs, metric = 'TOT_CYC'):
+        ''' process character vector
+        '''
+        charact_vec = [[] for _ in range(nprocs)]
+
+        for v in V:
+            vid = int(v['id'])
+            if str(vid) in self.tdpag_perf_data.keys():
+                if metric in self.tdpag_perf_data[str(vid)].keys():
+                    data = self.tdpag_perf_data[str(vid)][metric]
+                    for pid in range(nprocs):
+                        if str(pid) in data.keys():
+                            procs_data = data[str(pid)]
+                            # gather all thread data
+                            procs_data_tot_num = 0.0
+                            for thread, thread_data in procs_data.items():
+                                procs_data_tot_num += thread_data
+                            charact_vec[pid].append(procs_data_tot_num)
+                        else :
+                            charact_vec[pid].append(0)
+                for i in range(nprocs):
+                    charact_vec[i].append(0)
+            else:
+                for i in range(nprocs):
+                    charact_vec[i].append(0)
+
+        # for procs_charact_vec in charact_vec:
+        #     print(procs_charact_vec, end = ' ')
+        # print()
+
+        charact_vec = normalize(charact_vec)
+
+        # Calculate dot
+        similarity_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
+        for i in range(nprocs):
+            for j in range(i, nprocs):
+                value = numpy.dot(charact_vec[i], charact_vec[j])
+                similarity_mat[i][j] = value
+                similarity_mat[j][i] = value
+        plt.imshow(similarity_mat, cmap=plt.cm.binary)
+        plt.colorbar()
+        plt.savefig("sim_mat.pdf")
+        plt.clf()
+        # plt.show()
+        # print(similarity_mat)
+
+        # Hierarchical clustering
+        euclidean_dist = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
+        for i in range(nprocs):
+            for j in range(i + 1, nprocs):
+                value = numpy.linalg.norm(numpy.array(charact_vec[i]) - numpy.array(charact_vec[j]))
+                euclidean_dist[i][j] = value
+                euclidean_dist[j][i] = value
+        plt.imshow(euclidean_dist, cmap=plt.cm.binary)
+        plt.colorbar()
+        plt.savefig("euc_dist_mat.pdf")
+        plt.clf()
+
+        A=[]
+        for i in range(len(charact_vec)):
+            a=chr(i+ord('A'))
+            A.append(a)
+
+        
+
+        # euclidean_dist = scipy.cluster.hierarchy.distance.pdist(charact_vec, 'euclidean')
+        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean', optimal_ordering=True)
+        clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean')
+        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'single', metric='euclidean')
+        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'average', metric='euclidean')
+        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'complete', metric='euclidean')
+        scipy.cluster.hierarchy.dendrogram(clusters, labels=numpy.arange(nprocs))
+        plt.savefig("cluster_results.pdf")
+        plt.clf()
+
+        print(clusters)
+
+
+        # model = AgglomerativeClustering(n_clusters=None)
+        # model = model.fit(charact_vec)
+        # labels = model.fit_predict(charact_vec)
+        # x = range(1,len(model.distances_)+1)
+
+
 
     
     def report(self, V, attrs=[]):
@@ -194,6 +301,8 @@ class PerFlow(object):
         
         graphviz_output.show()
 
+
+    # builtin models / diagrams
 
     def mpi_profiler_model(self, tdpag = None, ppag = None):
         if tdpag == None:
