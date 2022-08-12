@@ -15,6 +15,7 @@ class PerFlow(object):
     def __init__(self):
         self.static_analysis_binary_name = "init"
         self.dynamic_analysis_command_line = "init"
+        self.data_dir = ''
         self.mode = 'mpi+omp'
         self.nprocs = 0
         self.sampling_count = 1000
@@ -50,7 +51,8 @@ class PerFlow(object):
     def staticAnalysis(self):
         cmd_line = '$BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name
         os.system(cmd_line)
-        # mkdir_cmd_line = 'mkdir '
+        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/static_data'
+        os.system(mkdir_cmd_line)
 
     def dynamicAnalysis(self, sampling_count = 0):
         if sampling_count != 0:
@@ -60,7 +62,7 @@ class PerFlow(object):
             remove_cmd_line = 'rm -rf ./MPID* ./MPIT* ./SAMPLE* ./SOMAP*'
             os.system(remove_cmd_line)
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_omp_sampler.so ' + self.dynamic_analysis_command_line
-            os.system(profiling_cmd_line)
+            os.system(profiling_cmd_line)         
             # comm_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libmpi_tracer.so ' + self.dynamic_analysis_command_line
             # os.system(comm_cmd_line)
         
@@ -71,6 +73,9 @@ class PerFlow(object):
         if self.mode == 'pthread':
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libpthread_sampler.so ' + self.dynamic_analysis_command_line
             os.system(profiling_cmd_line)
+        
+        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/dynamic_data'
+        os.system(mkdir_cmd_line)
 
     def pagGeneration(self):
         pag_generation_cmd_line = ''
@@ -100,19 +105,34 @@ class PerFlow(object):
         print(pag_generation_cmd_line)
         os.system(pag_generation_cmd_line)
 
-    def readPagAndPerfData(self):
-        
-        # read pag
+        mv_cmd_line = 'mv *.pcg *.pag *.pag.map' + ' ./' + self.data_dir + '/static_data/'
+        os.system(mv_cmd_line)
+        # mv_cmd_line = 'mv *.pag' + ' ./' + self.data_dir + '/static_data/'
+        # os.system(mv_cmd_line)
+        # mv_cmd_line = 'mv *.pag.map' + ' ./' + self.data_dir + '/static_data/'
+        # os.system(mv_cmd_line)
+
+        mv_cmd_line = 'mv SAMPLE* SOMAP* MPID* MPIT* *.dep' + ' ./' + self.data_dir + '/dynamic_data/'
+        os.system(mv_cmd_line)
+
+        mv_cmd_line = 'mv *.gml *.json' + ' ./' + self.data_dir + '/'
+        os.system(mv_cmd_line)
+
+    def readPag(self, dir = ''):
+        if dir != '':
+            self.data_dir = dir
+
+        # Read pag
         
         if self.mode == 'mpi+omp':
-            self.tdpag_file = 'pag.gml'
-            self.ppag_file = 'mpi_mpag.gml'
+            self.tdpag_file = self.data_dir + '/pag.gml'
+            self.ppag_file = self.data_dir + '/mpi_mpag.gml'
         if self.mode == 'omp':
-            self.tdpag_file = 'pag.gml'
-            self.ppag_file = 'mpi_mpag.gml'
+            self.tdpag_file = self.data_dir + '/pag.gml'
+            self.ppag_file = self.data_dir + '/mpi_mpag.gml'
         if self.mode == 'pthread':
-            self.tdpag_file = 'pthread_tdpag.gml'
-            self.ppag_file = 'pthread_ppag.gml'
+            self.tdpag_file = self.data_dir + '/pthread_tdpag.gml'
+            self.ppag_file = self.data_dir + '/pthread_ppag.gml'
         
 
         if self.tdpag_file != '':
@@ -121,20 +141,22 @@ class PerFlow(object):
             self.ppag = ProgramAbstractionGraph.Read_GML(self.ppag_file)
         
         # read pag performance data
-        with open('output.json', 'r') as f:
+        with open(self.data_dir + '/output.json', 'r') as f:
             self.tdpag_perf_data = json.load(f)
         f.close()
         # self.tdpag_perf_data = tdpag_perf_data
 
         # print(self.tdpag_perf_data)
 
-        with open('mpag_perf_data.json', 'r') as f:
+        with open(self.data_dir + '/mpag_perf_data.json', 'r') as f:
             self.ppag_perf_data = json.load(f)
         f.close()
         # self.ppag_perf_data = ppag_perf_data
 
     def makeDataDir(self):
-        mkdir_cmd_line = 'mkdir -p ./' + self.static_analysis_binary_name.strip().split('/')[-1]  + '-' + str(self.nprocs) + 'p-' + time.strftime('%Y%m%d-%H%M%S', time.localtime(int(round(time.time() * 1000)) / 1000))
+        if self.data_dir == "":
+            self.data_dir = self.static_analysis_binary_name.strip().split('/')[-1]  + '-' + str(self.nprocs) + 'p-' + time.strftime('%Y%m%d-%H%M%S', time.localtime(int(round(time.time() * 1000)) / 1000))
+        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir
         os.system(mkdir_cmd_line)
 
     # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
@@ -149,7 +171,7 @@ class PerFlow(object):
         self.dynamicAnalysis(sampling_count)
         self.pagGeneration()
 
-        self.readPagAndPerfData()
+        self.readPag()
         return self.tdpag, self.ppag
 
 

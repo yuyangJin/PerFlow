@@ -445,8 +445,8 @@ void GPerf::ReadFunctionAbstractionGraphs(const char *dir_name) {
 
   std::string pag_map = dir_name_copy + std::string(".map");
   ReadProgramAbstractionGraphMap(pag_map.c_str());
-  std::string(test_str) = std::string("test.txt");
-  DumpMap<int, type::addr_t>(this->hash_to_entry_addr, test_str);
+  // std::string(test_str) = std::string("test.txt");
+  // DumpMap<int, type::addr_t>(this->hash_to_entry_addr, test_str);
 
   /** Traverse the files */
   for (const auto &hash_str : file_names) {
