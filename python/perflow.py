@@ -1,5 +1,6 @@
 import os
 import json
+import time
 import numpy
 import matplotlib.pyplot as plt
 import scipy
@@ -48,7 +49,8 @@ class PerFlow(object):
 
     def staticAnalysis(self):
         cmd_line = '$BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name
-        os.system(cmd_line)        
+        os.system(cmd_line)
+        # mkdir_cmd_line = 'mkdir '
 
     def dynamicAnalysis(self, sampling_count = 0):
         if sampling_count != 0:
@@ -131,7 +133,9 @@ class PerFlow(object):
         f.close()
         # self.ppag_perf_data = ppag_perf_data
 
-
+    def makeDataDir(self):
+        mkdir_cmd_line = 'mkdir -p ./' + self.static_analysis_binary_name.strip().split('/')[-1]  + '-' + str(self.nprocs) + 'p-' + time.strftime('%Y%m%d-%H%M%S', time.localtime(int(round(time.time() * 1000)) / 1000))
+        os.system(mkdir_cmd_line)
 
     # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
     def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0):
@@ -139,6 +143,8 @@ class PerFlow(object):
         self.setCmdLine(cmd)
         self.setProgMode(mode)
         self.setNumProcs(nprocs)
+
+        self.makeDataDir()
         self.staticAnalysis()
         self.dynamicAnalysis(sampling_count)
         self.pagGeneration()
