@@ -76,6 +76,8 @@ using namespace std;
 #define TRACE_LOG_LINE_SIZE 100
 #define MY_BT
 
+#define DEBUG
+
 #ifdef MPICH2
 #define SHIFT(COMM_ID) (((COMM_ID & 0xf0000000) >> 24) + (COMM_ID & 0x0000000f))
 #else
@@ -130,7 +132,7 @@ map<RequestConverter, pair<int, int>> request_converter;
 
 // int mpi_rank = -1;
 static int module_init = 0;
-static char *addr_threshold;
+// static char *addr_threshold;
 bool mpi_finalize_flag = false;
 
 // int mpi_rank = 0;
@@ -238,22 +240,22 @@ static void writeTraceLog() {
   outputStream.close();
 }
 
-static void init() __attribute__((constructor));
-static void init() {
-  if (module_init == MODULE_INITED) return;
-  module_init = MODULE_INITED;
-  addr_threshold = (char *)malloc(sizeof(char));
-}
+// static void init() __attribute__((constructor));
+// static void init() {
+//   if (module_init == MODULE_INITED) return;
+//   module_init = MODULE_INITED;
+//   addr_threshold = (char *)malloc(sizeof(char));
+// }
 
-// Dump mpi info at the end of program's execution
-static void fini() __attribute__((destructor));
-static void fini() {
-  if (!mpi_finalize_flag) {
-    // writeCollMpiInfoLog();
-    // writeP2PMpiInfoLog();
-    // printf("mpi_finalize_flag is false\n");
-  }
-}
+// // Dump mpi info at the end of program's execution
+// static void fini() __attribute__((destructor));
+// static void fini() {
+//   if (!mpi_finalize_flag) {
+//     // writeCollMpiInfoLog();
+//     // writeP2PMpiInfoLog();
+//     // printf("mpi_finalize_flag is false\n");
+//   }
+// }
 
 // Record mpi info to log
 
@@ -464,6 +466,51 @@ _EXTERN_C_ void mpi_init__(MPI_Fint *ierr) {
 }
 
 /* ================= End Wrappers for MPI_Init ================= */
+
+/* ================== C Wrappers for MPI_Init_thread ================== */
+_EXTERN_C_ int PMPI_Init_thread(int *argc, char ***argv, int required, int *provided);
+_EXTERN_C_ int MPI_Init_thread(int *argc, char ***argv, int required, int *provided) {
+  int _wrap_py_return_val = 0;
+  {
+    // First call PMPI_Init()
+    _wrap_py_return_val = PMPI_Init_thread(argc, argv, required, provided);
+
+    PMPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
+    // cout << "mpi_rank = "<< mpi_rank << "\n";
+  }
+  return _wrap_py_return_val;
+}
+
+/* =============== Fortran Wrappers for MPI_Init_thread =============== */
+static void MPI_Init_thread_fortran_wrapper(MPI_Fint *argc, MPI_Fint ***argv, MPI_Fint *required, MPI_Fint *provided,
+                                            MPI_Fint *ierr) {
+  int _wrap_py_return_val = 0;
+  _wrap_py_return_val = MPI_Init_thread((int *)argc, (char ***)argv, *required, (int *)provided);
+  *ierr = _wrap_py_return_val;
+}
+
+_EXTERN_C_ void MPI_INIT_THREAD(MPI_Fint *argc, MPI_Fint ***argv, MPI_Fint *required, MPI_Fint *provided,
+                                MPI_Fint *ierr) {
+  MPI_Init_thread_fortran_wrapper(argc, argv, required, provided, ierr);
+}
+
+_EXTERN_C_ void mpi_init_thread(MPI_Fint *argc, MPI_Fint ***argv, MPI_Fint *required, MPI_Fint *provided,
+                                MPI_Fint *ierr) {
+  MPI_Init_thread_fortran_wrapper(argc, argv, required, provided, ierr);
+}
+
+_EXTERN_C_ void mpi_init_thread_(MPI_Fint *argc, MPI_Fint ***argv, MPI_Fint *required, MPI_Fint *provided,
+                                 MPI_Fint *ierr) {
+  MPI_Init_thread_fortran_wrapper(argc, argv, required, provided, ierr);
+}
+
+_EXTERN_C_ void mpi_init_thread__(MPI_Fint *argc, MPI_Fint ***argv, MPI_Fint *required, MPI_Fint *provided,
+                                  MPI_Fint *ierr) {
+  MPI_Init_thread_fortran_wrapper(argc, argv, required, provided, ierr);
+}
+
+/* ================= End Wrappers for MPI_Init_thread ================= */
+
 
 // P2P communication
 /* ================== C Wrappers for MPI_Send ================== */

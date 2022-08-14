@@ -51,9 +51,7 @@ class PerFlow(object):
     def staticAnalysis(self):
         cmd_line = '$BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name
         os.system(cmd_line)
-        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/static_data'
-        os.system(mkdir_cmd_line)
-
+        
     def dynamicAnalysis(self, sampling_count = 0):
         if sampling_count != 0:
             self.sampling_count = sampling_count
@@ -74,8 +72,6 @@ class PerFlow(object):
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libpthread_sampler.so ' + self.dynamic_analysis_command_line
             os.system(profiling_cmd_line)
         
-        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/dynamic_data'
-        os.system(mkdir_cmd_line)
 
     def pagGeneration(self):
         pag_generation_cmd_line = ''
@@ -105,12 +101,18 @@ class PerFlow(object):
         print(pag_generation_cmd_line)
         os.system(pag_generation_cmd_line)
 
+        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/static_data'
+        os.system(mkdir_cmd_line)
+
         mv_cmd_line = 'mv *.pcg *.pag *.pag.map' + ' ./' + self.data_dir + '/static_data/'
         os.system(mv_cmd_line)
         # mv_cmd_line = 'mv *.pag' + ' ./' + self.data_dir + '/static_data/'
         # os.system(mv_cmd_line)
         # mv_cmd_line = 'mv *.pag.map' + ' ./' + self.data_dir + '/static_data/'
         # os.system(mv_cmd_line)
+
+        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/dynamic_data'
+        os.system(mkdir_cmd_line)
 
         mv_cmd_line = 'mv SAMPLE* SOMAP* MPID* MPIT* *.dep' + ' ./' + self.data_dir + '/dynamic_data/'
         os.system(mv_cmd_line)
@@ -152,21 +154,26 @@ class PerFlow(object):
             self.ppag_perf_data = json.load(f)
         f.close()
         # self.ppag_perf_data = ppag_perf_data
+    
+        return self.tdpag, self.ppag
 
-    def makeDataDir(self):
-        if self.data_dir == "":
+    def makeDataDir(self, dir):
+        if dir == "":
             self.data_dir = self.static_analysis_binary_name.strip().split('/')[-1]  + '-' + str(self.nprocs) + 'p-' + time.strftime('%Y%m%d-%H%M%S', time.localtime(int(round(time.time() * 1000)) / 1000))
-        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir
-        os.system(mkdir_cmd_line)
+            mkdir_cmd_line = 'mkdir -p ./' + self.data_dir
+            os.system(mkdir_cmd_line)
+        else:
+            self.data_dir = dir
 
     # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
-    def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0):
+    def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0, dir = ''):
         self.setBinary(binary)
         self.setCmdLine(cmd)
         self.setProgMode(mode)
         self.setNumProcs(nprocs)
 
-        self.makeDataDir()
+        self.makeDataDir(dir)
+        
         self.staticAnalysis()
         self.dynamicAnalysis(sampling_count)
         self.pagGeneration()

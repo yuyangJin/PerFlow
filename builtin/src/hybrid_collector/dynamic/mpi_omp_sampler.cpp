@@ -31,6 +31,7 @@ static int CYC_SAMPLE_COUNT = 0;
 static int module_init = 0;
 
 int mpi_rank = -1;
+char *addr_threshold;
 static __thread int thread_gid;
 static __thread int record_thread_gid;
 static __thread bool record_perf_data_flag = false;
@@ -97,6 +98,7 @@ static void init_mock() {
   // TODO one perf_data corresponds to one metric, export it to an array
   sampler = std::make_unique<baguatool::collector::Sampler>();
   perf_data = std::make_unique<baguatool::core::PerfData>();
+  addr_threshold = (char *)malloc(sizeof(char)); 
 
   original_GOMP_parallel =
       (decltype(original_GOMP_parallel))resolve_symbol("GOMP_parallel", RESOLVE_SYMBOL_UNVERSIONED);

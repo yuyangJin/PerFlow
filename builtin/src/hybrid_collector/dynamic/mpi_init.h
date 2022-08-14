@@ -9,6 +9,7 @@ extern "C" {
 #endif
 
 extern int mpi_rank;
+extern char *addr_threshold;
 
 #ifdef __cplusplus
 }
