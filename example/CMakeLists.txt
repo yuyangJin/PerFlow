@@ -1,2 +1,3 @@
 add_subdirectory(AE)
 add_subdirectory(imbalance_analysis)
+add_subdirectory(comm_pattern_analysis)

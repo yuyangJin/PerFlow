@@ -154,6 +154,10 @@ class PerFlow(object):
             self.ppag_perf_data = json.load(f)
         f.close()
         # self.ppag_perf_data = ppag_perf_data
+
+        with open(self.data_dir + '/pag_to_mpag.json', 'r') as f:
+            self.tdpag_to_ppag_map = json.load(f)
+        f.close()
     
         return self.tdpag, self.ppag
 
@@ -312,8 +316,35 @@ class PerFlow(object):
         # labels = model.fit_predict(charact_vec)
         # x = range(1,len(model.distances_)+1)
 
-
-
+    def communication_pattern_analysis(self, V, nprocs=1):
+        comm_pattern_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
+        # if V.attrbutes.keys().__contains__('time'):
+        for v in V:
+            for pid in range(nprocs):
+                vid = str(int(v['id']))
+                ppag_vid = self.tdpag_to_ppag_map[vid][str(pid)]['0']
+                ppag_v = self.ppag.vs[int(ppag_vid)]
+                # e_list = self.ppag.es.select(_source=int(ppag_vid))
+                edges = ppag_v.out_edges()
+                for e in edges:
+                    if e['time'] != None:
+                        # ppag_target_v = self.ppag.vs[e.target]
+                        ppag_target_v = e.target
+                        for dest_pid, dest_vid in self.tdpag_to_ppag_map[vid].items():
+                            # ppag_target_vid = int(ppag_target_v['id'])
+                            # print(dest_vid['0'], ppag_target_v, ppag_target_v['id']-1) 
+                            if dest_vid['0'] == ppag_target_v - 1: 
+                                ''' It seems that vid is start from 1, not 0, in python-igraph'''
+                                # print(e, ppag_vid, ppag_target_v, e['time'])
+                                comm_pattern_mat[pid][int(dest_pid)] += float(e['time'])
+                                comm_pattern_mat[int(dest_pid)][pid] += float(e['time'])
+                                continue
+        plt.imshow(comm_pattern_mat, cmap=plt.cm.binary)
+        plt.colorbar()
+        plt.savefig("comm_pattern.pdf")
+        plt.clf()
+        
+                     
     
     def report(self, V, attrs=[]):
         if len(attrs) == 0:
@@ -350,3 +381,9 @@ class PerFlow(object):
         ## a report pass
         attrs_list = ["name", "CYCAVGPERCENT", "saddr"] 
         self.report(V = V_hot, attrs = attrs_list)
+
+    def communication_pattern_analysis_model(self, nprocs=1):
+        ## a filter pass
+        V_comm = self.filter(self.tdpag.vs, name = "mpi_")
+        ## a communication pattern analysis pass
+        self.communication_pattern_analysis(V_comm, nprocs)
