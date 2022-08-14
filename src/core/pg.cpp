@@ -159,6 +159,19 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(
   // Get the top addr of the stack
   type::addr_t addr = call_path_stack.top();
 
+  /**======================OPTIMIZE======================**/
+  /** Read address that already queried **/
+  if (this->call_path_to_vid.find(root_vertex) != this->call_path_to_vid.end()) { // has root_vertex
+    auto& child_addr_to_vid_map = this->call_path_to_vid[root_vertex];
+    if (child_addr_to_vid_map.find(addr) != child_addr_to_vid_map.end()) { // has addr
+      auto vertex_id = child_addr_to_vid_map[addr];
+      call_path_stack.pop();
+      // dbg(addr, vertex_id);
+      return GetVertexWithCallPath(vertex_id, call_path_stack);
+    }
+  }
+  /**====================================================**/
+  
   // dbg(addr);
 
 #ifdef IGNORE_SHARED_OBJ
@@ -200,6 +213,13 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(
   if (-1 == child_vertex) {
     return found_vertex;
   }
+
+  /**======================OPTIMIZE======================**/
+  /** Store address as queried **/
+  // std::map<type::addr_t, type::vertex_t> tmp;
+  this->call_path_to_vid[root_vertex].insert(std::make_pair(addr, found_vertex));
+  /**====================================================**/
+
 
   // if find the corresponding child vertex, then pop a addr from the stack.
   call_path_stack.pop();

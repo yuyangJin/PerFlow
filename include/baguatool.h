@@ -574,6 +574,8 @@ public:
 
 class ProgramGraph : public Graph {
 private:
+  std::map<type::vertex_t, std::map<type::addr_t, type::vertex_t>> call_path_to_vid;
+
 public:
   /** Default Constructor
    */

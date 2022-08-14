@@ -76,7 +76,7 @@ using namespace std;
 #define TRACE_LOG_LINE_SIZE 100
 #define MY_BT
 
-#define DEBUG
+// #define DEBUG
 
 #ifdef MPICH2
 #define SHIFT(COMM_ID) (((COMM_ID & 0xf0000000) >> 24) + (COMM_ID & 0x0000000f))
