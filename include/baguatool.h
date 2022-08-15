@@ -951,6 +951,18 @@ public:
    */
   ~PerfData();
 
+  /**
+   * @brief Expand memory for Vertex Data
+   * 
+   */
+  void ExpandVertexDataMem();
+
+  /**
+   * @brief Expand memory for Edge Data
+   * 
+   */
+  void ExpandEdgeDataMem();
+
   /** Read vertex type and edge type performance data (Input)
    * @param file_name - name of input file
    */

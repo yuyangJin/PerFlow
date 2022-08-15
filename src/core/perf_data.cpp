@@ -48,21 +48,35 @@ void delete_all_so_addr(std::stack<type::addr_t> &call_path) {
 PerfData::PerfData() {
   this->vertex_perf_data_space_size = MAX_TRACE_MEM / sizeof(VDS);
   // dbg(this->vertex_perf_data_space_size);
-  this->vertex_perf_data = new VDS[this->vertex_perf_data_space_size];
+  // this->vertex_perf_data = new VDS[this->vertex_perf_data_space_size];
+  this->vertex_perf_data = (VDS*)malloc(this->vertex_perf_data_space_size * sizeof(VDS));
   this->vertex_perf_data_count = 0;
 
   this->edge_perf_data_space_size = MAX_TRACE_MEM / sizeof(EDS);
-  this->edge_perf_data = new EDS[this->edge_perf_data_space_size];
+  // this->edge_perf_data = new EDS[this->edge_perf_data_space_size];
+  this->edge_perf_data = (EDS*)malloc(this->edge_perf_data_space_size * sizeof(EDS));
   this->edge_perf_data_count = 0;
 
   strcpy(this->file_name, "SAMPLE.TXT");
 }
 PerfData::~PerfData() {
-  delete[] this->vertex_perf_data;
-  delete[] this->edge_perf_data;
+  // delete[] this->vertex_perf_data;
+  // delete[] this->edge_perf_data;
+  free(this->vertex_perf_data);
+  free(this->edge_perf_data);
   if (this->has_open_output_file) {
     fclose(this->perf_data_fp);
   }
+}
+
+void PerfData::ExpandVertexDataMem() {
+  this->vertex_perf_data_space_size += MAX_TRACE_MEM / sizeof(VDS);
+  this->vertex_perf_data = (VDS*)realloc(this->vertex_perf_data, this->vertex_perf_data_space_size * sizeof(VDS));
+}
+
+void PerfData::ExpandEdgeDataMem() {
+  this->edge_perf_data_space_size = MAX_TRACE_MEM / sizeof(EDS);
+  this->edge_perf_data = (EDS*)realloc(this->edge_perf_data, this->edge_perf_data_space_size * sizeof(EDS));
 }
 
 // Sequential read
@@ -88,6 +102,10 @@ void PerfData::Read(const char *infile_name) {
   unsigned long int count = strtoul(line.c_str(), 0, 10);
   // dbg(count);
 
+  if (this->vertex_perf_data_count + count > this->vertex_perf_data_space_size) {
+    this->ExpandVertexDataMem();
+  }
+
   // Read lines, each line is a VDS
   while (count-- && getline(this->perf_data_in_file, line)) {
     // Read a line
@@ -108,7 +126,7 @@ void PerfData::Read(const char *infile_name) {
       unsigned long int x =
           __sync_fetch_and_add(&this->vertex_perf_data_count, 1);
 
-      // std::cout << count << " " << line_vec[1].c_str() <<std::endl;
+      // dbg(count, line_vec[0],line_vec[1].c_str(), x, MAX_TRACE_MEM / sizeof(VDS));
       this->vertex_perf_data[x].value = atof(line_vec[1].c_str());
       this->vertex_perf_data[x].procs_id = atoi(line_vec[2].c_str());
       this->vertex_perf_data[x].thread_id = atoi(line_vec[3].c_str());
@@ -142,6 +160,11 @@ void PerfData::Read(const char *infile_name) {
   getline(this->perf_data_in_file, line);
   count = strtoul(line.c_str(), 0, 10);
   // dbg(count);
+
+  if (this->edge_perf_data_count + count > this->edge_perf_data_space_size) {
+    this->ExpandEdgeDataMem();
+  }
+
 
   while (count-- && getline(this->perf_data_in_file, line)) {
     // Read a line
