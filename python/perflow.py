@@ -123,7 +123,7 @@ class PerFlow(object):
     def readPag(self, dir = ''):
         if dir != '':
             self.data_dir = dir
-
+        self.mode = 'mpi+omp'
         # Read pag
         
         if self.mode == 'mpi+omp':
@@ -339,8 +339,12 @@ class PerFlow(object):
                                 comm_pattern_mat[pid][int(dest_pid)] += float(e['time'])
                                 comm_pattern_mat[int(dest_pid)][pid] += float(e['time'])
                                 continue
-        plt.imshow(comm_pattern_mat, cmap=plt.cm.binary)
-        plt.colorbar()
+
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, edgecolors='grey', linewidths=0.1, shading='auto')
+        plt.colorbar(label = "Time(ms)")
+        plt.title("Communication Pattern")
+        plt.xlabel("Process ID")
+        plt.ylabel("Process ID")
         plt.savefig("comm_pattern.pdf")
         plt.clf()
         
@@ -362,7 +366,7 @@ class PerFlow(object):
             save_pdf = 'pag.gml'
         graphviz_output = GraphvizOutput(output_file = save_pdf)
         graphviz_output.draw(g, vertex_attrs = ["id", "name", "type", "saddr", "eaddr" , "TOTCYCAVG", "CYCAVGPERCENT"], edge_attrs = ["id"], vertex_color_depth_attr = "CYCAVGPERCENT") #, preserve_attrs = "preserve")
-        if mark_edges!= []:
+        if mark_edges != []:
             graphviz_output.draw_edge(mark_edges, color=0.1)
         
         graphviz_output.show()

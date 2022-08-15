@@ -9,7 +9,9 @@ from pag import *
 pflow = pf.PerFlow()
 
 # Run the binary and return a program abstraction graph
-tdpag, ppag = pflow.run(binary = "cg.B.x", cmd = "srun -n 64 ./cg.B.x", nprocs = 64)
+# tdpag, ppag = pflow.run(binary = "cg.B.x", cmd = "srun -n 64 ./cg.B.x", nprocs = 64)
+
+pflow.readPag(dir = 'cg.B.x-64p-20220814-215035')
 
 # # draw pags and save as PDF files
 # pflow.draw(tdpag, save_pdf = './cg.B.8.tdpag')
