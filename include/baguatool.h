@@ -1232,6 +1232,11 @@ public:
    */
   void CaptureProgramCallGraph();
 
+  /** Capture static program call graph map.
+   *
+   */
+  void CaptureProgramCallGraphMap();
+
   /** Dump control-flow graphs of all functions.
    *
    */
@@ -1241,6 +1246,11 @@ public:
    *
    */
   void DumpProgramCallGraph();
+
+  /** Dump static program call graph map.
+   *
+   */
+  void DumpProgramCallGraphMap();
 
   /** Get name of input binary.
    *

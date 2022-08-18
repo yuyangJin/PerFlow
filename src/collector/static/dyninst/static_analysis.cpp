@@ -23,6 +23,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <algorithm>
 
 #include "baguatool.h"
 #include "common/utils.h"
@@ -54,8 +55,12 @@ void StaticAnalysis::InterProceduralAnalysis() {
 void StaticAnalysis::CaptureProgramCallGraph() {
   sa->CaptureProgramCallGraph();
 }
+void StaticAnalysis::CaptureProgramCallGraphMap() {
+  sa->CaptureProgramCallGraphMap();
+}
 void StaticAnalysis::DumpAllControlFlowGraph() { sa->DumpAllFunctionGraph(); }
 void StaticAnalysis::DumpProgramCallGraph() { sa->DumpProgramCallGraph(); }
+void StaticAnalysis::DumpProgramCallGraphMap() { sa->DumpProgramCallGraphMap(); }
 void StaticAnalysis::GetBinaryName() { sa->GetBinaryName(); }
 
 StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
@@ -139,6 +144,26 @@ void StaticAnalysisImpl::CaptureProgramCallGraph() {
   }
 }
 
+void StaticAnalysisImpl::CaptureProgramCallGraphMap() {
+  // Get function list
+  const CodeObject::funclist &func_list = this->co->funcs();
+  std::map<Address, type::vertex_t> addr_2_vertex_id;
+
+  // Traverse through all functions
+  for (auto func : func_list) {
+    this->addr_2_func_name[func->addr()] = func->name();
+    const Function::edgelist &elist = func->callEdges();
+    type::vertex_t func_vertex_id = addr_2_vertex_id[func->addr()];
+
+    // Traverse through all function calls in this function
+    for (const auto &e : elist) {
+      VMA src_addr = e->src()->last();
+      VMA targ_addr = e->trg()->start();
+      this->call_graph_map[src_addr] = targ_addr;
+    }
+  }
+}
+
 // Capture function call structure in this function but not in the loop
 void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
                                               std::vector<Block *> &bvec,
@@ -164,6 +189,116 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
       for (auto inst : b->targets()) {
         // Only analyze CALL type instruction
         if (inst->type() == CALL) {
+          // dbg(inst->src()->last());
+#ifdef DEBUG_COUT
+          std::cout
+              << "Call : "
+              << decoder
+                     .decode((unsigned char *)func->isrc()->getPtrToInstruction(
+                         (*it)->src()->start()))
+                     .format();
+#endif
+          Address entry_addr = inst->src()->last();
+          Address exit_addr = inst->src()->last();
+          std::string call_name =
+              this->addr_2_func_name[this->call_graph_map[entry_addr]];
+          type::vertex_t call_vertex_id = 0;
+
+          // Add a CALL vertex, including MPI_CALL, INDIRECT_CALL, and CALL
+          auto startsWith = [](const std::string &s,
+                               const std::string &sub) -> bool {
+            return s.find(sub) == 0;
+          };
+          if (startsWith(call_name, "MPI_") || startsWith(call_name, "_MPI_") ||
+              startsWith(call_name, "mpi_") ||
+              startsWith(call_name, "_mpi_")) { // MPI communication calls
+            call_vertex_id = func_cfg->AddVertex();
+            func_cfg->SetVertexBasicInfo(call_vertex_id, type::MPI_NODE,
+                                         call_name.c_str());
+          } else if (call_name.empty()) { // Function calls that are not
+                                          // analyzed at static analysis
+            call_vertex_id = func_cfg->AddVertex();
+            func_cfg->SetVertexBasicInfo(call_vertex_id, type::CALL_IND_NODE,
+                                         call_name.c_str());
+          } else { // Common function calls
+            call_vertex_id = func_cfg->AddVertex();
+            func_cfg->SetVertexBasicInfo(call_vertex_id, type::CALL_NODE,
+                                         call_name.c_str());
+          }
+          // dbg(call_vertex_id, call_name.c_str());
+
+          func_cfg->SetVertexDebugInfo(call_vertex_id, entry_addr, exit_addr);
+
+#ifndef LOOP_GRANULARITY
+          // Add an edge
+          func_cfg->AddEdge(bb_vertex_id, call_vertex_id);
+#else
+          func_cfg->AddEdge(parent_id, call_vertex_id);
+#endif
+
+#ifdef DEBUG_COUT
+          for (int i = 0; i < 1; i++)
+            cout << "  ";
+          std::cout << "Call : " << std::call_name << " addr : " << std::hex
+                    << entry_addr << " - " << exit_addr << std::dec << endl;
+#endif
+        } else {
+#ifndef LOOP_GRANULARITY
+          Address inst_entry_addr = inst->src()->last();
+          Address inst_exit_addr = inst->src()->last();
+          /** Add all non-call instructions as vertex **/
+          type::vertex_t inst_vertex_id = func_cfg->AddVertex();
+          func_cfg->SetVertexBasicInfo(inst_vertex_id, core::INST_NODE, "INS");
+          func_cfg->SetVertexDebugInfo(inst_vertex_id, inst_entry_addr,
+                                       inst_exit_addr);
+          func_cfg->AddEdge(bb_vertex_id, inst_vertex_id);
+#endif
+        }
+      }
+    }
+  }
+}
+
+// Capture function call structure in this function but not in the loop
+void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
+                                              std::vector<Block *> &bvec,
+                                              Function* func,
+                                              int parent_id) {
+  // std::vector<Address> call_inst_list;
+  // const Function::edgelist &elist = func->callEdges();
+  // for (const auto &e : elist) {
+  //   call_inst_list.push_back(e->src()->last());
+  // }
+  // if (func->name().compare(std::string("main")) == 0) {
+  //   for (auto call_inst: call_inst_list) {
+  //     dbg(call_inst);
+  //   }
+  // }
+  // Traverse through all blocks
+  for (auto b : bvec) {
+    // If block is visited, it means it is inside the loop
+    if (!this->visited_block_map[b]) {
+      this->visited_block_map[b] = true;
+
+#ifndef LOOP_GRANULARITY
+      /** Add BasciBlock Node **/
+      Address bb_entry_addr = b->start();
+      Address bb_exit_addr = b->end();
+      type::vertex_t bb_vertex_id = func_cfg->AddVertex();
+      func_cfg->SetVertexBasicInfo(bb_vertex_id, type::BB_NODE, "BB");
+      func_cfg->SetVertexDebugInfo(bb_vertex_id, bb_entry_addr, bb_exit_addr);
+      // Add an edge
+      func_cfg->AddEdge(parent_id, bb_vertex_id);
+#endif
+
+      // Traverse through all instructions
+      for (auto inst : b->targets()) {
+        // Only analyze CALL type instruction
+        if (inst->type() == CALL){
+        // if (inst->type() == CALL || std::find(call_inst_list.begin(), call_inst_list.end(), inst->src()->last()) != call_inst_list.end()) {
+          if (func->name().compare(std::string("main")) == 0) {
+              // dbg(inst->src()->last());
+          }
 #ifdef DEBUG_COUT
           std::cout
               << "Call : "
@@ -300,13 +435,18 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg,
   }
 }
 
-// Extract structure graph for each fucntion
+// Extract structure graph for each function
 void StaticAnalysisImpl::IntraProceduralAnalysis() {
   // Traverse through all functions
   for (auto func : this->co->funcs()) {
     Address entry_addr = func->addr();
     std::string func_name = func->name();
-    // dbg(func_name, );
+    // dbg(func_name );
+    /** BUG: Hard coding for Q-E, and this BUG is caused by dyninst, not our framework **/
+    if (func->name().compare(std::string("__buiol_MOD_buiol_close_unit.cold")) == 0) {
+      continue;
+    }
+
 
     // Create a graph for each function
     auto func_cfg = new core::ControlFlowGraph();
@@ -322,6 +462,29 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
 
     entry_addr = bvec.front()->start();
     Address exit_addr = bvec.back()->last();
+
+    /** TODO: Need to verify the entry and exit address 
+     * of each function by parsing execuutable's objdump 
+     * logs. **/
+
+    /** For debug */
+    // if (func->name().compare(std::string("__buiol_MOD_buiol_close_unit.cold")) == 0) {
+    //   dbg(func->name());
+    //   for (auto & b: bvec ){
+    //     dbg(b->start(), b->last());
+    //   }
+    // }
+    // if (func->name().compare(std::string("main")) == 0) {
+    //   dbg(func->name());
+    //   for (auto & b: bvec ){
+    //     dbg(b->start(), b->last());
+    //     std::vector<Function *> func_vec;
+    //     b->getFuncs(func_vec);
+    //     for (auto func_p: func_vec) {
+    //       dbg(func_p->name());
+    //     }
+    //   }
+    // }
 
     // Create root vertex in the graph
     int func_vertex_id = func_cfg->AddVertex();
@@ -353,6 +516,9 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
 
 void StaticAnalysisImpl::DumpFunctionGraph(core::ControlFlowGraph *func_cfg,
                                            const char *file_name) {
+  if (func_cfg == nullptr) {
+    return ;
+  }
   func_cfg->DeleteExtraTailVertices();
   func_cfg->SortByAddr(0);
   func_cfg->DumpGraphGML(file_name);
@@ -381,16 +547,11 @@ void StaticAnalysisImpl::DumpAllFunctionGraph() {
 
   int i = 0;
   // Traverse through all functions
-  for (auto func : this->co->funcs()) {
-    // std::string func_name = func->name();
-    // hash_2_func[i] = std::string(func_name);
-    // core::ControlFlowGraph *func_cfg = this->func_2_graph[func_name];
-
-    Address entry_addr = func->addr();
+  for (auto& entry_addr_graph_pair: this->entry_addr_to_graph) {
+    Address entry_addr = entry_addr_graph_pair.first;
     hash_2_func_entry_addr[i] = entry_addr;
 
-    core::ControlFlowGraph *func_cfg = this->entry_addr_to_graph[entry_addr];
-
+    core::ControlFlowGraph *func_cfg = entry_addr_graph_pair.second;
     std::stringstream ss;
 #ifdef LOOP_GRANULARITY
     ss << "./" << this->binary_name << ".pag/" << i << ".gml";
@@ -418,6 +579,12 @@ void StaticAnalysisImpl::DumpProgramCallGraph() {
   ss << "./" << this->binary_name << ".pcg";
   auto file_name = ss.str();
   this->pcg->DumpGraphGML(file_name.c_str());
+}
+
+void StaticAnalysisImpl::DumpProgramCallGraphMap() {
+  std::stringstream ss;
+  ss << "./" << this->binary_name << ".pcg";
+  auto file_name = ss.str();
 }
 
 void StaticAnalysisImpl::GetBinaryName() {

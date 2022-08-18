@@ -300,7 +300,8 @@ class PerFlow(object):
                 value = numpy.linalg.norm(numpy.array(charact_vec[i]) - numpy.array(charact_vec[j]))
                 euclidean_dist[i][j] = value
                 euclidean_dist[j][i] = value
-        plt.imshow(euclidean_dist, cmap=plt.cm.binary)
+        # plt.imshow(euclidean_dist, cmap=plt.cm.binary)
+        plt.pcolormesh(euclidean_dist, cmap=plt.cm.binary)
         plt.colorbar()
         plt.savefig("euc_dist_mat.pdf")
         plt.clf()
@@ -343,35 +344,36 @@ class PerFlow(object):
                 # print(ppag_vid, edges)
                 for e in edges:
                     # if (e['time'] != None) and (e['time'] != float('inf')) and (e['time'] != float('nan')):
-                    if (e['time'] != float('nan')):
-                        ''' the return value of e.target is vertex id (python-igraph id), but not the attribute 'id' of vertex, the latter one is what we need.'''
-                        ppag_target_v = self.ppag.vs[e.target]
-                        ppag_target_vid = int(ppag_target_v['id'])
-                        # matched_flag = False
-                        # for dest_v in V:
-                        #     dest_vid = str(int(dest_v['id']))
-                        #     for dest_pid, dest_vid in self.tdpag_to_ppag_map[dest_vid].items():
-                        #         ppag_target_vid = int(ppag_target_v['id'])
-                        #         # print(dest_vid['0'], ppag_target_vid) 
-                                
-                        #         if dest_vid['0'] == ppag_target_vid: 
-                        #             # print(dest_vid['0'], ppag_vid, ppag_target_vid, e['time'])
-                        #             comm_pattern_mat[pid][int(dest_pid)] += float(e['time'])
-                        #             comm_pattern_mat[int(dest_pid)][pid] += float(e['time'])
-                        #             matched_flag = True
-                        #             break
-                        #     if matched_flag == True:
-                        #         break
-                        # print(ppag_target_vid)
-                        if self.ppag_to_tdpag_map.keys().__contains__(ppag_target_vid):
-                            tdpag_info = self.ppag_to_tdpag_map[ppag_target_vid]
-                            # print(ppag_target_vid, tdpag_info)
-                            # dest_vid = tdpag_info[0]
-                            dest_pid = tdpag_info[1]
-                            comm_pattern_mat[pid][dest_pid] += float(e['time'])
-                            comm_pattern_mat[dest_pid][pid] += float(e['time'])
+                    if e.attributes().__contains__('time'):
+                        if (e['time'] != float('nan')):
+                            ''' the return value of e.target is vertex id (python-igraph id), but not the attribute 'id' of vertex, the latter one is what we need.'''
+                            ppag_target_v = self.ppag.vs[e.target]
+                            ppag_target_vid = int(ppag_target_v['id'])
+                            # matched_flag = False
+                            # for dest_v in V:
+                            #     dest_vid = str(int(dest_v['id']))
+                            #     for dest_pid, dest_vid in self.tdpag_to_ppag_map[dest_vid].items():
+                            #         ppag_target_vid = int(ppag_target_v['id'])
+                            #         # print(dest_vid['0'], ppag_target_vid) 
+                                    
+                            #         if dest_vid['0'] == ppag_target_vid: 
+                            #             # print(dest_vid['0'], ppag_vid, ppag_target_vid, e['time'])
+                            #             comm_pattern_mat[pid][int(dest_pid)] += float(e['time'])
+                            #             comm_pattern_mat[int(dest_pid)][pid] += float(e['time'])
+                            #             matched_flag = True
+                            #             break
+                            #     if matched_flag == True:
+                            #         break
+                            # print(ppag_target_vid)
+                            if self.ppag_to_tdpag_map.keys().__contains__(ppag_target_vid):
+                                tdpag_info = self.ppag_to_tdpag_map[ppag_target_vid]
+                                # print(ppag_target_vid, tdpag_info)
+                                # dest_vid = tdpag_info[0]
+                                dest_pid = tdpag_info[1]
+                                comm_pattern_mat[pid][dest_pid] += float(e['time'])
+                                comm_pattern_mat[dest_pid][pid] += float(e['time'])
 
-        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, edgecolors='grey', linewidths=0.1, shading='auto')
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.1)
         plt.colorbar(label = "Time(ms)")
         plt.title("Communication Pattern")
         plt.xlabel("Process ID")

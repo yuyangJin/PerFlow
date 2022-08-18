@@ -63,13 +63,17 @@ public:
                             LoopTreeNode *loop_tree, int depth, int parent_id);
   void ExtractCallStructure(core::ControlFlowGraph *func_struct_graph,
                             std::vector<Block *> &bvec, int parent_id);
+  void ExtractCallStructure(core::ControlFlowGraph *func_struct_graph,
+                            std::vector<Block *> &bvec, Function* func, int parent_id);
   void InterProceduralAnalysis();
   void CaptureProgramCallGraph();
+  void CaptureProgramCallGraphMap();
   void DumpFunctionGraph(core::ControlFlowGraph *func_struct_graph,
                          const char *file_name);
   void DumpAllFunctionGraph();
   void GetBinaryName();
   void DumpProgramCallGraph();
+  void DumpProgramCallGraphMap();
 };
 } // namespace baguatool::collector
 

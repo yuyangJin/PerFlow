@@ -270,7 +270,7 @@ void GPerf::ReadStaticProgramCallGraph(const char *binary_name) {
 }
 
 void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
-  if (!this->has_dyn_addr_debug_info) {
+  if (this->has_dyn_addr_debug_info) {
     auto data_size = perf_data->GetVertexDataSize();
     // dbg(data_size);
 
@@ -512,6 +512,7 @@ void ConnectCallerCallee(core::ProgramAbstractionGraph *pag, int vertex_id, void
   core::ProgramCallGraph *pcg = arg->pcg;
 
   int type = pag->GetVertexType(vertex_id);
+  // dbg(vertex_id);
   if (type == type::CALL_NODE || type == type::CALL_IND_NODE || type == type::CALL_REC_NODE) {
     type::addr_t addr = pag->GetVertexAttributeNum("saddr", vertex_id);
     // dbg("call_addr", vertex_id, addr);
@@ -820,7 +821,7 @@ void GPerf::StaticInterProceduralAnalysis() {
   }
 
   return;
-}  // function InterProceduralAnalysis
+}  // function StaticInterProceduralAnalysis
 
 void GPerf::GenerateProgramAbstractionGraph(core::PerfData *perf_data) { this->InterProceduralAnalysis(perf_data); }
 
