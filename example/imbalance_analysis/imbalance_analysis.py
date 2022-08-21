@@ -16,4 +16,4 @@ tdpag, ppag = pflow.run(binary = "cg.B.x", cmd = "mpirun -np 8 ./cg.B.x", nprocs
 # pflow.draw(ppag, save_pdf = './cg.B.8.ppag')
 
 # Perform imbalance analysis
-pflow.imbalance_analysis(tdpag.vs)
+pflow.imbalance_analysis(tdpag.vs, nprocs = 8)

@@ -224,28 +224,38 @@ class PerFlow(object):
             n = 10
         return V.select(lambda v: float(v['CYCAVGPERCENT']) > 0.0001)
         #return V.sort_by(metric).top(n)
-
-    def imbalance_analysis(self, V):
+    
+    
+    def imbalance_analysis(self, V, nprocs = 1):
         for v in V:
             if str(int(v['id'])) in self.tdpag_perf_data.keys():
-                print(int(v['id']), self.tdpag_perf_data[str(int(v['id']))])
+                # print(int(v['id']), self.tdpag_perf_data[str(int(v['id']))])
                 data = self.tdpag_perf_data[str(int(v['id']))]
                 for metric, metric_data in data.items():
                     # gather all procs data
-                    metric_data_list = []
+                    metric_data_list = [0 for _ in range(nprocs)]
                     for procs, procs_data in metric_data.items():
                         # gather all thread data
                         procs_data_tot_num = 0.0
                         for thread, thread_data in procs_data.items():
                             procs_data_tot_num += thread_data
-                        metric_data_list.append(procs_data_tot_num)
+                        # metric_data_list.append(procs_data_tot_num)
+                        metric_data_list[int(procs)] = procs_data_tot_num
                     
                     # Calculate variance
                     mean = numpy.mean(metric_data_list)
                     var = numpy.var(metric_data_list)
                     std_var = numpy.std(metric_data_list)
                     if std_var > 70:
-                        print(metric, "mean:", mean, "variance:", var, "standard variance:", std_var)
+                        # print(metric, "mean:", mean, "variance:", var, "standard variance:", std_var)
+
+                        # Show the figures
+                        # metric_data_array = []
+
+                        # draw_scatter_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
+                        # draw_plot_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
+                        draw_bar_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
+                        
                         
     def process_similarity_analysis(self, V, nprocs, metric = 'TOT_CYC'):
         ''' process character vector
@@ -426,3 +436,67 @@ class PerFlow(object):
             V_comm = self.filter(self.tdpag.vs, name = "MPI_")
         ## a communication pattern analysis pass
         self.communication_pattern_analysis(V_comm, nprocs)
+
+
+
+
+
+def draw_scatter_figure(X, Y, xlabel='', ylabel='', title = ''):
+    # Draw plot
+    fig, ax = plt.subplots(figsize=(16,10), dpi= 80)
+    # ax.vlines(x=, ymin=0, ymax=df.cty, color='firebrick', alpha=0.7, linewidth=2)
+    ax.scatter(x=X, y=Y, s=75, color='firebrick', alpha=0.7)
+
+    # Title, Label, Ticks and Ylim
+    ax.set_title(title, fontdict={'size':22})
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    # ax.set_xticks(X)
+
+    # Annotate
+    # for row in X:
+    #     ax.text(row.Index, row.cty+.5, s=round(row.cty, 2), horizontalalignment= 'center', verticalalignment='bottom', fontsize=14)
+
+    plt.savefig(title)
+
+    plt.clf()
+
+def draw_plot_figure(X, Y, xlabel='', ylabel='', title = ''):
+    # Draw plot
+    fig, ax = plt.subplots(figsize=(16,10), dpi= 80)
+    # ax.vlines(x=, ymin=0, ymax=df.cty, color='firebrick', alpha=0.7, linewidth=2)
+    ax.plot(X, Y, color='firebrick')
+
+    # Title, Label, Ticks and Ylim
+    ax.set_title(title, fontdict={'size':22})
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    # ax.set_xticks(X)
+
+    # Annotate
+    # for row in X:
+    #     ax.text(row.Index, row.cty+.5, s=round(row.cty, 2), horizontalalignment= 'center', verticalalignment='bottom', fontsize=14)
+
+    plt.savefig(title)
+
+    plt.clf()
+
+def draw_bar_figure(X, Y, xlabel='', ylabel='', title = ''):
+    # Draw plot
+    fig, ax = plt.subplots(figsize=(16,10), dpi= 80)
+    # ax.vlines(x=, ymin=0, ymax=df.cty, color='firebrick', alpha=0.7, linewidth=2)
+    ax.bar(X, Y, color='firebrick')
+
+    # Title, Label, Ticks and Ylim
+    ax.set_title(title, fontdict={'size':22})
+    ax.set_xlabel(xlabel)
+    ax.set_ylabel(ylabel)
+    # ax.set_xticks(X)
+
+    # Annotate
+    # for row in X:
+    #     ax.text(row.Index, row.cty+.5, s=round(row.cty, 2), horizontalalignment= 'center', verticalalignment='bottom', fontsize=14)
+
+    plt.savefig(title+'.pdf')
+
+    plt.clf()
