@@ -5,10 +5,11 @@
 extern "C" {
 #endif
 
-void GOMP_parallel(void (*fn)(void *), void *data, unsigned num_threads, unsigned int flags);
+void GOMP_parallel(void (*fn)(void *), void *data, unsigned num_threads,
+                   unsigned int flags);
 
 #ifdef __cplusplus
 }
 #endif
 
-#endif  // OMP_INIT_H_
+#endif // OMP_INIT_H_

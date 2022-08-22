@@ -1,9 +1,9 @@
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
 #include <fstream>
 #include <iostream>
 #include <sstream>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -44,13 +44,13 @@ typedef struct CommDepEdge {
 } CDE;
 
 // unordered_map<unsigned long long, CIS*> coll_info[];
-vector<unordered_map<unsigned long long, CIS*>> coll_info;
-vector<vector<PIS*>> p2p_info;
+vector<unordered_map<unsigned long long, CIS *>> coll_info;
+vector<vector<PIS *>> p2p_info;
 vector<unsigned int> coll_info_pointer;
 vector<unsigned int> p2p_info_pointer;
 // vector<int> trace_log[MAX_NPROCS];
 vector<vector<int>> trace_log;
-vector<CDE*> comm_dep_edge;
+vector<CDE *> comm_dep_edge;
 
 void readMPIInfo(string file_name, int pid) {
   coll_info_pointer[pid] = 0;
@@ -93,7 +93,7 @@ void readMPIInfo(string file_name, int pid) {
 
     if (!type_str.compare(string("c"))) {
       // CIS * one_coll_info = (CIS*) malloc(sizeof(CIS));
-      CIS* one_coll_info = new CIS;
+      CIS *one_coll_info = new CIS;
       // delimiter = " ";
       // while ((pos = call_path_str.find(delimiter)) != std::string::npos) {
       //   string addr = call_path_str.substr(0, pos);
@@ -107,10 +107,13 @@ void readMPIInfo(string file_name, int pid) {
       one_coll_info->exe_time = exe_time_str;
       coll_info[pid].insert(make_pair(coll_info_pointer[pid], one_coll_info));
       coll_info_pointer[pid]++;
-    } else if (!type_str.compare(string("s")) || !type_str.compare(string("S")) || !type_str.compare(string("r")) ||
-               !type_str.compare(string("R")) || !type_str.compare(string("w"))) {
+    } else if (!type_str.compare(string("s")) ||
+               !type_str.compare(string("S")) ||
+               !type_str.compare(string("r")) ||
+               !type_str.compare(string("R")) ||
+               !type_str.compare(string("w"))) {
       // PIS * one_p2p_info = (PIS*) malloc(sizeof(PIS));
-      PIS* one_p2p_info = new PIS;
+      PIS *one_p2p_info = new PIS;
 
       one_p2p_info->type = type_str.c_str()[0];
       one_p2p_info->call_path = call_path_str;
@@ -133,7 +136,8 @@ void readMPIInfo(string file_name, int pid) {
         request_count_tmp++;
       }
       one_p2p_info->request_count = request_count_tmp;
-      pair<unsigned long long, PIS*> pair_tmp(p2p_info_pointer[pid], one_p2p_info);
+      pair<unsigned long long, PIS *> pair_tmp(p2p_info_pointer[pid],
+                                               one_p2p_info);
       p2p_info[pid].push_back(one_p2p_info);
       // p2p_info[pid].insert(make_pair(p2p_info_pointer[pid], one_p2p_info));
       p2p_info_pointer[pid]++;
@@ -161,18 +165,21 @@ void readTraceInfo(string file_name, int pid) {
   inputStream.close();
 }
 
-bool existCDE(int dest_type, int src_type, string dest_callpath, string src_callpath, int dest_pid, int src_pid) {
+bool existCDE(int dest_type, int src_type, string dest_callpath,
+              string src_callpath, int dest_pid, int src_pid) {
   for (auto cde : comm_dep_edge) {
-    if (cde->dest_type == dest_type && cde->src_type == src_type && !cde->dest_callpath.compare(dest_callpath) &&
-        !cde->src_callpath.compare(src_callpath) && cde->dest_pid == dest_pid && cde->src_pid == src_pid) {
+    if (cde->dest_type == dest_type && cde->src_type == src_type &&
+        !cde->dest_callpath.compare(dest_callpath) &&
+        !cde->src_callpath.compare(src_callpath) && cde->dest_pid == dest_pid &&
+        cde->src_pid == src_pid) {
       return true;
     }
   }
   return false;
 }
 
-// output inter-process communication dependence edge : (dest , src , edge value) -> (type | call path | pid , type |
-// call path | pid , exe_time)
+// output inter-process communication dependence edge : (dest , src , edge
+// value) -> (type | call path | pid , type | call path | pid , exe_time)
 void commOpMatch(int pid) {
   vector<int>::iterator iter;
   for (iter = trace_log[pid].begin(); iter != trace_log[pid].end(); ++iter) {
@@ -193,9 +200,11 @@ void commOpMatch(int pid) {
             continue;
           }
 
-          // search, record, and delete corresponding send op('s' with same tag) in trace_log[src]
+          // search, record, and delete corresponding send op('s' with same tag)
+          // in trace_log[src]
           vector<int>::iterator src_iter;
-          for (src_iter = trace_log[src].begin(); src_iter != trace_log[src].end(); ++src_iter) {
+          for (src_iter = trace_log[src].begin();
+               src_iter != trace_log[src].end(); ++src_iter) {
             int src_index = (*src_iter);
             // p2p
             if (src_index % 2 == 1) {
@@ -203,7 +212,8 @@ void commOpMatch(int pid) {
               int src_src = p2p_info[src][src_index / 2]->source[0];
               int src_dest = p2p_info[src][src_index / 2]->dest[0];
               int src_tag = p2p_info[src][src_index / 2]->tag[0];
-              if ((src_type == 's' || src_type == 'S') && src_src == src && src_dest == dest && src_tag == tag) {
+              if ((src_type == 's' || src_type == 'S') && src_src == src &&
+                  src_dest == dest && src_tag == tag) {
                 char dest_type = p2p_info[pid][index / 2]->type;
                 // char src_type = p2p_info[src][src_index / 2]->type;
                 string dest_callpath = p2p_info[pid][index / 2]->call_path;
@@ -214,12 +224,13 @@ void commOpMatch(int pid) {
 
                 // delete it
                 trace_log[src].erase(src_iter);
-                if (existCDE(dest_type, src_type, dest_callpath, src_callpath, dest_pid, src_pid)) {
+                if (existCDE(dest_type, src_type, dest_callpath, src_callpath,
+                             dest_pid, src_pid)) {
                   // trace_log[src].erase(src_iter);
                   break;
                 }
                 // record
-                CDE* one_comm_dep_edge = new CDE;
+                CDE *one_comm_dep_edge = new CDE;
                 one_comm_dep_edge->dest_type = dest_type;
                 one_comm_dep_edge->src_type = src_type;
                 one_comm_dep_edge->dest_callpath = dest_callpath;
@@ -230,8 +241,10 @@ void commOpMatch(int pid) {
                 comm_dep_edge.push_back(one_comm_dep_edge);
 
 #ifdef DEBUG
-                cout << dest_type << " | " << dest_callpath << " | " << dest_pid << ", ";
-                cout << src_type << " | " << src_callpath << " | " << src_pid << ", ";
+                cout << dest_type << " | " << dest_callpath << " | " << dest_pid
+                     << ", ";
+                cout << src_type << " | " << src_callpath << " | " << src_pid
+                     << ", ";
                 cout << exe_time << endl;
 #endif
 
@@ -246,7 +259,7 @@ void commOpMatch(int pid) {
 }
 
 void commOpMatchWithMPIInfo(int pid) {
-  vector<PIS*>::iterator iter;
+  vector<PIS *>::iterator iter;
   for (iter = p2p_info[pid].begin(); iter != p2p_info[pid].end(); ++iter) {
     char type = (*iter)->type;
     if (type == 'r' || type == 'w') {
@@ -258,13 +271,15 @@ void commOpMatchWithMPIInfo(int pid) {
         if (src == dest || src < 0 || tag < 0) {
           continue;
         }
-        vector<PIS*>::iterator src_iter;
-        for (src_iter = p2p_info[src].begin(); src_iter != p2p_info[src].end(); ++src_iter) {
+        vector<PIS *>::iterator src_iter;
+        for (src_iter = p2p_info[src].begin(); src_iter != p2p_info[src].end();
+             ++src_iter) {
           char src_type = (*src_iter)->type;
           int src_src = (*src_iter)->source[0];
           int src_dest = (*src_iter)->dest[0];
           int src_tag = (*src_iter)->tag[0];
-          if ((src_type == 's' || src_type == 'S') && src_src == src && src_dest == dest && src_tag == tag) {
+          if ((src_type == 's' || src_type == 'S') && src_src == src &&
+              src_dest == dest && src_tag == tag) {
             char dest_type = (*iter)->type;
             // char src_type = ( *src_iter ) ->type;
             string dest_callpath = (*iter)->call_path;
@@ -275,12 +290,13 @@ void commOpMatchWithMPIInfo(int pid) {
 
             // delete it
             p2p_info[src].erase(src_iter);
-            if (existCDE(dest_type, src_type, dest_callpath, src_callpath, dest_pid, src_pid)) {
+            if (existCDE(dest_type, src_type, dest_callpath, src_callpath,
+                         dest_pid, src_pid)) {
               // trace_log[src].erase(src_iter);
               break;
             }
             // record
-            CDE* one_comm_dep_edge = new CDE;
+            CDE *one_comm_dep_edge = new CDE;
             one_comm_dep_edge->dest_type = dest_type;
             one_comm_dep_edge->src_type = src_type;
             one_comm_dep_edge->dest_callpath = dest_callpath;
@@ -298,10 +314,10 @@ void commOpMatchWithMPIInfo(int pid) {
   }
 }
 
-void outputCommDepEdges(ofstream& fout) {
+void outputCommDepEdges(ofstream &fout) {
   fout << "0" << endl;
   fout << comm_dep_edge.size() << endl;
-  for (auto& cdp : comm_dep_edge) {
+  for (auto &cdp : comm_dep_edge) {
     //#ifdef DEBUG
 
     fout << cdp->src_callpath << " | " << cdp->dest_callpath << " | ";
@@ -313,7 +329,7 @@ void outputCommDepEdges(ofstream& fout) {
   //#endif
 }
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
   int nprocs = atoi(argv[1]);
 
   coll_info.resize(nprocs);
@@ -323,7 +339,9 @@ int main(int argc, char* argv[]) {
   p2p_info_pointer.resize(nprocs);
 
   for (int pid = 0; pid < nprocs; pid++) {
-    readMPIInfo(string(argv[2]) + string("/dynamic_data/MPID") + to_string(pid) + string(".TXT"), pid);
+    readMPIInfo(string(argv[2]) + string("/dynamic_data/MPID") +
+                    to_string(pid) + string(".TXT"),
+                pid);
     // readTraceInfo(string("./MPIT") + to_string(pid) + string(".TXT"), pid);
   }
 

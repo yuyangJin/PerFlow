@@ -1,17 +1,17 @@
-#include <cstring>
-#include <string>
 #include "baguatool.h"
 #include "graph_perf.h"
+#include <cstring>
+#include <string>
 
-int main(int argc, char** argv) {
-  const char* bin_name = argv[1];
+int main(int argc, char **argv) {
+  const char *bin_name = argv[1];
   char pag_dir_name[20] = {0};
   char pcg_name[20] = {0};
   strcpy(pag_dir_name, bin_name);
   strcat(pag_dir_name, ".pag/");
   strcpy(pcg_name, bin_name);
   strcat(pcg_name, ".pcg");
-  const char* perf_data_file_name = argv[2];
+  const char *perf_data_file_name = argv[2];
   // std::string shared_obj_map_file_name = std::string(argv[3]);
 
   auto gperf = std::make_unique<graph_perf::GPerf>();
@@ -19,7 +19,7 @@ int main(int argc, char** argv) {
   gperf->ReadFunctionAbstractionGraphs(pag_dir_name);
 
   /** Read perf data */
-  baguatool::core::PerfData* perf_data = new baguatool::core::PerfData();
+  baguatool::core::PerfData *perf_data = new baguatool::core::PerfData();
   perf_data->Read(perf_data_file_name);
 
   // gperf->GenerateDynAddrDebugInfo(perf_data, shared_obj_map_file_name);
@@ -28,7 +28,8 @@ int main(int argc, char** argv) {
 
   gperf->GenerateProgramAbstractionGraph(perf_data);
 
-  baguatool::core::ProgramAbstractionGraph* pag = gperf->GetProgramAbstractionGraph();
+  baguatool::core::ProgramAbstractionGraph *pag =
+      gperf->GetProgramAbstractionGraph();
 
   gperf->DataEmbedding(perf_data);
   std::string metric("TOT_CYC");
@@ -38,7 +39,8 @@ int main(int argc, char** argv) {
   std::string new_metric("CYCAVGPERCENT");
   pag->ConvertVertexReducedDataToPercent(avg_metric, total, new_metric);
 
-  auto graph_perf_data = gperf->GetProgramAbstractionGraph()->GetGraphPerfData();
+  auto graph_perf_data =
+      gperf->GetProgramAbstractionGraph()->GetGraphPerfData();
   std::string output_file_name_str("output.json");
   graph_perf_data->Dump(output_file_name_str);
 

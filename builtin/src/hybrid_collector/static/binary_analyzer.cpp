@@ -1,12 +1,13 @@
 #include "baguatool.h"
 
 int main(int argc, char *argv[]) {
-  auto static_analysis = std::make_unique<baguatool::collector::StaticAnalysis>(argv[1]);
+  auto static_analysis =
+      std::make_unique<baguatool::collector::StaticAnalysis>(argv[1]);
 
   static_analysis->CaptureProgramCallGraph();
   static_analysis->IntraProceduralAnalysis();
 
-  const char* dir = argv[2];
+  const char *dir = argv[2];
   static_analysis->DumpProgramCallGraph(dir);
   static_analysis->DumpAllControlFlowGraph(dir);
 

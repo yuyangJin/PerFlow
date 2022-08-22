@@ -17,13 +17,13 @@
 #include <LineInformation.h>
 #include <Symtab.h>
 
+#include <algorithm>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <algorithm>
 
 #include "baguatool.h"
 #include "common/utils.h"
@@ -58,9 +58,15 @@ void StaticAnalysis::CaptureProgramCallGraph() {
 void StaticAnalysis::CaptureProgramCallGraphMap() {
   sa->CaptureProgramCallGraphMap();
 }
-void StaticAnalysis::DumpAllControlFlowGraph(const char* dir) { sa->DumpAllFunctionGraph(dir); }
-void StaticAnalysis::DumpProgramCallGraph(const char* dir) { sa->DumpProgramCallGraph(dir); }
-void StaticAnalysis::DumpProgramCallGraphMap(const char* dir) { sa->DumpProgramCallGraphMap(dir); }
+void StaticAnalysis::DumpAllControlFlowGraph(const char *dir) {
+  sa->DumpAllFunctionGraph(dir);
+}
+void StaticAnalysis::DumpProgramCallGraph(const char *dir) {
+  sa->DumpProgramCallGraph(dir);
+}
+void StaticAnalysis::DumpProgramCallGraphMap(const char *dir) {
+  sa->DumpProgramCallGraphMap(dir);
+}
 void StaticAnalysis::GetBinaryName() { sa->GetBinaryName(); }
 
 StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
@@ -262,8 +268,7 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
 // Capture function call structure in this function but not in the loop
 void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
                                               std::vector<Block *> &bvec,
-                                              Function* func,
-                                              int parent_id) {
+                                              Function *func, int parent_id) {
   // std::vector<Address> call_inst_list;
   // const Function::edgelist &elist = func->callEdges();
   // for (const auto &e : elist) {
@@ -294,10 +299,12 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
       // Traverse through all instructions
       for (auto inst : b->targets()) {
         // Only analyze CALL type instruction
-        if (inst->type() == CALL){
-        // if (inst->type() == CALL || std::find(call_inst_list.begin(), call_inst_list.end(), inst->src()->last()) != call_inst_list.end()) {
+        if (inst->type() == CALL) {
+          // if (inst->type() == CALL || std::find(call_inst_list.begin(),
+          // call_inst_list.end(), inst->src()->last()) != call_inst_list.end())
+          // {
           if (func->name().compare(std::string("main")) == 0) {
-              // dbg(inst->src()->last());
+            // dbg(inst->src()->last());
           }
 #ifdef DEBUG_COUT
           std::cout
@@ -442,11 +449,12 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
     Address entry_addr = func->addr();
     std::string func_name = func->name();
     // dbg(func_name );
-    /** BUG: Hard coding for Q-E, and this BUG is caused by dyninst, not our framework **/
-    if (func->name().compare(std::string("__buiol_MOD_buiol_close_unit.cold")) == 0) {
+    /** BUG: Hard coding for Q-E, and this BUG is caused by dyninst, not our
+     * framework **/
+    if (func->name().compare(
+            std::string("__buiol_MOD_buiol_close_unit.cold")) == 0) {
       continue;
     }
-
 
     // Create a graph for each function
     auto func_cfg = new core::ControlFlowGraph();
@@ -463,12 +471,14 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
     entry_addr = bvec.front()->start();
     Address exit_addr = bvec.back()->last();
 
-    /** TODO: Need to verify the entry and exit address 
-     * of each function by parsing execuutable's objdump 
+    /** TODO: Need to verify the entry and exit address
+     * of each function by parsing execuutable's objdump
      * logs. **/
 
     /** For debug */
-    // if (func->name().compare(std::string("__buiol_MOD_buiol_close_unit.cold")) == 0) {
+    // if
+    // (func->name().compare(std::string("__buiol_MOD_buiol_close_unit.cold"))
+    // == 0) {
     //   dbg(func->name());
     //   for (auto & b: bvec ){
     //     dbg(b->start(), b->last());
@@ -517,23 +527,27 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
 void StaticAnalysisImpl::DumpFunctionGraph(core::ControlFlowGraph *func_cfg,
                                            const char *file_name) {
   if (func_cfg == nullptr) {
-    return ;
+    return;
   }
   func_cfg->DeleteExtraTailVertices();
   func_cfg->SortByAddr(0);
   func_cfg->DumpGraphGML(file_name);
 }
 
-void StaticAnalysisImpl::DumpAllFunctionGraph(const char* dir) {
+void StaticAnalysisImpl::DumpAllFunctionGraph(const char *dir) {
 #ifdef LOOP_GRANULARITY
   // std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
-  //                        std::string(this->binary_name) + std::string(".pag");
-  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") + std::string(dir) + std::string("/") +
+  //                        std::string(this->binary_name) +
+  //                        std::string(".pag");
+  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+                         std::string(dir) + std::string("/") +
                          std::string(this->binary_name) + std::string(".pag");
 #else
   // std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
-  //                        std::string(this->binary_name) + std::string(".cfg");
-  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") + std::string(dir) + std::string("/") +
+  //                        std::string(this->binary_name) +
+  //                        std::string(".cfg");
+  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+                         std::string(dir) + std::string("/") +
                          std::string(this->binary_name) + std::string(".cfg");
 #endif
   printf("%s\n", dir_name.c_str());
@@ -550,16 +564,18 @@ void StaticAnalysisImpl::DumpAllFunctionGraph(const char* dir) {
 
   int i = 0;
   // Traverse through all functions
-  for (auto& entry_addr_graph_pair: this->entry_addr_to_graph) {
+  for (auto &entry_addr_graph_pair : this->entry_addr_to_graph) {
     Address entry_addr = entry_addr_graph_pair.first;
     hash_2_func_entry_addr[i] = entry_addr;
 
     core::ControlFlowGraph *func_cfg = entry_addr_graph_pair.second;
     std::stringstream ss;
 #ifdef LOOP_GRANULARITY
-    ss << std::string(dir) << "/" << this->binary_name << ".pag/" << i << ".gml";
+    ss << std::string(dir) << "/" << this->binary_name << ".pag/" << i
+       << ".gml";
 #else
-    ss << std::string(dir) << "/" << this->binary_name << ".cfg/" << i << ".gml";
+    ss << std::string(dir) << "/" << this->binary_name << ".cfg/" << i
+       << ".gml";
 #endif
     auto file_name = ss.str();
     this->DumpFunctionGraph(func_cfg, file_name.c_str());
@@ -577,14 +593,14 @@ void StaticAnalysisImpl::DumpAllFunctionGraph(const char* dir) {
   DumpMap<int, Address>(hash_2_func_entry_addr, file_name);
 }
 
-void StaticAnalysisImpl::DumpProgramCallGraph(const char* dir) {
+void StaticAnalysisImpl::DumpProgramCallGraph(const char *dir) {
   std::stringstream ss;
   ss << std::string(dir) << "/" << this->binary_name << ".pcg";
   auto file_name = ss.str();
   this->pcg->DumpGraphGML(file_name.c_str());
 }
 
-void StaticAnalysisImpl::DumpProgramCallGraphMap(const char* dir) {
+void StaticAnalysisImpl::DumpProgramCallGraphMap(const char *dir) {
   std::stringstream ss;
   ss << std::string(dir) << "/" << this->binary_name << ".pcg";
   auto file_name = ss.str();

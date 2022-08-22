@@ -64,7 +64,8 @@ public:
   void ExtractCallStructure(core::ControlFlowGraph *func_struct_graph,
                             std::vector<Block *> &bvec, int parent_id);
   void ExtractCallStructure(core::ControlFlowGraph *func_struct_graph,
-                            std::vector<Block *> &bvec, Function* func, int parent_id);
+                            std::vector<Block *> &bvec, Function *func,
+                            int parent_id);
   void InterProceduralAnalysis();
   void CaptureProgramCallGraph();
   void CaptureProgramCallGraphMap();

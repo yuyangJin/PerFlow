@@ -574,7 +574,8 @@ public:
 
 class ProgramGraph : public Graph {
 private:
-  std::map<type::vertex_t, std::map<type::addr_t, type::vertex_t>> call_path_to_vid;
+  std::map<type::vertex_t, std::map<type::addr_t, type::vertex_t>>
+      call_path_to_vid;
 
 public:
   /** Default Constructor
@@ -953,13 +954,13 @@ public:
 
   /**
    * @brief Expand memory for Vertex Data
-   * 
+   *
    */
   void ExpandVertexDataMem();
 
   /**
    * @brief Expand memory for Edge Data
-   * 
+   *
    */
   void ExpandEdgeDataMem();
 
@@ -1238,19 +1239,19 @@ public:
   void CaptureProgramCallGraphMap();
 
   /** Dump control-flow graphs of all functions.
-   * @param dir 
+   * @param dir
    */
-  void DumpAllControlFlowGraph(const char* dir);
+  void DumpAllControlFlowGraph(const char *dir);
 
   /** Dump static program call graph.
    * @param dir
    */
-  void DumpProgramCallGraph(const char* dir);
+  void DumpProgramCallGraph(const char *dir);
 
   /** Dump static program call graph map.
    * @param dir
    */
-  void DumpProgramCallGraphMap(const char* dir);
+  void DumpProgramCallGraphMap(const char *dir);
 
   /** Get name of input binary.
    *

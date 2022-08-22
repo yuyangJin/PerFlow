@@ -9,7 +9,8 @@
 
 void print_thread_id(pthread_t id) {
   size_t i;
-  for (i = sizeof(i); i; --i) printf("%02x", *(((unsigned char *)&id) + i - 1));
+  for (i = sizeof(i); i; --i)
+    printf("%02x", *(((unsigned char *)&id) + i - 1));
 }
 
 int N = 5000000;

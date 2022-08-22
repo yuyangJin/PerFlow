@@ -15,4 +15,4 @@ extern char *addr_threshold;
 }
 #endif
 
-#endif  // MPI_INIT_H_
+#endif // MPI_INIT_H_
