@@ -70,10 +70,10 @@ public:
   void CaptureProgramCallGraphMap();
   void DumpFunctionGraph(core::ControlFlowGraph *func_struct_graph,
                          const char *file_name);
-  void DumpAllFunctionGraph();
+  void DumpAllFunctionGraph(const char *dir_name);
   void GetBinaryName();
-  void DumpProgramCallGraph();
-  void DumpProgramCallGraphMap();
+  void DumpProgramCallGraph(const char *dir_name);
+  void DumpProgramCallGraphMap(const char *dir_name);
 };
 } // namespace baguatool::collector
 

@@ -124,14 +124,14 @@ static void fini_mock() {
   //dbg(perf_data->GetEdgeDataSize(), perf_data->GetVertexDataSize());
   // std::string output_file_name = std::string("SAMPLE") + std::to_string(mpi_rank) + std::string(".TXT");
   char output_file_name[MAX_LINE_LEN] = {0};
-  sprintf(output_file_name, "SAMPLE+%d.TXT", mpi_rank);
+  sprintf(output_file_name, "dynamic_data/SAMPLE+%d.TXT", mpi_rank);
   perf_data->Dump(output_file_name);
 
   std::unique_ptr<baguatool::collector::SharedObjAnalysis> shared_obj_analysis =
       std::make_unique<baguatool::collector::SharedObjAnalysis>();
   shared_obj_analysis->CollectSharedObjMap();
   // sprintf(output_file_name, "SOMAP-%lu.TXT", gettid());
-  std::string output_file_name_str = std::string("SOMAP+") + std::to_string(mpi_rank) + std::string(".TXT");
+  std::string output_file_name_str = std::string("dynamic_data/SOMAP+") + std::to_string(mpi_rank) + std::string(".TXT");
   shared_obj_analysis->DumpSharedObjMap(output_file_name_str);
 }
 

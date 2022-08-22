@@ -163,7 +163,7 @@ int my_backtrace(unw_word_t* buffer, int max_depth) {
 
 // Dump mpi info log
 static void writeCollMpiInfoLog() {
-  ofstream outputStream((string("MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
+  ofstream outputStream((string("dynamic_data/MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
   if (!outputStream.good()) {
     cout << "Failed to open sample file\n";
     return;
@@ -198,7 +198,7 @@ static void writeCollMpiInfoLog() {
 }
 
 static void writeP2PMpiInfoLog() {
-  ofstream outputStream((string("MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
+  ofstream outputStream((string("dynamic_data/MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
   if (!outputStream.good()) {
     cout << "Failed to open sample file\n";
     return;
@@ -223,7 +223,7 @@ static void writeP2PMpiInfoLog() {
 }
 
 static void writeTraceLog() {
-  ofstream outputStream((string("MPIT") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
+  ofstream outputStream((string("dynamic_data/MPIT") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
   if (!outputStream.good()) {
     cout << "Failed to open sample file\n";
     return;

@@ -51,10 +51,13 @@ class PerFlow(object):
         
 
     def staticAnalysis(self):
-        cmd_line = '$BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name
+        cmd_line = '$BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name + ' ' + self.data_dir + '/static_data'
         os.system(cmd_line)
         
     def dynamicAnalysis(self, sampling_count = 0):
+        mkdir_cmd_line = 'mkdir -p ./dynamic_data'
+        os.system(mkdir_cmd_line)
+
         if sampling_count != 0:
             self.sampling_count = sampling_count
         
@@ -75,12 +78,19 @@ class PerFlow(object):
             os.system(profiling_cmd_line)
         
 
+        # mv_cmd_line = 'mv SAMPLE* SOMAP* MPID* MPIT*' + ' ./' + self.data_dir + '/dynamic_data/'
+        # os.system(mv_cmd_line)
+
+        mv_cmd_line = 'mv dynamic_data' + ' ./' + self.data_dir + '/'
+        os.system(mv_cmd_line)
+        
+
     def pagGeneration(self):
         pag_generation_cmd_line = ''
 
         if self.mode == 'mpi+omp':
-            communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.static_analysis_binary_name + '.dep'
-            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_pag_generation ' + self.static_analysis_binary_name + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' + ' ./SAMPLE*'
+            communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.data_dir + ' ' + self.static_analysis_binary_name + '.dep'
+            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_pag_generation ' + self.static_analysis_binary_name + ' ' + self.data_dir + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' #+ ' ./SAMPLE*'
             print(communication_analysis_cmd_line)
             os.system(communication_analysis_cmd_line)
 
@@ -103,24 +113,6 @@ class PerFlow(object):
         print(pag_generation_cmd_line)
         os.system(pag_generation_cmd_line)
 
-        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/static_data'
-        os.system(mkdir_cmd_line)
-
-        mv_cmd_line = 'mv *.pcg *.pag *.pag.map' + ' ./' + self.data_dir + '/static_data/'
-        os.system(mv_cmd_line)
-        # mv_cmd_line = 'mv *.pag' + ' ./' + self.data_dir + '/static_data/'
-        # os.system(mv_cmd_line)
-        # mv_cmd_line = 'mv *.pag.map' + ' ./' + self.data_dir + '/static_data/'
-        # os.system(mv_cmd_line)
-
-        mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/dynamic_data'
-        os.system(mkdir_cmd_line)
-
-        mv_cmd_line = 'mv SAMPLE* SOMAP* MPID* MPIT* *.dep' + ' ./' + self.data_dir + '/dynamic_data/'
-        os.system(mv_cmd_line)
-
-        mv_cmd_line = 'mv *.gml *.json' + ' ./' + self.data_dir + '/'
-        os.system(mv_cmd_line)
 
     def readPag(self, dir = ''):
         if dir != '':
@@ -179,6 +171,10 @@ class PerFlow(object):
         if dir == "":
             self.data_dir = self.static_analysis_binary_name.strip().split('/')[-1]  + '-' + str(self.nprocs) + 'p-' + time.strftime('%Y%m%d-%H%M%S', time.localtime(int(round(time.time() * 1000)) / 1000))
             mkdir_cmd_line = 'mkdir -p ./' + self.data_dir
+            os.system(mkdir_cmd_line)
+            mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/static_data'
+            os.system(mkdir_cmd_line)
+            mkdir_cmd_line = 'mkdir -p ./' + self.data_dir + '/dynamic_data'
             os.system(mkdir_cmd_line)
         else:
             self.data_dir = dir

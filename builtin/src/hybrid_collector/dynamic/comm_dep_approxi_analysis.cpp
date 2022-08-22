@@ -323,13 +323,13 @@ int main(int argc, char* argv[]) {
   p2p_info_pointer.resize(nprocs);
 
   for (int pid = 0; pid < nprocs; pid++) {
-    readMPIInfo(string("./MPID") + to_string(pid) + string(".TXT"), pid);
+    readMPIInfo(string(argv[2]) + string("/dynamic_data/MPID") + to_string(pid) + string(".TXT"), pid);
     // readTraceInfo(string("./MPIT") + to_string(pid) + string(".TXT"), pid);
   }
 
   for (int pid = 0; pid < nprocs; pid++) {
     commOpMatchWithMPIInfo(pid);
   }
-  ofstream outputStream(argv[2], ios_base::out);
+  ofstream outputStream(argv[3], ios_base::out);
   outputCommDepEdges(outputStream);
 }

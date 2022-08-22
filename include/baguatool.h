@@ -1238,19 +1238,19 @@ public:
   void CaptureProgramCallGraphMap();
 
   /** Dump control-flow graphs of all functions.
-   *
+   * @param dir 
    */
-  void DumpAllControlFlowGraph();
+  void DumpAllControlFlowGraph(const char* dir);
 
   /** Dump static program call graph.
-   *
+   * @param dir
    */
-  void DumpProgramCallGraph();
+  void DumpProgramCallGraph(const char* dir);
 
   /** Dump static program call graph map.
-   *
+   * @param dir
    */
-  void DumpProgramCallGraphMap();
+  void DumpProgramCallGraphMap(const char* dir);
 
   /** Get name of input binary.
    *

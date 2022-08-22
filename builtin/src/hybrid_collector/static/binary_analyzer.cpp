@@ -6,8 +6,9 @@ int main(int argc, char *argv[]) {
   static_analysis->CaptureProgramCallGraph();
   static_analysis->IntraProceduralAnalysis();
 
-  static_analysis->DumpProgramCallGraph();
-  static_analysis->DumpAllControlFlowGraph();
+  const char* dir = argv[2];
+  static_analysis->DumpProgramCallGraph(dir);
+  static_analysis->DumpAllControlFlowGraph(dir);
 
   // static_analysis->DumpProgramCallGraph()
 

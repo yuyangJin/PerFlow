@@ -58,9 +58,9 @@ void StaticAnalysis::CaptureProgramCallGraph() {
 void StaticAnalysis::CaptureProgramCallGraphMap() {
   sa->CaptureProgramCallGraphMap();
 }
-void StaticAnalysis::DumpAllControlFlowGraph() { sa->DumpAllFunctionGraph(); }
-void StaticAnalysis::DumpProgramCallGraph() { sa->DumpProgramCallGraph(); }
-void StaticAnalysis::DumpProgramCallGraphMap() { sa->DumpProgramCallGraphMap(); }
+void StaticAnalysis::DumpAllControlFlowGraph(const char* dir) { sa->DumpAllFunctionGraph(dir); }
+void StaticAnalysis::DumpProgramCallGraph(const char* dir) { sa->DumpProgramCallGraph(dir); }
+void StaticAnalysis::DumpProgramCallGraphMap(const char* dir) { sa->DumpProgramCallGraphMap(dir); }
 void StaticAnalysis::GetBinaryName() { sa->GetBinaryName(); }
 
 StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
@@ -524,13 +524,16 @@ void StaticAnalysisImpl::DumpFunctionGraph(core::ControlFlowGraph *func_cfg,
   func_cfg->DumpGraphGML(file_name);
 }
 
-void StaticAnalysisImpl::DumpAllFunctionGraph() {
+void StaticAnalysisImpl::DumpAllFunctionGraph(const char* dir) {
 #ifdef LOOP_GRANULARITY
-  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+  // std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+  //                        std::string(this->binary_name) + std::string(".pag");
+  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") + std::string(dir) + std::string("/") +
                          std::string(this->binary_name) + std::string(".pag");
-
 #else
-  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+  // std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") +
+  //                        std::string(this->binary_name) + std::string(".cfg");
+  std::string dir_name = std::string(getcwd(NULL, 0)) + std::string("/") + std::string(dir) + std::string("/") +
                          std::string(this->binary_name) + std::string(".cfg");
 #endif
   printf("%s\n", dir_name.c_str());
@@ -554,9 +557,9 @@ void StaticAnalysisImpl::DumpAllFunctionGraph() {
     core::ControlFlowGraph *func_cfg = entry_addr_graph_pair.second;
     std::stringstream ss;
 #ifdef LOOP_GRANULARITY
-    ss << "./" << this->binary_name << ".pag/" << i << ".gml";
+    ss << std::string(dir) << "/" << this->binary_name << ".pag/" << i << ".gml";
 #else
-    ss << "./" << this->binary_name << ".cfg/" << i << ".gml";
+    ss << std::string(dir) << "/" << this->binary_name << ".cfg/" << i << ".gml";
 #endif
     auto file_name = ss.str();
     this->DumpFunctionGraph(func_cfg, file_name.c_str());
@@ -566,24 +569,24 @@ void StaticAnalysisImpl::DumpAllFunctionGraph() {
 
   std::stringstream ss;
 #ifdef LOOP_GRANULARITY
-  ss << "./" << this->binary_name << ".pag.map";
+  ss << std::string(dir) << "/" << this->binary_name << ".pag.map";
 #else
-  ss << "./" << this->binary_name << ".cfg.map";
+  ss << std::string(dir) << "/" << this->binary_name << ".cfg.map";
 #endif
   auto file_name = ss.str();
   DumpMap<int, Address>(hash_2_func_entry_addr, file_name);
 }
 
-void StaticAnalysisImpl::DumpProgramCallGraph() {
+void StaticAnalysisImpl::DumpProgramCallGraph(const char* dir) {
   std::stringstream ss;
-  ss << "./" << this->binary_name << ".pcg";
+  ss << std::string(dir) << "/" << this->binary_name << ".pcg";
   auto file_name = ss.str();
   this->pcg->DumpGraphGML(file_name.c_str());
 }
 
-void StaticAnalysisImpl::DumpProgramCallGraphMap() {
+void StaticAnalysisImpl::DumpProgramCallGraphMap(const char* dir) {
   std::stringstream ss;
-  ss << "./" << this->binary_name << ".pcg";
+  ss << std::string(dir) << "/" << this->binary_name << ".pcg";
   auto file_name = ss.str();
 }
 

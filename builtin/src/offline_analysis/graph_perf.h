@@ -121,11 +121,11 @@ class GPerf {
   void ReadDynamicProgramCallGraph(core::PerfData* perf_data);
 
   /** Generate complete program call graph through hybrid static-dynamic analysis.
-   * @param binary_name - binary name
+   * @param pcg_name - program call graph file name
    * @param perf_data - performance data
    * @param shared_obj_map_file_name - file name of shared object map
    */
-  void GenerateProgramCallGraph(const char* binary_name, core::PerfData* perf_data);
+  void GenerateProgramCallGraph(const char* pcg_name, core::PerfData* perf_data);
 
   /** Get complete program call graph.
    * @return complete program call graph

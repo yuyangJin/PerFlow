@@ -259,9 +259,9 @@ void SetCallTypeAsStatic(core::ProgramCallGraph *pcg, type::edge_t edge_id, void
   pcg->SetEdgeType(edge_id, type::STA_CALL_EDGE);  // static
 }
 
-void GPerf::ReadStaticProgramCallGraph(const char *binary_name) {
+void GPerf::ReadStaticProgramCallGraph(const char *pcg_name) {
   /** Get name of static program call graph's file */
-  std::string static_pcg_file_name = std::string(binary_name) + std::string(".pcg");
+  std::string static_pcg_file_name = std::string(pcg_name); //+ std::string(".pcg");
 
   /** Read a ProgramCallGraph from each file */
   this->pcg = new core::ProgramCallGraph();
@@ -422,8 +422,8 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
   }
 }
 
-void GPerf::GenerateProgramCallGraph(const char *binary_name, core::PerfData *perf_data) {
-  this->ReadStaticProgramCallGraph(binary_name);
+void GPerf::GenerateProgramCallGraph(const char *pcg_name, core::PerfData *perf_data) {
+  this->ReadStaticProgramCallGraph(pcg_name);
   this->ReadDynamicProgramCallGraph(perf_data);
 }
 
