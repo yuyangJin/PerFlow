@@ -201,7 +201,8 @@ class PerFlow(object):
     def filter(self, V, name = '', type = ''):
         if name != '':
             #print(name)
-            return V.select(lambda v: (v["name"].find(name) != -1) )
+            # return V.select(lambda v: (v["name"].find(name) != -1) )
+            return V.select(lambda v: (v["name"].startswith(name) == True) )
         if type != '':
             return V.select(type_eq = type)
 
@@ -348,13 +349,14 @@ class PerFlow(object):
         comm_pattern_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
         # if V.attrbutes.keys().__contains__('time'):
         for v in V:
+            # print(v)
             for pid in range(nprocs):
                 vid = str(int(v['id']))
                 ppag_vid = self.tdpag_to_ppag_map[vid][str(pid)]['0']
                 ppag_v = self.ppag.vs[int(ppag_vid)]
                 # e_list = self.ppag.es.select(_source=int(ppag_vid))
                 edges = ppag_v.out_edges()
-                # print(ppag_vid, edges)
+                # print(vid, ppag_vid, edges)
                 for e in edges:
                     # if (e['time'] != None) and (e['time'] != float('inf')) and (e['time'] != float('nan')):
                     if e.attributes().__contains__('time'):
@@ -434,9 +436,14 @@ class PerFlow(object):
 
     def communication_pattern_analysis_model(self, nprocs=1):
         ## a filter pass
-        V_comm = self.filter(self.tdpag.vs, name = "mpi_")
+        V_comm = self.filter(self.tdpag.vs, name = "_mpi_")
         if len(V_comm) == 0:
             V_comm = self.filter(self.tdpag.vs, name = "MPI_")
+        if len(V_comm) == 0:
+            V_comm = self.filter(self.tdpag.vs, name = "mpi_")
+        if len(V_comm) == 0:
+            V_comm = self.filter(self.tdpag.vs, name = "_MPI_")
+
         ## a communication pattern analysis pass
         self.communication_pattern_analysis(V_comm, nprocs)
 
