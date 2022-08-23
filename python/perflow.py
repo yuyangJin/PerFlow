@@ -230,6 +230,8 @@ class PerFlow(object):
                 for metric, metric_data in data.items():
                     # gather all procs data
                     metric_data_list = [0 for _ in range(nprocs)]
+                    if metric_data == None:
+                        continue
                     for procs, procs_data in metric_data.items():
                         # gather all thread data
                         procs_data_tot_num = 0.0
@@ -263,6 +265,10 @@ class PerFlow(object):
             if str(vid) in self.tdpag_perf_data.keys():
                 if metric in self.tdpag_perf_data[str(vid)].keys():
                     data = self.tdpag_perf_data[str(vid)][metric]
+                    if data == None:
+                        for i in range(nprocs):
+                            charact_vec[i].append(0)
+                        continue
                     for pid in range(nprocs):
                         if str(pid) in data.keys():
                             procs_data = data[str(pid)]
@@ -273,8 +279,9 @@ class PerFlow(object):
                             charact_vec[pid].append(procs_data_tot_num)
                         else :
                             charact_vec[pid].append(0)
-                for i in range(nprocs):
-                    charact_vec[i].append(0)
+                else:
+                    for i in range(nprocs):
+                        charact_vec[i].append(0)
             else:
                 for i in range(nprocs):
                     charact_vec[i].append(0)
@@ -286,16 +293,16 @@ class PerFlow(object):
         charact_vec = normalize(charact_vec)
 
         # Calculate dot
-        similarity_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
-        for i in range(nprocs):
-            for j in range(i, nprocs):
-                value = numpy.dot(charact_vec[i], charact_vec[j])
-                similarity_mat[i][j] = value
-                similarity_mat[j][i] = value
-        plt.imshow(similarity_mat, cmap=plt.cm.binary)
-        plt.colorbar()
-        plt.savefig("sim_mat.pdf")
-        plt.clf()
+        # similarity_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
+        # for i in range(nprocs):
+        #     for j in range(i, nprocs):
+        #         value = numpy.dot(charact_vec[i], charact_vec[j])
+        #         similarity_mat[i][j] = value
+        #         similarity_mat[j][i] = value
+        # plt.imshow(similarity_mat, cmap=plt.cm.binary)
+        # plt.colorbar()
+        # plt.savefig("sim_mat.pdf")
+        # plt.clf()
         # plt.show()
         # print(similarity_mat)
 
@@ -307,7 +314,7 @@ class PerFlow(object):
                 euclidean_dist[i][j] = value
                 euclidean_dist[j][i] = value
         # plt.imshow(euclidean_dist, cmap=plt.cm.binary)
-        plt.pcolormesh(euclidean_dist, cmap=plt.cm.binary)
+        plt.pcolormesh(euclidean_dist, cmap=plt.cm.binary, vmax = 1)
         plt.colorbar()
         plt.savefig("euc_dist_mat.pdf")
         plt.clf()
@@ -479,14 +486,14 @@ def draw_plot_figure(X, Y, xlabel='', ylabel='', title = ''):
 
 def draw_bar_figure(X, Y, xlabel='', ylabel='', title = ''):
     # Draw plot
-    fig, ax = plt.subplots(figsize=(16,10), dpi= 80)
+    # fig, ax = plt.subplots(figsize=(16,10), dpi= 80)
     # ax.vlines(x=, ymin=0, ymax=df.cty, color='firebrick', alpha=0.7, linewidth=2)
-    ax.bar(X, Y, color='firebrick')
+    plt.bar(X, Y, color='firebrick')
 
     # Title, Label, Ticks and Ylim
-    ax.set_title(title, fontdict={'size':22})
-    ax.set_xlabel(xlabel)
-    ax.set_ylabel(ylabel)
+    plt.title(title, fontdict={'size':22})
+    plt.xlabel(xlabel)
+    plt.ylabel(ylabel)
     # ax.set_xticks(X)
 
     # Annotate
