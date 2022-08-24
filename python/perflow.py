@@ -51,7 +51,7 @@ class PerFlow(object):
         
 
     def staticAnalysis(self):
-        cmd_line = '$BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name + ' ' + self.data_dir + '/static_data'
+        cmd_line = 'time $BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name + ' ' + self.data_dir + '/static_data'
         os.system(cmd_line)
         
     def dynamicAnalysis(self, sampling_count = 0):
@@ -90,7 +90,7 @@ class PerFlow(object):
 
         if self.mode == 'mpi+omp':
             communication_analysis_cmd_line = '$BAGUA_DIR/build/builtin/comm_dep_approxi_analysis ' + str(self.nprocs) + ' ' + self.data_dir + ' ' + self.static_analysis_binary_name + '.dep'
-            pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/mpi_pag_generation ' + self.static_analysis_binary_name + ' ' + self.data_dir + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' #+ ' ./SAMPLE*'
+            pag_generation_cmd_line = 'time $BAGUA_DIR/build/builtin/tools/mpi_pag_generation ' + self.static_analysis_binary_name + ' ' + self.data_dir + ' ' + str(self.nprocs) + ' ' + '0' + ' ' + self.static_analysis_binary_name + '.dep' #+ ' ./SAMPLE*'
             print(communication_analysis_cmd_line)
             os.system(communication_analysis_cmd_line)
 
