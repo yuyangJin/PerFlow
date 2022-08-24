@@ -205,7 +205,7 @@ type::vertex_t Graph::AddGraph(Graph *g) {
 
     // Add new edge (the copy of that in the input g) into this pag
     // type::edge_t new_edge_id =
-    this->AddEdge(old_vertex_id_2_new_vertex_id[g->GetEdgeSrc(edge_id)],
+    this->AddEdgeLazy(old_vertex_id_2_new_vertex_id[g->GetEdgeSrc(edge_id)],
                   old_vertex_id_2_new_vertex_id[g->GetEdgeDest(edge_id)]);
 
     // copy all attributes of this vertex
@@ -213,6 +213,7 @@ type::vertex_t Graph::AddGraph(Graph *g) {
 
     IGRAPH_EIT_NEXT(eit);
   }
+  this->UpdateEdges();
   // printf("\n");
 
   igraph_eit_destroy(&eit);
