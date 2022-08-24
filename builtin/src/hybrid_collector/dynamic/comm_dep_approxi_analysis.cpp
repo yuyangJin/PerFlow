@@ -10,8 +10,8 @@
 
 using namespace std;
 
-#define MAX_WAIT_REQ 50
-#define MAX_NPROCS 1000
+#define MAX_WAIT_REQ 500 // increase it if we test larger process scale
+#define MAX_NPROCS 10000 // increase it if we test larger process scale
 
 //#define DEBUG
 
@@ -286,7 +286,10 @@ void commOpMatchWithMPIInfo(int pid) {
             string src_callpath = (*src_iter)->call_path;
             int dest_pid = pid;
             int src_pid = src;
-            double exe_time = stod((*iter)->exe_time);
+            double exe_time = 0.0;
+            if (!(*iter)->exe_time.empty()) {
+              exe_time = stod((*iter)->exe_time);
+            }
 
             // delete it
             p2p_info[src].erase(src_iter);
