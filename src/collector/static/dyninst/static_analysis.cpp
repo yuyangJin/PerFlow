@@ -139,15 +139,16 @@ void StaticAnalysisImpl::CaptureProgramCallGraph() {
       type::vertex_t call_vertex_id = this->pcg->AddVertex();
       this->pcg->SetVertexBasicInfo(call_vertex_id, type::CALL_NODE, "CALL");
       this->pcg->SetVertexDebugInfo(call_vertex_id, src_addr, src_addr);
-      this->pcg->AddEdge(func_vertex_id, call_vertex_id);
+      this->pcg->AddEdgeLazy(func_vertex_id, call_vertex_id);
 
       // Add Callee Function Vertex as child of CALL Vertex
       // TODO: Indirect call, this condition should be modified.
       if (addr_2_vertex_id[targ_addr] != 0) {
-        this->pcg->AddEdge(call_vertex_id, addr_2_vertex_id[targ_addr]);
+        this->pcg->AddEdgeLazy(call_vertex_id, addr_2_vertex_id[targ_addr]);
       }
     }
   }
+  this->pcg->UpdateEdges();
 }
 
 void StaticAnalysisImpl::CaptureProgramCallGraphMap() {
@@ -239,7 +240,7 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
           // Add an edge
           func_cfg->AddEdge(bb_vertex_id, call_vertex_id);
 #else
-          func_cfg->AddEdge(parent_id, call_vertex_id);
+          func_cfg->AddEdgeLazy(parent_id, call_vertex_id);
 #endif
 
 #ifdef DEBUG_COUT
@@ -348,7 +349,7 @@ void StaticAnalysisImpl::ExtractCallStructure(core::ControlFlowGraph *func_cfg,
           // Add an edge
           func_cfg->AddEdge(bb_vertex_id, call_vertex_id);
 #else
-          func_cfg->AddEdge(parent_id, call_vertex_id);
+          func_cfg->AddEdgeLazy(parent_id, call_vertex_id);
 #endif
 
 #ifdef DEBUG_COUT
@@ -425,7 +426,7 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg,
                                  loop_name.c_str());
     func_cfg->SetVertexDebugInfo(loop_vertex_id, entry_addr - 8, exit_addr - 8);
 
-    func_cfg->AddEdge(parent_id, loop_vertex_id);
+    func_cfg->AddEdgeLazy(parent_id, loop_vertex_id);
 
 #ifdef DEBUG_COUT
     for (int i = 0; i < depth; i++)
@@ -521,6 +522,8 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
 
     // Capture function call structure in this function but not in the loop
     this->ExtractCallStructure(func_cfg, bvec, func_vertex_id);
+
+    func_cfg->UpdateEdges();
   }
 }
 
