@@ -21,6 +21,7 @@ namespace baguatool {
 namespace type {
 class graph_t;        /**<igragh-graph wrapper */
 class vertex_set_t;   /**<igraph_vs_t wrapper */
+class edge_vector_t;  /**<igraph_vector_t wrapper */
 typedef int vertex_t; /**<vertex id type (int)*/
 typedef int edge_t;   /**<edge id type (int)*/
 typedef unsigned long long int
@@ -189,6 +190,12 @@ protected:
   std::unique_ptr<type::graph_t> ipag_; /**<igraph_t wrapper struct */
   int cur_vertex_num; /**<initial the number of vertices in this graph */
   GraphPerfData *graph_perf_data; /**<performance data in a graph*/
+  
+  std::unique_ptr<type::edge_vector_t> edges_to_be_added;
+  int num_edges_to_be_added;
+  json edges_attr_to_be_added;
+  int cur_edge_num; /**<initial the number of edges in this graph */
+  
 
 public:
   /** Constructor. Create an graph and enable graph attributes.
@@ -217,6 +224,19 @@ public:
    */
   type::edge_t AddEdge(const type::vertex_t src_vertex_id,
                        const type::vertex_t dest_vertex_id);
+  
+  /** Sync edges (to be added) to the graph.
+   */
+  void UpdateEdges();
+
+  /** Lazy create an edge in the graph, sync at UpdateEdges()
+   * @param src_vertex_id - id of the source vertex of the edge
+   * @param dest_vertex_id - id of the destination vertex of the edge
+   * @return id of the new edge
+   */
+
+  type::edge_t AddEdgeLazy(const type::vertex_t src_vertex_id,
+                            const type::vertex_t dest_vertex_id);
 
   /** Append a graph to the graph. Copy all the vertices and edges (and all
    * their attributes) of a graph to this graph.
@@ -372,6 +392,30 @@ public:
    * @param value - the (new) value of the edge attribute
    */
   void SetEdgeAttributeFlag(const char *attr_name, type::edge_t edge_id,
+                            const bool value);
+
+  /** Lazy set a string edge attribute, sync at UpdateEdges()
+   * @param attr_name - name of the edge attribute
+   * @param type::edge_t - the edge id
+   * @param value - the (new) value of the edge attribute
+   */
+  void SetEdgeAttributeStringLazy(const char *attr_name, type::edge_t edge_id,
+                              const char *value);
+
+  /** Lazy set a numeric edge attribute, sync at UpdateEdges()
+   * @param attr_name - name of the edge attribute
+   * @param type::edge_t - the edge id
+   * @param value - the (new) value of the edge attribute
+   */
+  void SetEdgeAttributeNumLazy(const char *attr_name, type::edge_t edge_id,
+                           const type::num_t value);
+
+  /** Lazy set a boolean edge attribute as flag, sync at UpdateEdges()
+   * @param attr_name - name of the edge attribute
+   * @param type::edge_t - the edge id
+   * @param value - the (new) value of the edge attribute
+   */
+  void SetEdgeAttributeFlagLazy(const char *attr_name, type::edge_t edge_id,
                             const bool value);
 
   /** Get a string graph attribute

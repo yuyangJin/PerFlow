@@ -17,13 +17,19 @@ Graph::Graph() {
   ipag_ = std::make_unique<type::graph_t>();
   // open attributes
   igraph_set_attribute_table(&igraph_cattribute_table);
-
+  edges_to_be_added = std::make_unique<type::edge_vector_t>();
+  igraph_vector_init(&edges_to_be_added->edges, TRUNK_SIZE * 2);
+  // dbg(igraph_vector_size(&edges_to_be_added->edges));
   this->graph_perf_data = new core::GraphPerfData();
+  // set vertex number as 0
+  cur_vertex_num = 0;
+  cur_edge_num = 0;
+  num_edges_to_be_added = 0;
 }
 
 Graph::~Graph() {
   igraph_destroy(&ipag_->graph);
-
+  igraph_vector_destroy(&edges_to_be_added->edges);
   delete this->graph_perf_data;
   // delete ipag_;
 }
@@ -35,6 +41,8 @@ void Graph::GraphInit(const char *graph_name) {
   SETGAS(&ipag_->graph, "name", graph_name);
   // set vertex number as 0
   cur_vertex_num = 0;
+  cur_edge_num = 0;
+  num_edges_to_be_added = 0;
 }
 
 type::vertex_t Graph::AddVertex() {
@@ -94,16 +102,60 @@ void Graph::SwapVertex(type::vertex_t vertex_id_1, type::vertex_t vertex_id_2) {
   // printf("\n");
 }
 
+void Graph::UpdateEdges() {
+  igraph_vector_resize(&this->edges_to_be_added->edges, this->num_edges_to_be_added * 2);
+  igraph_add_edges(&this->ipag_->graph, &this->edges_to_be_added->edges, 0);
+  
+  // for (int eid = this->cur_edge_num - this->num_edges_to_be_added; eid < this->cur_edge_num; eid++) {
+  //   printf("[G]eid=%d, src=%d, dst=%d\n", eid, this->GetEdgeSrc(eid), this->GetEdgeDest(eid));
+  // }
+  
+  this->num_edges_to_be_added = 0;
+  igraph_vector_resize(&this->edges_to_be_added->edges, TRUNK_SIZE * 2);
+
+  for (auto& edge_data: this->edges_attr_to_be_added.items()) {
+    int edge_id = std::stoi(edge_data.key());
+    for (auto& attr_data: edge_data.value().items()) {
+      type::num_t value = attr_data.value();
+      SETEAN(&ipag_->graph, attr_data.key().c_str(), edge_id, value);
+    }
+  }
+  this->edges_attr_to_be_added.clear();
+
+
+}
+
+type::edge_t Graph::AddEdgeLazy(const type::vertex_t src_vertex_id,
+                            const type::vertex_t dest_vertex_id) {
+
+  if (num_edges_to_be_added >= TRUNK_SIZE - 1) {
+    UpdateEdges();
+  }
+  // dbg(this->num_edges_to_be_added * 2, src_vertex_id, this->num_edges_to_be_added * 2 + 1, dest_vertex_id);
+  VECTOR(this->edges_to_be_added->edges)[this->num_edges_to_be_added * 2] = src_vertex_id;
+  VECTOR(this->edges_to_be_added->edges)[this->num_edges_to_be_added * 2 + 1] = dest_vertex_id;
+  this->num_edges_to_be_added++;
+  igraph_integer_t new_edge_id = this->cur_edge_num++;
+
+  // printf("[V]eid=%d, src=%d, dst=%d\n", new_edge_id, src_vertex_id, dest_vertex_id);
+
+  return new_edge_id;
+                            
+}
+
 type::edge_t Graph::AddEdge(const type::vertex_t src_vertex_id,
                             const type::vertex_t dest_vertex_id) {
+  ///** OLD VERSION for AddEdge
   // Add a new edge
   // printf("Add an edge: %d, %d\n", src_vertex_id, dest_vertex_id);
   igraph_add_edge(&ipag_->graph, (igraph_integer_t)src_vertex_id,
                   (igraph_integer_t)dest_vertex_id);
   igraph_integer_t new_edge_id = igraph_ecount(&ipag_->graph);
+  this->cur_edge_num++;
 
   // Return id of new edge
   return (type::edge_t)(new_edge_id - 1);
+  
 }
 
 type::vertex_t Graph::AddGraph(Graph *g) {
@@ -183,7 +235,9 @@ void Graph::DeleteEdge(type::vertex_t src_id, type::vertex_t dest_id) {
     igraph_es_1(&es, edge_id);
     igraph_delete_edges(&this->ipag_->graph, es);
     igraph_es_destroy(&es);
+    this->cur_edge_num--;
   } else {
+    // it could be in VECTOR()
     ; // std::cout << "E"<<"do not exs"
   }
 }
@@ -249,6 +303,28 @@ void Graph::SetVertexAttributeFlag(const char *attr_name,
                                    type::vertex_t vertex_id, const bool value) {
   SETVAB(&ipag_->graph, attr_name, vertex_id, value);
 }
+
+void Graph::SetEdgeAttributeStringLazy(const char *attr_name, type::edge_t edge_id,
+                                   const char *value) {
+  std::string edge_id_str = std::to_string(edge_id);
+  std::string attr_name_str = std::string(attr_name);
+  std::string value_str = std::string(value);
+  edges_attr_to_be_added[edge_id_str][attr_name_str] = value_str;
+}
+void Graph::SetEdgeAttributeNumLazy(const char *attr_name, type::edge_t edge_id,
+                                const type::num_t value) {
+  std::string edge_id_str = std::to_string(edge_id);
+  std::string attr_name_str = std::string(attr_name);
+  edges_attr_to_be_added[edge_id_str][attr_name_str] = value;
+}
+void Graph::SetEdgeAttributeFlagLazy(const char *attr_name, type::edge_t edge_id,
+                                 const bool value) {
+  std::string edge_id_str = std::to_string(edge_id);
+  std::string attr_name_str = std::string(attr_name);
+  edges_attr_to_be_added[edge_id_str][attr_name_str] = value;
+}
+
+
 void Graph::SetEdgeAttributeString(const char *attr_name, type::edge_t edge_id,
                                    const char *value) {
   SETEAS(&ipag_->graph, attr_name, edge_id, value);
@@ -451,9 +527,11 @@ void Graph::ReadGraphGML(const char *file_name) {
   fclose(in_file);
 
   this->cur_vertex_num = igraph_vcount(&ipag_->graph);
+  this->cur_edge_num = igraph_ecount(&ipag_->graph);
 }
 
 void Graph::DumpGraphGML(const char *file_name) {
+  this->UpdateEdges();
   this->DeleteExtraTailVertices();
 
   // Real dump
@@ -463,6 +541,7 @@ void Graph::DumpGraphGML(const char *file_name) {
 }
 
 void Graph::DumpGraphDot(const char *file_name) {
+  this->UpdateEdges();
   this->DeleteExtraTailVertices();
 
   // Real dump

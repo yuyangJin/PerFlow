@@ -13,6 +13,11 @@ struct graph_t {
 struct vertex_set_t {
   igraph_vs_t vertices;
 };
+
+struct edge_vector_t {
+  igraph_vector_t edges;
+};
+
 } // namespace baguatool::type
 
 namespace baguatool::core {

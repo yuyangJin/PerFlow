@@ -242,7 +242,7 @@ bool GPerf::HasDynAddrDebugInfo() { return this->has_dyn_addr_debug_info; }
 
 void GPerf::ConvertDynAddrToOffset(type::call_path_t &call_path) {
   // dbg("start converting dyn addr to offset");
-  auto dyn_addr_to_debug_info_map = this->GetDynAddrDebugInfo();
+  // auto dyn_addr_to_debug_info_map = this->GetDynAddrDebugInfo();
 
   std::stack<type::addr_t> tmp;
   while (!call_path.empty()) {
@@ -254,13 +254,13 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t &call_path) {
   while (!tmp.empty()) {
     type::addr_t addr = tmp.top();
     // dbg(addr);
-    if (dyn_addr_to_debug_info_map.find(addr) ==
-        dyn_addr_to_debug_info_map.end()) { // not found
+    if (this->dyn_addr_to_debug_info.find(addr) ==
+        this->dyn_addr_to_debug_info.end()) { // not found
       call_path.push(addr);
       tmp.pop();
       continue;
     }
-    auto debug_info = dyn_addr_to_debug_info_map[addr];
+    auto debug_info = this->dyn_addr_to_debug_info[addr];
     if (debug_info->IsExecutable()) {
       call_path.push(debug_info->GetAddress());
       // dbg(debug_info->GetAddress());
@@ -1375,16 +1375,17 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       // dbg(mpag_src_vertex_id, mpag_dest_vertex_id);
 
       type::edge_t edge_id =
-          this->root_mpag->AddEdge(mpag_src_vertex_id, mpag_dest_vertex_id);
+          this->root_mpag->AddEdgeLazy(mpag_src_vertex_id, mpag_dest_vertex_id);
       // dbg(edge_id);
       if (edge_id != -1) {
-        this->root_mpag->SetEdgeAttributeNum("time", edge_id, value);
+        this->root_mpag->SetEdgeAttributeNumLazy("time", edge_id, value);
       }
 
       FREE_CONTAINER(src_call_path);
       FREE_CONTAINER(dest_call_path);
     }
   }
+  this->root_mpag->UpdateEdges();
 }
 
 struct pre_order_traversal_t {
@@ -1429,7 +1430,7 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(
       type::vertex_t new_vertex_id = root_mpag->AddVertex();
       this->root_mpag->CopyVertex(new_vertex_id, root_pag, vertex_id);
       if (last_new_vertex_id != -1) {
-        this->root_mpag->AddEdge(last_new_vertex_id, new_vertex_id);
+        this->root_mpag->AddEdgeLazy(last_new_vertex_id, new_vertex_id);
       }
       // Copy process i perf data of vertex in pag to process i perf data of new
       // vertex in mpag
@@ -1449,6 +1450,8 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(
       last_new_vertex_id = new_vertex_id;
     }
   }
+
+  this->root_mpag->UpdateEdges();
 
   FREE_CONTAINER(*pre_order_vertex_seq);
   delete pre_order_vertex_seq;
