@@ -2,6 +2,7 @@ import os
 import json
 import time
 import numpy
+from collections import OrderedDict
 import matplotlib.pyplot as plt
 import scipy
 from scipy.cluster.hierarchy import dendrogram, linkage
@@ -179,6 +180,16 @@ class PerFlow(object):
         else:
             self.data_dir = dir
 
+    def recordBasicInfo(self):
+        basic_info_file_name = self.data_dir + "/basic_info.json"
+        binary_name = self.static_analysis_binary_name.strip().split('/')[-1]
+        basic_info = OrderedDict()
+        basic_info["binary_name"] = binary_name
+        basic_info["nprocs"] = self.nprocs
+        basic_info["mode"] = self.mode
+        with open(basic_info_file_name, 'w') as f:
+            json.dump(basic_info, f)
+
     # TODO: different dynamic analysis mode, backend collectors and analyzers are ready.
     def run(self, binary = '', cmd = '', mode = '', nprocs = 0, sampling_count = 0, dir = ''):
         self.setBinary(binary)
@@ -191,6 +202,8 @@ class PerFlow(object):
         self.staticAnalysis()
         self.dynamicAnalysis(sampling_count)
         self.pagGeneration()
+
+        self.recordBasicInfo()
 
         self.readPag()
         return self.tdpag, self.ppag
