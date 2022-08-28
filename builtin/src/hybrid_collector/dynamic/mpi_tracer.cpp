@@ -31,19 +31,14 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 
 // -*- c++ -*-
 //
-// commDependence
+// MPI Tracer
 // Yuyang Jin
 //
 // This file is to generate code to collect runtime communication data.
 //
 // To build:
-//    ./wrap.py -f commDependence.w > commDependence.cpp
-//    mpicc -c commDependence.cpp
-//    #ar cr libcommDependence.a commDependence.o
-//    #ranlib libcommDependence.a
+//    ./wrap.py -f mpi_tracer.w -o mpi_tracer.cpp
 //
-// Link your application with libcommData.a, or build it as a shared lib
-// and LD_PRELOAD it to try out this tool.
 //
 // v1.1 :
 // Use index to record all communication traces
@@ -58,7 +53,6 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 #include <iostream>
 #include <libunwind.h>
 #include <map>
-#include <mpi.h>
 #include <stdio.h>
 #include <string.h>
 #include <string>
@@ -136,12 +130,11 @@ static unsigned long long int trace_log_pointer = 0;
 
 map<RequestConverter, pair<int, int>> request_converter;
 
-// int mpi_rank = -1;
 static int module_init = 0;
-// static char *addr_threshold;
+// static char* addr_threshold;
 bool mpi_finalize_flag = false;
 
-// int mpi_rank = 0;
+// int mpi_rank = -1;
 
 int my_backtrace(unw_word_t *buffer, int max_depth) {
   unw_cursor_t cursor;
@@ -273,72 +266,70 @@ static void writeTraceLog() {
 
 void TRACE_COLL(MPI_Comm comm, double exe_time) {
   /**
-  #ifdef MY_BT
-    unw_word_t buffer[MAX_STACK_DEPTH] = {0};
-  #else
-    void* buffer[MAX_STACK_DEPTH];
-    memset(buffer, 0, sizeof(buffer));
-  #endif
-    unsigned int i, depth = 0;
-    // memset(buffer, 0, sizeof(buffer));
-  #ifdef MY_BT
-    depth = my_backtrace(buffer, MAX_STACK_DEPTH);
-  #else
-    depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
-  #endif
-    char call_path[MAX_CALL_PATH_LEN] = {0};
-    int offset = 0;
+#ifdef MY_BT
+unw_word_t buffer[MAX_STACK_DEPTH] = {0};
+#else
+void* buffer[MAX_STACK_DEPTH];
+memset(buffer, 0, sizeof(buffer));
+#endif
+unsigned int i, depth = 0;
+// memset(buffer, 0, sizeof(buffer));
+#ifdef MY_BT
+depth = my_backtrace(buffer, MAX_STACK_DEPTH);
+#else
+depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+#endif
+char call_path[MAX_CALL_PATH_LEN] = {0};
+  int offset = 0;
 
-    for (i = 0; i < depth; ++i) {
-      if ((void *)buffer[i] != NULL && (char *)buffer[i] < addr_threshold) {
-        offset += snprintf(call_path + offset, MAX_CALL_PATH_LEN - offset - 4,
-  "%lx ", (void *)(buffer[i] - 2));
-      }
-    }
+for (i = 0; i < depth; ++ i)
+  {
+          if( (void*)buffer[i] != NULL && (char*)buffer[i] < addr_threshold ){
+                  offset+=snprintf(call_path+offset, MAX_CALL_PATH_LEN - offset
+- 4 ,"%lx ",(void*)(buffer[i]-2));
+          }
+  }
 
-    bool hasRecordFlag = false;
+  bool hasRecordFlag = false;
 
-    for (i = 0; i < coll_mpi_info_log_pointer; i++) {
-      if (strcmp(call_path, coll_mpi_info_log[i].call_path) == 0) {
-        int cmp_result;
-        MPI_Comm_compare(comm, coll_mpi_info_log[i].comm, &cmp_result);
-        if (cmp_result == MPI_CONGRUENT) {
-          coll_mpi_info_log[i].count++;
-          coll_mpi_info_log[i].exe_time += exe_time;
-          trace_log[trace_log_pointer++] = i * 2;
-          hasRecordFlag = true;
-          break;
-        }
-      }
-    }
+  for (i = 0; i < coll_mpi_info_log_pointer; i++){
+          if (strcmp(call_path, coll_mpi_info_log[i].call_path) == 0 ){
+                  int cmp_result;
+                  MPI_Comm_compare(comm, coll_mpi_info_log[i].comm,
+&cmp_result); if (cmp_result == MPI_CONGRUENT) { coll_mpi_info_log[i].count ++;
+                          coll_mpi_info_log[i].exe_time += exe_time;
+                          trace_log[trace_log_pointer ++ ] = i * 2;
+                          hasRecordFlag = true;
+                          break;
+                  }
+          }
+  }
 
-    if (hasRecordFlag == false) {
-      if (strlen(call_path) >= MAX_CALL_PATH_LEN) {
-        // LOG_WARN("Call path string length (%d) is longer than %d",
-  strlen(call_path),MAX_CALL_PATH_LEN); } else {
-        strcpy(coll_mpi_info_log[coll_mpi_info_log_pointer].call_path,
-  call_path); MPI_Comm_dup(comm,
-  &coll_mpi_info_log[coll_mpi_info_log_pointer].comm);
-        coll_mpi_info_log[coll_mpi_info_log_pointer].count = 1;
-        coll_mpi_info_log[coll_mpi_info_log_pointer].exe_time = exe_time;
-        trace_log[trace_log_pointer++] = coll_mpi_info_log_pointer * 2;
-        coll_mpi_info_log_pointer++;
-      }
-    }
+  if(hasRecordFlag == false){
+          if(strlen(call_path) >= MAX_CALL_PATH_LEN){
+                  //LOG_WARN("Call path string length (%d) is longer than %d",
+strlen(call_path),MAX_CALL_PATH_LEN); }else{
+                  strcpy(coll_mpi_info_log[coll_mpi_info_log_pointer].call_path,
+call_path); MPI_Comm_dup(comm,
+&coll_mpi_info_log[coll_mpi_info_log_pointer].comm);
+                  coll_mpi_info_log[coll_mpi_info_log_pointer].count = 1;
+                  coll_mpi_info_log[coll_mpi_info_log_pointer].exe_time =
+exe_time; trace_log[trace_log_pointer ++ ] = coll_mpi_info_log_pointer * 2;
+                  coll_mpi_info_log_pointer++;
+          }
+  }
 
-    if (coll_mpi_info_log_pointer >= LOG_SIZE - 5) {
-      writeCollMpiInfoLog();
-    }
-    if (trace_log_pointer >= MAX_TRACE_SIZE - 5) {
-      writeTraceLog();
-    }
-
-   **/
+if(coll_mpi_info_log_pointer >= LOG_SIZE-5){
+          writeCollMpiInfoLog();
+  }
+  if(trace_log_pointer >= MAX_TRACE_SIZE - 5){
+          writeTraceLog();
+  }
+  **/
 }
 
 void TRACE_P2P(char type, int request_count, int *source, int *dest, int *tag,
                double exe_time) {
-
 #ifdef MY_BT
   unw_word_t buffer[MAX_STACK_DEPTH] = {0};
 #else
@@ -421,7 +412,6 @@ _EXTERN_C_ int PMPI_Init(int *argc, char ***argv);
 _EXTERN_C_ int MPI_Init(int *argc, char ***argv) {
   int _wrap_py_return_val = 0;
   {
-    // // dbg("MPI_Init begins");
     // First call PMPI_Init()
     if (fortran_init) {
 #ifdef PIC
@@ -456,7 +446,6 @@ _EXTERN_C_ int MPI_Init(int *argc, char ***argv) {
 
     PMPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
   }
-  // // dbg("MPI_Init ends");
   return _wrap_py_return_val;
 }
 
@@ -496,16 +485,12 @@ _EXTERN_C_ int PMPI_Init_thread(int *argc, char ***argv, int required,
                                 int *provided);
 _EXTERN_C_ int MPI_Init_thread(int *argc, char ***argv, int required,
                                int *provided) {
-  // dbg("MPI_Init_thread starts");
   int _wrap_py_return_val = 0;
   {
     // First call PMPI_Init()
     _wrap_py_return_val = PMPI_Init_thread(argc, argv, required, provided);
-
     PMPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
-    // cout << "mpi_rank = "<< mpi_rank << "\n";
   }
-  // dbg("MPI_Init_thread ends");
   return _wrap_py_return_val;
 }
 
@@ -514,13 +499,10 @@ static void MPI_Init_thread_fortran_wrapper(MPI_Fint *argc, MPI_Fint ***argv,
                                             MPI_Fint *required,
                                             MPI_Fint *provided,
                                             MPI_Fint *ierr) {
-  // dbg("MPI_Init_thread starts");
-
   int _wrap_py_return_val = 0;
   _wrap_py_return_val =
       MPI_Init_thread((int *)argc, (char ***)argv, *required, (int *)provided);
   *ierr = _wrap_py_return_val;
-  // dbg("MPI_Init_thread ends");
 }
 
 _EXTERN_C_ void MPI_INIT_THREAD(MPI_Fint *argc, MPI_Fint ***argv,
@@ -555,7 +537,6 @@ _EXTERN_C_ int PMPI_Send(const void *buf, int count, MPI_Datatype datatype,
                          int dest, int tag, MPI_Comm comm);
 _EXTERN_C_ int MPI_Send(const void *buf, int count, MPI_Datatype datatype,
                         int dest, int tag, MPI_Comm comm) {
-  // dbg("MPI_Send starts");
   int _wrap_py_return_val = 0;
   {
     // First call P2P communication
@@ -584,7 +565,6 @@ static void MPI_Send_fortran_wrapper(MPI_Fint *buf, MPI_Fint *count,
                                      MPI_Fint *datatype, MPI_Fint *dest,
                                      MPI_Fint *tag, MPI_Fint *comm,
                                      MPI_Fint *ierr) {
-  // dbg("MPI_Send fortran starts");
   int _wrap_py_return_val = 0;
 #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
      (MPICH_NAME == 1)) /* MPICH test */
@@ -632,7 +612,6 @@ _EXTERN_C_ int PMPI_Isend(const void *buf, int count, MPI_Datatype datatype,
 _EXTERN_C_ int MPI_Isend(const void *buf, int count, MPI_Datatype datatype,
                          int dest, int tag, MPI_Comm comm,
                          MPI_Request *request) {
-  // dbg("MPI_Isend starts");
   int _wrap_py_return_val = 0;
   {
     // First call P2P communication
@@ -666,7 +645,6 @@ static void MPI_Isend_fortran_wrapper(MPI_Fint *buf, MPI_Fint *count,
                                       MPI_Fint *datatype, MPI_Fint *dest,
                                       MPI_Fint *tag, MPI_Fint *comm,
                                       MPI_Fint *request, MPI_Fint *ierr) {
-  // dbg("MPI_Isend fortran starts");
   int _wrap_py_return_val = 0;
 #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
      (MPICH_NAME == 1)) /* MPICH test */
@@ -888,7 +866,6 @@ _EXTERN_C_ void mpi_irecv__(MPI_Fint *buf, MPI_Fint *count, MPI_Fint *datatype,
 /* ================== C Wrappers for MPI_Wait ================== */
 _EXTERN_C_ int PMPI_Wait(MPI_Request *request, MPI_Status *status);
 _EXTERN_C_ int MPI_Wait(MPI_Request *request, MPI_Status *status) {
-  // // dbg("MPI_Wait starts");
   int _wrap_py_return_val = 0;
   {
     int source_list[1] = {-1};
@@ -917,10 +894,13 @@ _EXTERN_C_ int MPI_Wait(MPI_Request *request, MPI_Status *status) {
     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
 
     if (valid_flag == false) {
+      if (status == nullptr) {
+        return ret_val;
+      }
       source_list[0] = status->MPI_SOURCE;
       tag_list[0] = status->MPI_TAG;
 #ifdef DEBUG
-// printf("%d %d\n", status->MPI_SOURCE, status->MPI_TAG);
+      // printf("%d %d\n", status->MPI_SOURCE, status->MPI_TAG);
 #endif
     }
 
@@ -942,8 +922,8 @@ static void MPI_Wait_fortran_wrapper(MPI_Fint *request, MPI_Fint *status,
      (MPICH_NAME == 1)) /* MPICH test */
   _wrap_py_return_val = MPI_Wait((MPI_Request *)request, (MPI_Status *)status);
 #else  /* MPI-2 safe call */
-  MPI_Status temp_status;
   MPI_Request temp_request;
+  MPI_Status temp_status;
   temp_request = MPI_Request_f2c(*request);
   MPI_Status_f2c(status, &temp_status);
   _wrap_py_return_val = MPI_Wait(&temp_request, &temp_status);
@@ -979,6 +959,7 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[],
                            MPI_Status *array_of_statuses) {
   int _wrap_py_return_val = 0;
   {
+
     int *source_list = (int *)malloc(count * sizeof(int));
     int *dest_list = (int *)malloc(count * sizeof(int));
     int *tag_list = (int *)malloc(count * sizeof(int));
@@ -1020,8 +1001,8 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[],
       if (valid_flag[i] == 0) {
         source_list[i] = array_of_statuses[i].MPI_SOURCE;
         tag_list[i] = array_of_statuses[i].MPI_TAG;
-// printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
-// array_of_statuses[i].MPI_TAG);
+        // printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
+        // array_of_statuses[i].MPI_TAG);
 #ifdef DEBUG
         if (mpi_rank == 0) {
           printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
@@ -1057,9 +1038,9 @@ static void MPI_Waitall_fortran_wrapper(MPI_Fint *count,
   _wrap_py_return_val = MPI_Waitall(*count, (MPI_Request *)array_of_requests,
                                     (MPI_Status *)array_of_statuses);
 #else  /* MPI-2 safe call */
-  int i;
-  MPI_Request *temp_array_of_requests;
   MPI_Status *temp_array_of_statuses;
+  MPI_Request *temp_array_of_requests;
+  int i;
   temp_array_of_requests = (MPI_Request *)malloc(sizeof(MPI_Request) * *count);
   for (i = 0; i < *count; i++)
     temp_array_of_requests[i] = MPI_Request_f2c(array_of_requests[i]);
@@ -1112,7 +1093,6 @@ _EXTERN_C_ int PMPI_Reduce(const void *sendbuf, void *recvbuf, int count,
 _EXTERN_C_ int MPI_Reduce(const void *sendbuf, void *recvbuf, int count,
                           MPI_Datatype datatype, MPI_Op op, int root,
                           MPI_Comm comm) {
-  // dbg("MPI_Reduce starts");
   int _wrap_py_return_val = 0;
   {
     // First call collective communication
@@ -1265,7 +1245,6 @@ _EXTERN_C_ int PMPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
                               MPI_Datatype datatype, MPI_Op op, MPI_Comm comm);
 _EXTERN_C_ int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
                              MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
-  // dbg("MPI_Allreduce starts");
   int _wrap_py_return_val = 0;
   {
     // First call collective communication
@@ -1278,11 +1257,8 @@ _EXTERN_C_ int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
 #ifdef DEBUG
     printf("%s\n", "MPI_Allreduce");
 #endif
-    // dbg("MPI_Allreduce tracing starts");
     TRACE_COLL(comm, time);
-    // dbg("MPI_Allreduce tracing ends");
   }
-  // dbg("MPI_Allreduce ends");
   return _wrap_py_return_val;
 }
 
@@ -1341,8 +1317,6 @@ _EXTERN_C_ int PMPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
 _EXTERN_C_ int MPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
                          int root, MPI_Comm comm) {
   int _wrap_py_return_val = 0;
-  // dbg("MPI_Bcast starts");
-
   {
     // First call collective communication
     auto st = chrono::system_clock::now();
@@ -1355,8 +1329,6 @@ _EXTERN_C_ int MPI_Bcast(void *buffer, int count, MPI_Datatype datatype,
 #endif
     TRACE_COLL(comm, time);
   }
-  // dbg("MPI_Bcast ends");
-
   return _wrap_py_return_val;
 }
 
