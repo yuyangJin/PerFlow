@@ -1,3 +1,7 @@
 [submodule "third_party/igraph"]
 	path = third_party/igraph
 	url = https://github.com/igraph/igraph.git
+
+[submodule "third_party/wrap"]
+	path = third_party/wrap
+	url = git@github.com:LLNL/wrap.git
