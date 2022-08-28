@@ -1,22 +1,19 @@
 // -*- c++ -*-
 //
-// commDependence
+// MPI Tracer
 // Yuyang Jin
 //
 // This file is to generate code to collect runtime communication data.
 //
 // To build:
-//    ./wrap.py -f commDependence.w > commDependence.cpp
-//    mpicc -c commDependence.cpp
-//    #ar cr libcommDependence.a commDependence.o
-//    #ranlib libcommDependence.a
+//    ./wrap.py -f mpi_tracer.w -o mpi_tracer.cpp
 //
-// Link your application with libcommData.a, or build it as a shared lib
-// and LD_PRELOAD it to try out this tool.
 //
 // v1.1 :
 // Use index to record all communication traces
 //
+
+#define UNW_LOCAL_ONLY  // must define before including libunwind.h
 
 #include <stdio.h>
 #include <string.h>
@@ -26,7 +23,8 @@
 #include <libunwind.h>
 #include <chrono>
 #include <map>
-#include <mpi.h>
+#include "dbg.h"
+#include "mpi_init.h"
 
 using namespace std;
 
@@ -41,6 +39,9 @@ using namespace std;
 #define MAX_WAIT_REQ 100
 #define MAX_TRACE_SIZE 25000000
 #define TRACE_LOG_LINE_SIZE 100
+#define MY_BT
+
+// #define DEBUG
 
 #ifdef MPICH2
 	#define SHIFT(COMM_ID) (((COMM_ID&0xf0000000)>>24) + (COMM_ID&0x0000000f))
@@ -107,16 +108,37 @@ static unsigned long long int trace_log_pointer = 0;
 
 map <RequestConverter, pair<int,int>> request_converter;
 
-int mpiRank = -1;
 static int module_init = 0;
-static char* addr_threshold;
+// static char* addr_threshold;
 bool mpi_finalize_flag = false;
 
-//int mpiRank = 0;
+// int mpi_rank = -1;
+
+int my_backtrace(unw_word_t *buffer, int max_depth) {
+  unw_cursor_t cursor;
+  unw_context_t context;
+
+  // Initialize cursor to current frame for local unwinding.
+  unw_getcontext(&context);
+  unw_init_local(&cursor, &context);
+
+  // Unwind frames one by one, going up the frame stack.
+  int depth = 0;
+  while (unw_step(&cursor) > 0 && depth < max_depth) {
+    unw_word_t pc;
+    unw_get_reg(&cursor, UNW_REG_IP, &pc);
+    if (pc == 0) {
+      break;
+    }
+    buffer[depth] = pc;
+    depth++;
+  }
+  return depth;
+}
 
 // Dump mpi info log
 static void writeCollMpiInfoLog(){
-	ofstream outputStream((string("MPID") + to_string(mpiRank) + string(".TXT")), ios_base::app);
+	ofstream outputStream((string("dynamic_data/MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
 	if (!outputStream.good()) {
 		cout << "Failed to open sample file\n";
 		return;
@@ -152,7 +174,7 @@ static void writeCollMpiInfoLog(){
 }
 
 static void writeP2PMpiInfoLog(){
-	ofstream outputStream((string("MPID") + to_string(mpiRank) + string(".TXT")), ios_base::app);
+	ofstream outputStream((string("dynamic_data/MPID") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
 	if (!outputStream.good()) {
 		cout << "Failed to open sample file\n";
 		return;
@@ -176,7 +198,7 @@ static void writeP2PMpiInfoLog(){
 }
 
 static void writeTraceLog(){
-	ofstream outputStream((string("MPIT") + to_string(mpiRank) + string(".TXT")), ios_base::app);
+	ofstream outputStream((string("dynamic_data/MPIT") + to_string(mpi_rank) + string(".TXT")), ios_base::app);
 	if (!outputStream.good()) {
 		cout << "Failed to open sample file\n";
 		return;
@@ -194,32 +216,42 @@ static void writeTraceLog(){
 	outputStream.close();
 }
 
-static void init() __attribute__((constructor));
-static void init() {
-	if(module_init == MODULE_INITED) return ;
-	module_init = MODULE_INITED;
-	addr_threshold =(char*)malloc( sizeof(char));
-}
+// static void init() __attribute__((constructor));
+// static void init() {
+//   if (module_init == MODULE_INITED) return;
+//   module_init = MODULE_INITED;
+//   addr_threshold = (char *)malloc(sizeof(char));
+// }
 
 
-// Dump mpi info at the end of program's execution
-static void fini() __attribute__((destructor));
-static void fini(){
-	if (!mpi_finalize_flag){
-		//writeCollMpiInfoLog();
-		//writeP2PMpiInfoLog();
-		//printf("mpi_finalize_flag is false\n");
-	}
-}
+// // Dump mpi info at the end of program's execution
+// static void fini() __attribute__((destructor));
+// static void fini() {
+//   if (!mpi_finalize_flag) {
+//     // writeCollMpiInfoLog();
+//     // writeP2PMpiInfoLog();
+//     // printf("mpi_finalize_flag is false\n");
+//   }
+// }
 
 
 // Record mpi info to log
 
 void TRACE_COLL(MPI_Comm comm, double exe_time){
-  void *buffer[MAX_STACK_DEPTH] = {0};
-  unsigned int i, depth = 0;
-	//memset(buffer, 0, sizeof(buffer));
-	depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+	/**
+  #ifdef MY_BT
+    unw_word_t buffer[MAX_STACK_DEPTH] = {0};
+  #else
+    void* buffer[MAX_STACK_DEPTH];
+    memset(buffer, 0, sizeof(buffer));
+  #endif
+    unsigned int i, depth = 0;
+    // memset(buffer, 0, sizeof(buffer));
+  #ifdef MY_BT
+    depth = my_backtrace(buffer, MAX_STACK_DEPTH);
+  #else
+    depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+  #endif
   char call_path[MAX_CALL_PATH_LEN] = {0};
 	int offset = 0;
 
@@ -265,12 +297,22 @@ void TRACE_COLL(MPI_Comm comm, double exe_time){
 	if(trace_log_pointer >= MAX_TRACE_SIZE - 5){
 		writeTraceLog();
 	}
+	**/
 }
 
 void TRACE_P2P(char type, int request_count, int *source, int *dest, int *tag, double exe_time){
-  void *buffer[MAX_STACK_DEPTH] = {0};
-  unsigned int i, j, depth = 0;
-	depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+#ifdef MY_BT
+  unw_word_t buffer[MAX_STACK_DEPTH] = {0};
+#else
+  void *buffer[MAX_STACK_DEPTH];
+  memset(buffer, 0, sizeof(buffer));
+#endif
+   unsigned int i, j, depth = 0;
+#ifdef MY_BT
+  depth = my_backtrace(buffer, MAX_STACK_DEPTH);
+#else
+   depth = unw_backtrace(buffer, MAX_STACK_DEPTH);
+#endif
   char call_path[MAX_CALL_PATH_LEN] = {0};
 	int offset = 0;
 
@@ -332,10 +374,10 @@ k1:
 
 // MPI_Init does all the communicator setup
 //
-{{fn func MPI_Init}}{
+{{fn func MPI_Init MPI_Init_thread}}{
     // First call PMPI_Init()
     {{callfn}}
-    PMPI_Comm_rank(MPI_COMM_WORLD, &mpiRank);
+    PMPI_Comm_rank(MPI_COMM_WORLD, &mpi_rank);
 }{{endfn}}
 
 // P2P communication
@@ -350,7 +392,7 @@ k1:
 		int dest_list[1];
 		int tag_list[1];
 
-		source_list[0] = mpiRank;
+		source_list[0] = mpi_rank;
 		dest_list[0] = dest;
 		tag_list[0] = tag;
 #ifdef DEBUG
@@ -370,12 +412,12 @@ k1:
 		int dest_list[1] = {-1};
 		int tag_list[1] = {-1};
 
-		source_list[0] = mpiRank;
+		source_list[0] = mpi_rank;
 		dest_list[0] = dest;
 		tag_list[0] = tag;
-		//if (mpiRank == 0){
-		//printf("isend record %x %d %d\n",request, mpiRank , tag);}
-		request_converter[RequestConverter(request)] = pair<int, int>(mpiRank, tag);
+		//if (mpi_rank == 0){
+		//printf("isend record %x %d %d\n",request, mpi_rank , tag);}
+		request_converter[RequestConverter(request)] = pair<int, int>(mpi_rank, tag);
 #ifdef DEBUG
 		printf("%s\n", "{{func}}");
 #endif
@@ -395,7 +437,7 @@ k1:
 		int tag_list[1];
 
 		source_list[0] = source;
-		dest_list[0] = mpiRank;
+		dest_list[0] = mpi_rank;
 		tag_list[0] = tag;
 #ifdef DEBUG
 		printf("%s\n", "{{func}}");
@@ -415,10 +457,10 @@ k1:
 		int tag_list[1] = {-1};
 
 		source_list[0] = source;
-		dest_list[0] = mpiRank;
+		dest_list[0] = mpi_rank;
 		tag_list[0] = tag;
 #ifdef DEBUG		
-		if (mpiRank == 0){
+		if (mpi_rank == 0){
 		printf("irecv record %x %d %d\n", request, source , tag);
 		}
 #endif
@@ -434,7 +476,7 @@ k1:
 		int dest_list[1] = {-1};
 		int tag_list[1] = {-1};
 
-		dest_list[0] = mpiRank;
+		dest_list[0] = mpi_rank;
 		bool valid_flag = false;
 
 		map<RequestConverter, pair<int, int>> :: iterator iter;
@@ -456,6 +498,9 @@ k1:
 		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
 
 		if (valid_flag == false){
+			if (status == nullptr) {
+				return ret_val;
+			}
 			source_list[0] = status->MPI_SOURCE;
 			tag_list[0] = status->MPI_TAG;
 #ifdef DEBUG
@@ -483,7 +528,7 @@ k1:
 		memset(valid_flag,0,count * sizeof(char));
 
 		for (int i = 0 ; i < count; i ++){
-			dest_list[i] = mpiRank;
+			dest_list[i] = mpi_rank;
 
 			map<RequestConverter, pair<int, int>> :: iterator iter;
 			iter = request_converter.find(RequestConverter(&array_of_requests[i]));
@@ -494,7 +539,7 @@ k1:
 				source_list[i] = p.first;
 				tag_list[i] = p.second;
 #ifdef DEBUG
-				if (mpiRank == 0){
+				if (mpi_rank == 0){
 					printf("convert wait %d %d\n", p.first, p.second);
 				}
 #endif
@@ -516,7 +561,7 @@ k1:
 				tag_list[i] = array_of_statuses[i].MPI_TAG;
 				//printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE, array_of_statuses[i].MPI_TAG);
 #ifdef DEBUG
-				if (mpiRank == 0){
+				if (mpi_rank == 0){
 					printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE, array_of_statuses[i].MPI_TAG);
 				}
 #endif
