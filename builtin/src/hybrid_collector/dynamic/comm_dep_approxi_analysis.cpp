@@ -351,7 +351,8 @@ int main(int argc, char *argv[]) {
   for (int pid = 0; pid < nprocs; pid++) {
     commOpMatchWithMPIInfo(pid);
   }
-  std::string output_filename = string(argv[2]) + string("/dynamic_data/") + string(argv[3]);
+  std::string output_filename =
+      string(argv[2]) + string("/dynamic_data/") + string(argv[3]);
   ofstream outputStream(output_filename.c_str(), ios_base::out);
   outputCommDepEdges(outputStream);
 }

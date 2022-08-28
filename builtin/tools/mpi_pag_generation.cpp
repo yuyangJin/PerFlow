@@ -94,8 +94,9 @@ int main(int argc, char **argv) {
                                                           num_procs);
   baguatool::core::PerfData *comm_data = new baguatool::core::PerfData();
   // const char *comm_data_file_name = argv[5];
-  std::string comm_data_file_name =
-      std::string(data_dir) + std::string("/dynamic_data/") + std::string(argv[5]);
+  std::string comm_data_file_name = std::string(data_dir) +
+                                    std::string("/dynamic_data/") +
+                                    std::string(argv[5]);
   comm_data->Read(comm_data_file_name.c_str());
   graph_perf->GenerateDynAddrDebugInfo(comm_data, all_shared_obj_analysis,
                                        bin_name_str);
