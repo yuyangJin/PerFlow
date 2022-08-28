@@ -401,12 +401,20 @@ class PerFlow(object):
                                 comm_pattern_mat[pid][dest_pid] += float(e['time'])
                                 comm_pattern_mat[dest_pid][pid] += float(e['time'])
 
-        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.1)
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, vmax = 1.0, edgecolors='grey', linewidths=0.1)
         plt.colorbar(label = "Time(ms)")
         plt.title("Communication Pattern")
         plt.xlabel("Process ID")
         plt.ylabel("Process ID")
         plt.savefig("comm_pattern.pdf")
+        plt.clf()
+
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.1)
+        plt.colorbar(label = "Time(ms)")
+        plt.title("Communication Time")
+        plt.xlabel("Process ID")
+        plt.ylabel("Process ID")
+        plt.savefig("comm_time.pdf")
         plt.clf()
         
                      
