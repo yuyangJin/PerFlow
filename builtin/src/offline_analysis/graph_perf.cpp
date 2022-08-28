@@ -1310,7 +1310,7 @@ void DumpCallPath(type::call_path_t &call_path) {
     type::addr_t addr = tmp.top();
     tmp.pop();
     call_path.push(addr);
-    std::cout << addr << " ";
+    std::cout << std::hex << addr << " ";
   }
   std::cout << std::endl;
   FREE_CONTAINER(tmp);
@@ -1319,13 +1319,12 @@ void DumpCallPath(type::call_path_t &call_path) {
 std::map<type::vertex_t, type::vertex_t> pag_vid_to_pre_order_seq_id;
 
 void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
-  // dbg("here");
   int pag_num_vertex = pag_vid_to_pre_order_seq_id.size();
   auto edge_data_size = comm_data->GetEdgeDataSize();
   // dbg(edge_data_size);
   for (unsigned long int i = 0; i < edge_data_size; i++) {
     auto value = comm_data->GetEdgeDataValue(i);
-    if (value > 1000) { // 1ms
+    if (value > COMM_TIME_THRD) {
       std::stack<unsigned long long> src_call_path;
 
       std::stack<unsigned long long> dest_call_path;
@@ -1358,6 +1357,7 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
 
       // dbg(queried_vertex_id_src);
       // dbg(queried_vertex_id_dest);
+      // dbg(src_pid, dest_pid, value);
 
       // dbg(queried_vertex_id_src, queried_vertex_id_dest);
       if (queried_vertex_id_dest == -1 || queried_vertex_id_src == -1) {

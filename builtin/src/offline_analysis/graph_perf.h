@@ -9,6 +9,8 @@
 #include <string>
 #include <unordered_set>
 
+#define COMM_TIME_THRD 0 // 1000 = 1ms
+
 namespace graph_perf {
 
 using namespace baguatool;
