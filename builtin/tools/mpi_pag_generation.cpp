@@ -1,7 +1,8 @@
-#include "graph_perf.h"
 #include <chrono>
 #include <cstring>
 #include <map>
+
+#include "graph_perf.h"
 
 int main(int argc, char **argv) {
   /** Setups */
@@ -33,6 +34,12 @@ int main(int argc, char **argv) {
                                       std::to_string(pid) + std::string(".TXT");
     perf_data->Read(perf_data_file_name.c_str());
   }
+  baguatool::core::PerfData *comm_data = new baguatool::core::PerfData();
+  std::string comm_data_file_name = std::string(data_dir) +
+                                    std::string("/dynamic_data/") +
+                                    std::string(argv[5]);
+  comm_data->Read(comm_data_file_name.c_str());
+  perf_data->Read(comm_data_file_name.c_str());
   ed = std::chrono::system_clock::now();
   time =
       std::chrono::duration_cast<std::chrono::microseconds>(ed - st).count() /
@@ -57,11 +64,6 @@ int main(int argc, char **argv) {
   graph_perf->GenerateDynAddrDebugInfo(perf_data, all_shared_obj_analysis,
                                        bin_name_str);
   // communication data
-  baguatool::core::PerfData *comm_data = new baguatool::core::PerfData();
-  std::string comm_data_file_name = std::string(data_dir) +
-                                    std::string("/dynamic_data/") +
-                                    std::string(argv[5]);
-  comm_data->Read(comm_data_file_name.c_str());
   graph_perf->GenerateDynAddrDebugInfo(comm_data, all_shared_obj_analysis,
                                        bin_name_str);
   ed = std::chrono::system_clock::now();
@@ -84,8 +86,6 @@ int main(int argc, char **argv) {
   cout << "Reading and generating PCG cost " << time << " seconds."
        << std::endl;
   // graph_perf->GetProgramCallGraph()->DumpGraphGML("hy_pcg.gml");
-
-
 
   /** == Prune with dynamic data == */
   graph_perf->PruneWithDynamicData();

@@ -3,7 +3,7 @@
 
 #include <igraph.h>
 
-#define TRUNK_SIZE 1000000
+#define TRUNK_SIZE 10000
 
 namespace baguatool::type {
 struct graph_t {

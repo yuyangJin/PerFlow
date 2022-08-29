@@ -245,17 +245,17 @@ void GPerf::SetPruneFlag(bool flag) { this->prune_flag = flag; }
 
 bool GPerf::GetPruneFlag() { return this->prune_flag; }
 
-void GPerf::PruneWithDynamicData() { 
+void GPerf::PruneWithDynamicData() {
   // Set pruning flag
-  this->SetPruneFlag(true); 
-  
+  this->SetPruneFlag(true);
+
   // Prepare data for pruning
 
   // Get all dynamic call
-  
-  for (auto& kv: dyn_addr_to_debug_info) {
+
+  for (auto &kv : dyn_addr_to_debug_info) {
     // auto addr = kv.first;
-    auto& debug_info = kv.second;
+    auto &debug_info = kv.second;
     if (debug_info->IsExecutable()) {
       this->dynamic_call_offsets.insert(debug_info->GetAddress());
     }
@@ -282,7 +282,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t &call_path) {
       tmp.pop();
       continue;
     }
-    auto& debug_info = this->dyn_addr_to_debug_info[addr];
+    auto &debug_info = this->dyn_addr_to_debug_info[addr];
     if (debug_info->IsExecutable()) {
       call_path.push(debug_info->GetAddress());
       // dbg(debug_info->GetAddress());
@@ -311,6 +311,16 @@ void GPerf::ReadStaticProgramCallGraph(const char *pcg_name) {
   this->pcg->EdgeTraversal(&SetCallTypeAsStatic, nullptr);
 }
 
+struct pair_hash {
+  template <class T1, class T2>
+  std::size_t operator()(std::pair<T1, T2> const &pair) const {
+    std::size_t h1 = std::hash<T1>()(pair.first);
+    std::size_t h2 = std::hash<T2>()(pair.second);
+
+    return (h1 + 1) ^ h2;
+  }
+};
+
 void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
   if (this->has_dyn_addr_debug_info) {
     auto data_size = perf_data->GetVertexDataSize();
@@ -319,6 +329,9 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
     /** Optimization: First scan all call path and store <call_addr,
      * callee_addr> pairs, then AddEdgeWithAddr. It can reduce redundant graph
      * query **/
+
+    std::unordered_set<std::pair<type::addr_t, type::addr_t>, pair_hash>
+        call_callee_pairs;
 
     // AddEdgeWithAddr for each <call_addr, callee_addr> pair of each call path
     for (unsigned long int i = 0; i < data_size; i++) {
@@ -335,26 +348,56 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
         while (!call_path.empty()) {
           call_addr = call_path.top();
           call_path.pop();
-          if (type::IsTextAddr(call_addr)) {
-            break;
+          if (this->dyn_addr_to_debug_info.find(call_addr) !=
+              this->dyn_addr_to_debug_info.end()) {
+            auto &debug_info = this->dyn_addr_to_debug_info[call_addr];
+            if (debug_info->IsExecutable()) {
+              call_addr = debug_info->GetAddress();
+              break;
+            }
+          } else {
+            std::cout << call_addr << "not found!" << std::endl;
           }
+          // if (type::IsTextAddr(call_addr)) {
+          //   break;
+          // }
         }
         // Get callee function address
         while (!call_path.empty()) {
           callee_addr = call_path.top();
-          if (type::IsTextAddr(callee_addr)) {
-            break;
-          } else {
-            call_path.pop();
+          if (this->dyn_addr_to_debug_info.find(callee_addr) !=
+              this->dyn_addr_to_debug_info.end()) {
+            auto &debug_info = this->dyn_addr_to_debug_info[callee_addr];
+            if (debug_info->IsExecutable()) {
+              callee_addr = debug_info->GetAddress();
+              break;
+            }
           }
+          call_path.pop();
+          // if (type::IsTextAddr(callee_addr)) {
+          //   break;
+          // } else {
+          //   call_path.pop();
+          // }
         }
 
-        auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
-        if (edge_id != -1) {
-          this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+        std::pair<type::addr_t, type::addr_t> call_callee =
+            std::make_pair(call_addr, callee_addr);
+        if (call_callee_pairs.find(call_callee) == call_callee_pairs.end()) {
+          call_callee_pairs.insert(call_callee);
         }
       }
     }
+    for (auto &call_callee : call_callee_pairs) {
+      auto call_addr = call_callee.first;
+      auto callee_addr = call_callee.second;
+      auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
+      if (edge_id != -1) {
+        this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+        // dbg(call_addr, callee_addr, edge_id);
+      }
+    }
+    FREE_CONTAINER(call_callee_pairs);
   } else {
     auto data_size = perf_data->GetVertexDataSize();
     std::set<std::pair<type::addr_t, type::addr_t>> visited_call_callee;
@@ -490,7 +533,7 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
 void GPerf::GenerateProgramCallGraph(const char *pcg_name,
                                      core::PerfData *perf_data) {
   this->ReadStaticProgramCallGraph(pcg_name);
-  //this->ReadDynamicProgramCallGraph(perf_data);
+  this->ReadDynamicProgramCallGraph(perf_data);
 }
 
 core::ProgramCallGraph *GPerf::GetProgramCallGraph() { return this->pcg; }
@@ -572,14 +615,14 @@ void GPerf::IntraProceduralAnalysis() {}
 // std::map<type::addr_t, type::vertex_t> addr_2_vertex_call_stack;
 /**
  * @brief Whether the addr is in the set or not
- * 
- * @param addr 
- * @param set 
+ *
+ * @param addr
+ * @param set
  * @return true - in
  * @return false - not in
  */
-bool IsAddrInSet(type::addr_t addr, unordered_set<type::addr_t>* set) {
-  for (auto& set_addr: (*set)) {
+bool IsAddrInSet(type::addr_t addr, unordered_set<type::addr_t> *set) {
+  for (auto &set_addr : (*set)) {
     if (addr >= set_addr - 4 && addr <= set_addr + 4) {
       dbg(addr, set_addr);
       return true;
@@ -608,13 +651,13 @@ void ConnectCallerCallee(core::ProgramAbstractionGraph *pag, int vertex_id,
   // dbg(vertex_id);
   if (type == type::CALL_NODE || type == type::CALL_IND_NODE ||
       type == type::CALL_REC_NODE) {
-    type::addr_t addr = pag->GetVertexAttributeNum("saddr", vertex_id);    
+    type::addr_t addr = pag->GetVertexAttributeNum("saddr", vertex_id);
     // dbg("call_addr", vertex_id, addr);
 
     if (dynamic_call_offsets != nullptr) {
       auto is_dynamic_call = IsAddrInSet(addr, dynamic_call_offsets);
       if (!is_dynamic_call) {
-        return ;
+        return;
       }
     }
 
@@ -824,12 +867,12 @@ void GPerf::DynamicInterProceduralAnalysis(core::PerfData *pthread_data) {
             InterPAArg *arg = new InterPAArg();
             arg->pcg = this->pcg;
             arg->func_entry_addr_to_pag = &(this->func_entry_addr_to_pag);
-            if (this->GetPruneFlag()){
+            if (this->GetPruneFlag()) {
               arg->dynamic_call_offsets = &(this->dynamic_call_offsets);
             } else {
               arg->dynamic_call_offsets = nullptr;
             }
-            
+
             func_pag->SetGraphAttributeFlag("scanned", true);
             func_pag->VertexTraversal(&ConnectCallerCallee, arg);
             delete arg;
@@ -915,7 +958,7 @@ void GPerf::InterProceduralAnalysis(core::PerfData *pthread_data) {
   InterPAArg *arg = new InterPAArg();
   arg->pcg = this->pcg;
   arg->func_entry_addr_to_pag = &(this->func_entry_addr_to_pag);
-  if (this->GetPruneFlag()){
+  if (this->GetPruneFlag()) {
     arg->dynamic_call_offsets = &(this->dynamic_call_offsets);
   } else {
     arg->dynamic_call_offsets = nullptr;
@@ -953,7 +996,7 @@ void GPerf::StaticInterProceduralAnalysis() {
   InterPAArg *arg = new InterPAArg();
   arg->pcg = this->pcg;
   arg->func_entry_addr_to_pag = &(this->func_entry_addr_to_pag);
-  if (this->GetPruneFlag()){
+  if (this->GetPruneFlag()) {
     arg->dynamic_call_offsets = &(this->dynamic_call_offsets);
   } else {
     arg->dynamic_call_offsets = nullptr;
@@ -1482,8 +1525,8 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(
   type::vertex_t root_vertex_id = this->root_mpag->AddVertex();
   this->root_mpag->SetVertexBasicInfo(root_vertex_id, type::FUNC_NODE, "root");
   this->root_mpag->SetVertexAttributeNum(
-      "id", root_vertex_id, 0); // I don't know why it turns to an unkown number
-                                // if I don't set id to 0 manully.
+      "id", root_vertex_id, 0); // I don't know why it turns to an unkown
+                                // number if I don't set id to 0 manully.
 
   // Build for each process
   auto pag_graph_perf_data = this->root_pag->GetGraphPerfData();
