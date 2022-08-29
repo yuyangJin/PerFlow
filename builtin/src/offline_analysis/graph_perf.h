@@ -33,6 +33,7 @@ private:
 
   bool has_dyn_addr_debug_info;
   bool prune_flag;
+  unordered_set<type::addr_t> dynamic_call_offsets;
 
 public:
   /** Constructor.

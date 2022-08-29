@@ -48,7 +48,7 @@ void build_create_tid_to_callpath_and_tid(core::PerfData *perf_data) {
 GPerf::GPerf() {
   this->root_mpag = new core::MultiProgramAbstractionGraph();
   this->has_dyn_addr_debug_info = false;
-  this->prune_flag = false;
+  prune_flag = false;
 }
 
 GPerf::~GPerf() {
@@ -245,7 +245,22 @@ void GPerf::SetPruneFlag(bool flag) { this->prune_flag = flag; }
 
 bool GPerf::GetPruneFlag() { return this->prune_flag; }
 
-void GPerf::PruneWithDynamicData() { this->SetPruneFlag(true); }
+void GPerf::PruneWithDynamicData() { 
+  // Set pruning flag
+  this->SetPruneFlag(true); 
+  
+  // Prepare data for pruning
+
+  // Get all dynamic call
+  
+  for (auto& kv: dyn_addr_to_debug_info) {
+    // auto addr = kv.first;
+    auto& debug_info = kv.second;
+    if (debug_info->IsExecutable()) {
+      this->dynamic_call_offsets.insert(debug_info->GetAddress());
+    }
+  }
+}
 
 void GPerf::ConvertDynAddrToOffset(type::call_path_t &call_path) {
   // dbg("start converting dyn addr to offset");
@@ -267,7 +282,7 @@ void GPerf::ConvertDynAddrToOffset(type::call_path_t &call_path) {
       tmp.pop();
       continue;
     }
-    auto debug_info = this->dyn_addr_to_debug_info[addr];
+    auto& debug_info = this->dyn_addr_to_debug_info[addr];
     if (debug_info->IsExecutable()) {
       call_path.push(debug_info->GetAddress());
       // dbg(debug_info->GetAddress());
@@ -475,7 +490,7 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
 void GPerf::GenerateProgramCallGraph(const char *pcg_name,
                                      core::PerfData *perf_data) {
   this->ReadStaticProgramCallGraph(pcg_name);
-  this->ReadDynamicProgramCallGraph(perf_data);
+  //this->ReadDynamicProgramCallGraph(perf_data);
 }
 
 core::ProgramCallGraph *GPerf::GetProgramCallGraph() { return this->pcg; }
@@ -555,11 +570,29 @@ void GPerf::IntraProceduralAnalysis() {}
 
 // For recursive call, record function on call path
 // std::map<type::addr_t, type::vertex_t> addr_2_vertex_call_stack;
+/**
+ * @brief Whether the addr is in the set or not
+ * 
+ * @param addr 
+ * @param set 
+ * @return true - in
+ * @return false - not in
+ */
+bool IsAddrInSet(type::addr_t addr, unordered_set<type::addr_t>* set) {
+  for (auto& set_addr: (*set)) {
+    if (addr >= set_addr - 4 && addr <= set_addr + 4) {
+      dbg(addr, set_addr);
+      return true;
+    }
+  }
+  return false;
+}
 
 typedef struct InterProceduralAnalysisArg {
   std::map<type::addr_t, core::ProgramAbstractionGraph *>
       *func_entry_addr_to_pag;
   core::ProgramCallGraph *pcg;
+  unordered_set<type::addr_t> *dynamic_call_offsets;
 } InterPAArg;
 
 // FIXME: `void *` should not appear in cpp
@@ -569,13 +602,22 @@ void ConnectCallerCallee(core::ProgramAbstractionGraph *pag, int vertex_id,
   std::map<type::addr_t, core::ProgramAbstractionGraph *>
       *func_entry_addr_to_pag = arg->func_entry_addr_to_pag;
   core::ProgramCallGraph *pcg = arg->pcg;
+  unordered_set<type::addr_t> *dynamic_call_offsets = arg->dynamic_call_offsets;
 
   int type = pag->GetVertexType(vertex_id);
   // dbg(vertex_id);
   if (type == type::CALL_NODE || type == type::CALL_IND_NODE ||
       type == type::CALL_REC_NODE) {
-    type::addr_t addr = pag->GetVertexAttributeNum("saddr", vertex_id);
+    type::addr_t addr = pag->GetVertexAttributeNum("saddr", vertex_id);    
     // dbg("call_addr", vertex_id, addr);
+
+    if (dynamic_call_offsets != nullptr) {
+      auto is_dynamic_call = IsAddrInSet(addr, dynamic_call_offsets);
+      if (!is_dynamic_call) {
+        return ;
+      }
+    }
+
     type::vertex_t call_vertex_id = pcg->GetCallVertexWithAddr(addr);
     // dbg(call_vertex_id);
 
@@ -782,6 +824,12 @@ void GPerf::DynamicInterProceduralAnalysis(core::PerfData *pthread_data) {
             InterPAArg *arg = new InterPAArg();
             arg->pcg = this->pcg;
             arg->func_entry_addr_to_pag = &(this->func_entry_addr_to_pag);
+            if (this->GetPruneFlag()){
+              arg->dynamic_call_offsets = &(this->dynamic_call_offsets);
+            } else {
+              arg->dynamic_call_offsets = nullptr;
+            }
+            
             func_pag->SetGraphAttributeFlag("scanned", true);
             func_pag->VertexTraversal(&ConnectCallerCallee, arg);
             delete arg;
@@ -867,6 +915,11 @@ void GPerf::InterProceduralAnalysis(core::PerfData *pthread_data) {
   InterPAArg *arg = new InterPAArg();
   arg->pcg = this->pcg;
   arg->func_entry_addr_to_pag = &(this->func_entry_addr_to_pag);
+  if (this->GetPruneFlag()){
+    arg->dynamic_call_offsets = &(this->dynamic_call_offsets);
+  } else {
+    arg->dynamic_call_offsets = nullptr;
+  }
 
   this->root_pag->VertexTraversal(&ConnectCallerCallee, arg);
 
@@ -900,6 +953,11 @@ void GPerf::StaticInterProceduralAnalysis() {
   InterPAArg *arg = new InterPAArg();
   arg->pcg = this->pcg;
   arg->func_entry_addr_to_pag = &(this->func_entry_addr_to_pag);
+  if (this->GetPruneFlag()){
+    arg->dynamic_call_offsets = &(this->dynamic_call_offsets);
+  } else {
+    arg->dynamic_call_offsets = nullptr;
+  }
 
   this->root_pag->VertexTraversal(&ConnectCallerCallee, arg);
 

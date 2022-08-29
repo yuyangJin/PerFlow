@@ -39,20 +39,6 @@ int main(int argc, char **argv) {
       1e6;
   cout << "Reading perf data costs " << time << " seconds." << std::endl;
 
-  /** == Read program call graph == */
-  // pcg gml
-  std::string pcg_name = std::string(data_dir) + std::string("/static_data/") +
-                         std::string(bin_name) + std::string(".pcg");
-  st = std::chrono::system_clock::now();
-  graph_perf->GenerateProgramCallGraph(pcg_name.c_str(), perf_data);
-  ed = std::chrono::system_clock::now();
-  time =
-      std::chrono::duration_cast<std::chrono::microseconds>(ed - st).count() /
-      1e6;
-  cout << "Reading and generating PCG cost " << time << " seconds."
-       << std::endl;
-  // graph_perf->GetProgramCallGraph()->DumpGraphGML("hy_pcg.gml");
-
   /** == Process dynamic data to prune == */
   st = std::chrono::system_clock::now();
   // profiling data
@@ -84,6 +70,22 @@ int main(int argc, char **argv) {
       1e6;
   cout << "Processing dynamic perf data costs " << time << " seconds."
        << std::endl;
+
+  /** == Read program call graph == */
+  // pcg gml
+  std::string pcg_name = std::string(data_dir) + std::string("/static_data/") +
+                         std::string(bin_name) + std::string(".pcg");
+  st = std::chrono::system_clock::now();
+  graph_perf->GenerateProgramCallGraph(pcg_name.c_str(), perf_data);
+  ed = std::chrono::system_clock::now();
+  time =
+      std::chrono::duration_cast<std::chrono::microseconds>(ed - st).count() /
+      1e6;
+  cout << "Reading and generating PCG cost " << time << " seconds."
+       << std::endl;
+  // graph_perf->GetProgramCallGraph()->DumpGraphGML("hy_pcg.gml");
+
+
 
   /** == Prune with dynamic data == */
   graph_perf->PruneWithDynamicData();
