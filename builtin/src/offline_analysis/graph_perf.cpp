@@ -48,6 +48,7 @@ void build_create_tid_to_callpath_and_tid(core::PerfData *perf_data) {
 GPerf::GPerf() {
   this->root_mpag = new core::MultiProgramAbstractionGraph();
   this->has_dyn_addr_debug_info = false;
+  this->prune_flag = false;
 }
 
 GPerf::~GPerf() {
@@ -239,6 +240,12 @@ GPerf::GetDynAddrDebugInfo() {
 } // GPerf::GetDynAddrDebugInfo
 
 bool GPerf::HasDynAddrDebugInfo() { return this->has_dyn_addr_debug_info; }
+
+void GPerf::SetPruneFlag(bool flag) { this->prune_flag = flag; }
+
+bool GPerf::GetPruneFlag() { return this->prune_flag; }
+
+void GPerf::PruneWithDynamicData() { this->SetPruneFlag(true); }
 
 void GPerf::ConvertDynAddrToOffset(type::call_path_t &call_path) {
   // dbg("start converting dyn addr to offset");

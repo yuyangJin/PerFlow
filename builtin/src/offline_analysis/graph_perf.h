@@ -32,6 +32,7 @@ private:
                      parallel program*/
 
   bool has_dyn_addr_debug_info;
+  bool prune_flag;
 
 public:
   /** Constructor.
@@ -126,6 +127,28 @@ public:
    */
 
   void ConvertDynAddrToOffset(type::call_path_t &call_path);
+
+  /**
+   * @brief Prepare data for pruning, but pruning is done at the following
+   * phases.
+   *
+   */
+  void PruneWithDynamicData();
+
+  /**
+   * @brief Set the prune_flag object
+   *
+   * @param flag
+   */
+  void SetPruneFlag(bool flag);
+
+  /**
+   * @brief Whether to prune or not
+   *
+   * @return true - prune
+   * @return false - not prune
+   */
+  bool GetPruneFlag();
 
   /** Program Call Graph **/
 
