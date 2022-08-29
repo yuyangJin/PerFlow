@@ -107,6 +107,7 @@ static unsigned int trace_log[MAX_TRACE_SIZE] = {0};
 static unsigned long long int trace_log_pointer = 0;
 
 map <RequestConverter, pair<int,int>> request_converter;
+map <RequestConverter, pair<int,int>> recv_init_request_converter; /* <src, tag> */
 
 static int module_init = 0;
 // static char* addr_threshold;
@@ -471,6 +472,28 @@ k1:
 		TRACE_P2P('R', 1, source_list, dest_list, tag_list, time);
 }{{endfn}}
 
+{{fn func MPI_Recv_init}}{
+	// First call P2P communication
+	//	auto st = chrono::system_clock::now();
+    {{callfn}}
+	//	auto ed = chrono::system_clock::now();
+	//	double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+		
+		// int source_list[1] = {-1};
+		// int dest_list[1] = {-1};
+		// int tag_list[1] = {-1};
+
+		// source_list[0] = source;
+		// dest_list[0] = mpi_rank;
+		// tag_list[0] = tag;
+#ifdef DEBUG		
+		if (mpi_rank == 0){
+			printf("mpi_recv_init record %x %d %d\n", request, source , tag);
+		}
+#endif
+		recv_init_request_converter[RequestConverter(request)] = pair<int, int>(source, tag);
+}{{endfn}}
+
 {{fn func MPI_Wait}}{
 		int source_list[1] = {-1};
 		int dest_list[1] = {-1};
@@ -582,6 +605,54 @@ k1:
 		return ret_val;
 
 }{{endfn}}
+
+{{fn func MPI_Start}}{
+		int source_list[1] = {-1};
+		int dest_list[1] = {-1};
+		int tag_list[1] = {-1};
+
+		dest_list[0] = mpi_rank;
+		bool valid_flag = false;
+
+		map<RequestConverter, pair<int, int>> :: iterator iter;
+		iter = recv_init_request_converter.find(RequestConverter(request));
+		if (iter != recv_init_request_converter.end()){
+			auto& p = recv_init_request_converter[RequestConverter(request)];
+			auto src = p.first;
+			auto tag = p.second;
+			//if (!((src == -1 || src == MPI_ANY_SOURCE) || (tag == -1 || tag == MPI_ANY_TAG))) {
+				source_list[0] = src;
+				tag_list[0] = tag;
+				valid_flag = true;
+			//}
+			// recv_init_request_converter.erase(RequestConverter(request));
+		}
+		
+		auto st = chrono::system_clock::now();
+		int ret_val = {{callfn}}
+		auto ed = chrono::system_clock::now();
+		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+
+		//if (valid_flag == false){
+		//	if (status == nullptr) {
+		//		return ret_val;
+		//	}
+		//	source_list[0] = status->MPI_SOURCE;
+		//	tag_list[0] = status->MPI_TAG;
+#ifdef DEBUG
+			//printf("%d %d\n", status->MPI_SOURCE, status->MPI_TAG);
+#endif
+		//}
+
+#ifdef DEBUG
+		printf("%s\n", "{{func}}");
+#endif
+		TRACE_P2P('R', 1, source_list, dest_list, tag_list, time);
+
+		return ret_val;
+
+}{{endfn}}
+
 
 // collective communication
 {{fn func MPI_Reduce MPI_Alltoall MPI_Allreduce MPI_Bcast MPI_Scatter MPI_Gather MPI_Allgather}}{

@@ -46,16 +46,18 @@ _EXTERN_C_ void pmpi_init__(MPI_Fint *ierr);
 
 #define UNW_LOCAL_ONLY // must define before including libunwind.h
 
-#include "dbg.h"
-#include "mpi_init.h"
+#include <libunwind.h>
+#include <stdio.h>
+#include <string.h>
+
 #include <chrono>
 #include <fstream>
 #include <iostream>
-#include <libunwind.h>
 #include <map>
-#include <stdio.h>
-#include <string.h>
 #include <string>
+
+#include "dbg.h"
+#include "mpi_init.h"
 
 using namespace std;
 
@@ -129,6 +131,8 @@ static unsigned int trace_log[MAX_TRACE_SIZE] = {0};
 static unsigned long long int trace_log_pointer = 0;
 
 map<RequestConverter, pair<int, int>> request_converter;
+map<RequestConverter, pair<int, int>>
+    recv_init_request_converter; /* <src, tag> */
 
 static int module_init = 0;
 // static char* addr_threshold;
@@ -416,8 +420,9 @@ _EXTERN_C_ int MPI_Init(int *argc, char ***argv) {
     if (fortran_init) {
 #ifdef PIC
       if (!PMPI_INIT && !pmpi_init && !pmpi_init_ && !pmpi_init__) {
-        fprintf(stderr, "ERROR: Couldn't find fortran pmpi_init function.  "
-                        "Link against static library instead.\n");
+        fprintf(stderr,
+                "ERROR: Couldn't find fortran pmpi_init function.  Link "
+                "against static library instead.\n");
         exit(1);
       }
       switch (fortran_init) {
@@ -863,6 +868,97 @@ _EXTERN_C_ void mpi_irecv__(MPI_Fint *buf, MPI_Fint *count, MPI_Fint *datatype,
 
 /* ================= End Wrappers for MPI_Irecv ================= */
 
+/* ================== C Wrappers for MPI_Recv_init ================== */
+_EXTERN_C_ int PMPI_Recv_init(void *buf, int count, MPI_Datatype datatype,
+                              int source, int tag, MPI_Comm comm,
+                              MPI_Request *request);
+_EXTERN_C_ int MPI_Recv_init(void *buf, int count, MPI_Datatype datatype,
+                             int source, int tag, MPI_Comm comm,
+                             MPI_Request *request) {
+  int _wrap_py_return_val = 0;
+  {
+    // First call P2P communication
+    //	auto st = chrono::system_clock::now();
+    _wrap_py_return_val =
+        PMPI_Recv_init(buf, count, datatype, source, tag, comm, request);
+    //	auto ed = chrono::system_clock::now();
+    //	double time = chrono::duration_cast<chrono::microseconds>(ed -
+    // st).count();
+
+    // int source_list[1] = {-1};
+    // int dest_list[1] = {-1};
+    // int tag_list[1] = {-1};
+
+    // source_list[0] = source;
+    // dest_list[0] = mpi_rank;
+    // tag_list[0] = tag;
+#ifdef DEBUG
+    if (mpi_rank == 0) {
+      printf("mpi_recv_init record %x %d %d\n", request, source, tag);
+    }
+#endif
+    recv_init_request_converter[RequestConverter(request)] =
+        pair<int, int>(source, tag);
+  }
+  return _wrap_py_return_val;
+}
+
+/* =============== Fortran Wrappers for MPI_Recv_init =============== */
+static void MPI_Recv_init_fortran_wrapper(MPI_Fint *buf, MPI_Fint *count,
+                                          MPI_Fint *datatype, MPI_Fint *source,
+                                          MPI_Fint *tag, MPI_Fint *comm,
+                                          MPI_Fint *request, MPI_Fint *ierr) {
+  int _wrap_py_return_val = 0;
+#if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+     (MPICH_NAME == 1)) /* MPICH test */
+  _wrap_py_return_val =
+      MPI_Recv_init((void *)buf, *count, (MPI_Datatype)(*datatype), *source,
+                    *tag, (MPI_Comm)(*comm), (MPI_Request *)request);
+#else  /* MPI-2 safe call */
+  MPI_Request temp_request;
+  temp_request = MPI_Request_f2c(*request);
+  _wrap_py_return_val =
+      MPI_Recv_init((void *)buf, *count, MPI_Type_f2c(*datatype), *source, *tag,
+                    MPI_Comm_f2c(*comm), &temp_request);
+  *request = MPI_Request_c2f(temp_request);
+#endif /* MPICH test */
+  *ierr = _wrap_py_return_val;
+}
+
+_EXTERN_C_ void MPI_RECV_INIT(MPI_Fint *buf, MPI_Fint *count,
+                              MPI_Fint *datatype, MPI_Fint *source,
+                              MPI_Fint *tag, MPI_Fint *comm, MPI_Fint *request,
+                              MPI_Fint *ierr) {
+  MPI_Recv_init_fortran_wrapper(buf, count, datatype, source, tag, comm,
+                                request, ierr);
+}
+
+_EXTERN_C_ void mpi_recv_init(MPI_Fint *buf, MPI_Fint *count,
+                              MPI_Fint *datatype, MPI_Fint *source,
+                              MPI_Fint *tag, MPI_Fint *comm, MPI_Fint *request,
+                              MPI_Fint *ierr) {
+  MPI_Recv_init_fortran_wrapper(buf, count, datatype, source, tag, comm,
+                                request, ierr);
+}
+
+_EXTERN_C_ void mpi_recv_init_(MPI_Fint *buf, MPI_Fint *count,
+                               MPI_Fint *datatype, MPI_Fint *source,
+                               MPI_Fint *tag, MPI_Fint *comm, MPI_Fint *request,
+                               MPI_Fint *ierr) {
+  MPI_Recv_init_fortran_wrapper(buf, count, datatype, source, tag, comm,
+                                request, ierr);
+}
+
+_EXTERN_C_ void mpi_recv_init__(MPI_Fint *buf, MPI_Fint *count,
+                                MPI_Fint *datatype, MPI_Fint *source,
+                                MPI_Fint *tag, MPI_Fint *comm,
+                                MPI_Fint *request, MPI_Fint *ierr) {
+  MPI_Recv_init_fortran_wrapper(buf, count, datatype, source, tag, comm,
+                                request, ierr);
+}
+
+/* ================= End Wrappers for MPI_Recv_init ================= */
+
 /* ================== C Wrappers for MPI_Wait ================== */
 _EXTERN_C_ int PMPI_Wait(MPI_Request *request, MPI_Status *status);
 _EXTERN_C_ int MPI_Wait(MPI_Request *request, MPI_Status *status) {
@@ -959,7 +1055,6 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[],
                            MPI_Status *array_of_statuses) {
   int _wrap_py_return_val = 0;
   {
-
     int *source_list = (int *)malloc(count * sizeof(int));
     int *dest_list = (int *)malloc(count * sizeof(int));
     int *tag_list = (int *)malloc(count * sizeof(int));
@@ -997,20 +1092,20 @@ _EXTERN_C_ int MPI_Waitall(int count, MPI_Request array_of_requests[],
     auto ed = chrono::system_clock::now();
     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
 
-    for (int i = 0; i < count; i++) {
-      if (valid_flag[i] == 0) {
-        source_list[i] = array_of_statuses[i].MPI_SOURCE;
-        tag_list[i] = array_of_statuses[i].MPI_TAG;
-        // printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
-        // array_of_statuses[i].MPI_TAG);
+    // for(int i = 0; i < count; i++){
+    //	if (valid_flag[i] == 0){
+    //		source_list[i] = array_of_statuses[i].MPI_SOURCE;
+    //		tag_list[i] = array_of_statuses[i].MPI_TAG;
+    // printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
+    // array_of_statuses[i].MPI_TAG);
 #ifdef DEBUG
-        if (mpi_rank == 0) {
-          printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
-                 array_of_statuses[i].MPI_TAG);
-        }
-#endif
-      }
+    if (mpi_rank == 0) {
+      printf("status wait %d %d\n", array_of_statuses[i].MPI_SOURCE,
+             array_of_statuses[i].MPI_TAG);
     }
+#endif
+    //	}
+    //}
 
     TRACE_P2P('w', count, source_list, dest_list, tag_list, time);
 
@@ -1084,6 +1179,92 @@ _EXTERN_C_ void mpi_waitall__(MPI_Fint *count, MPI_Fint array_of_requests[],
 }
 
 /* ================= End Wrappers for MPI_Waitall ================= */
+
+/* ================== C Wrappers for MPI_Start ================== */
+_EXTERN_C_ int PMPI_Start(MPI_Request *request);
+_EXTERN_C_ int MPI_Start(MPI_Request *request) {
+  int _wrap_py_return_val = 0;
+  {
+    int source_list[1] = {-1};
+    int dest_list[1] = {-1};
+    int tag_list[1] = {-1};
+
+    dest_list[0] = mpi_rank;
+    bool valid_flag = false;
+
+    map<RequestConverter, pair<int, int>>::iterator iter;
+    iter = recv_init_request_converter.find(RequestConverter(request));
+    if (iter != recv_init_request_converter.end()) {
+      auto &p = recv_init_request_converter[RequestConverter(request)];
+      auto src = p.first;
+      auto tag = p.second;
+      // if (!((src == -1 || src == MPI_ANY_SOURCE) || (tag == -1 || tag ==
+      // MPI_ANY_TAG))) {
+      source_list[0] = src;
+      tag_list[0] = tag;
+      valid_flag = true;
+      //}
+      // recv_init_request_converter.erase(RequestConverter(request));
+    }
+
+    auto st = chrono::system_clock::now();
+    int ret_val = _wrap_py_return_val = PMPI_Start(request);
+    auto ed = chrono::system_clock::now();
+    double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+
+    // if (valid_flag == false){
+    //	if (status == nullptr) {
+    //		return ret_val;
+    //	}
+    //	source_list[0] = status->MPI_SOURCE;
+    //	tag_list[0] = status->MPI_TAG;
+#ifdef DEBUG
+    // printf("%d %d\n", status->MPI_SOURCE, status->MPI_TAG);
+#endif
+    //}
+
+#ifdef DEBUG
+    printf("%s\n", "MPI_Start");
+#endif
+    TRACE_P2P('R', 1, source_list, dest_list, tag_list, time);
+
+    return ret_val;
+  }
+  return _wrap_py_return_val;
+}
+
+/* =============== Fortran Wrappers for MPI_Start =============== */
+static void MPI_Start_fortran_wrapper(MPI_Fint *request, MPI_Fint *ierr) {
+  int _wrap_py_return_val = 0;
+#if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+     (MPICH_NAME == 1)) /* MPICH test */
+  _wrap_py_return_val = MPI_Start((MPI_Request *)request);
+#else  /* MPI-2 safe call */
+  MPI_Request temp_request;
+  temp_request = MPI_Request_f2c(*request);
+  _wrap_py_return_val = MPI_Start(&temp_request);
+  *request = MPI_Request_c2f(temp_request);
+#endif /* MPICH test */
+  *ierr = _wrap_py_return_val;
+}
+
+_EXTERN_C_ void MPI_START(MPI_Fint *request, MPI_Fint *ierr) {
+  MPI_Start_fortran_wrapper(request, ierr);
+}
+
+_EXTERN_C_ void mpi_start(MPI_Fint *request, MPI_Fint *ierr) {
+  MPI_Start_fortran_wrapper(request, ierr);
+}
+
+_EXTERN_C_ void mpi_start_(MPI_Fint *request, MPI_Fint *ierr) {
+  MPI_Start_fortran_wrapper(request, ierr);
+}
+
+_EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
+  MPI_Start_fortran_wrapper(request, ierr);
+}
+
+/* ================= End Wrappers for MPI_Start ================= */
 
 // collective communication
 /* ================== C Wrappers for MPI_Reduce ================== */
