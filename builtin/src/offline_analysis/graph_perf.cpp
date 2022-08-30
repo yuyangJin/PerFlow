@@ -333,7 +333,6 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
     std::unordered_set<std::pair<type::addr_t, type::addr_t>, pair_hash>
         call_callee_pairs;
 
-    // AddEdgeWithAddr for each <call_addr, callee_addr> pair of each call path
     for (unsigned long int i = 0; i < data_size; i++) {
       std::stack<unsigned long long> call_path;
       perf_data->GetVertexDataCallPath(i, call_path);
@@ -388,146 +387,152 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
         }
       }
     }
+    
+    // AddEdgeWithAddr for each <call_addr, callee_addr> pair of each call path
     for (auto &call_callee : call_callee_pairs) {
       auto call_addr = call_callee.first;
       auto callee_addr = call_callee.second;
-      auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
+      auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr, callee_addr);
+      // auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
       if (edge_id != -1) {
-        this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+        this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); // dynamic
+        // this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
         // dbg(call_addr, callee_addr, edge_id);
       }
     }
+    this->pcg->UpdateEdges();
     FREE_CONTAINER(call_callee_pairs);
-  } else {
-    auto data_size = perf_data->GetVertexDataSize();
-    std::set<std::pair<type::addr_t, type::addr_t>> visited_call_callee;
+  } 
+  // else {
+  //   auto data_size = perf_data->GetVertexDataSize();
+  //   std::set<std::pair<type::addr_t, type::addr_t>> visited_call_callee;
 
-    /** Traverse all call-callee in the sampled data */
+  //   /** Traverse all call-callee in the sampled data */
 
-    for (unsigned long int i = 0; i < data_size; i++) {
-      std::stack<type::addr_t> call_path;
-      perf_data->GetVertexDataCallPath(i, call_path);
+  //   for (unsigned long int i = 0; i < data_size; i++) {
+  //     std::stack<type::addr_t> call_path;
+  //     perf_data->GetVertexDataCallPath(i, call_path);
 
-      if (!call_path.empty()) {
-        call_path.pop();
-      }
+  //     if (!call_path.empty()) {
+  //       call_path.pop();
+  //     }
 
-      while (!call_path.empty()) {
-        type::addr_t call_addr, callee_addr;
+  //     while (!call_path.empty()) {
+  //       type::addr_t call_addr, callee_addr;
 
-        /** Get call fucntion address */
-        while (!call_path.empty()) {
-          call_addr = call_path.top();
-          call_path.pop();
-          if (type::IsValidAddr(call_addr)) {
-            break;
-          }
-        }
-        /** Get callee function address */
-        while (!call_path.empty()) {
-          callee_addr = call_path.top();
+  //       /** Get call fucntion address */
+  //       while (!call_path.empty()) {
+  //         call_addr = call_path.top();
+  //         call_path.pop();
+  //         if (type::IsValidAddr(call_addr)) {
+  //           break;
+  //         }
+  //       }
+  //       /** Get callee function address */
+  //       while (!call_path.empty()) {
+  //         callee_addr = call_path.top();
 
-          if (type::IsTextAddr(callee_addr)) {
-            // dbg(callee_addr);
-            break;
-          } else if (type::IsDynAddr(callee_addr)) {
-            if (dyn_addr_to_debug_info.find(callee_addr) !=
-                dyn_addr_to_debug_info.end()) {
-              // dbg(callee_addr);
-              break;
-            }
-          }
-          call_path.pop();
-        }
-        /** For cases that all addresses are popped. Test whether the last
-         * address has debug info */
-        if (type::IsDynAddr(callee_addr) &&
-            dyn_addr_to_debug_info.find(callee_addr) ==
-                dyn_addr_to_debug_info.end()) {
-          continue;
-        }
+  //         if (type::IsTextAddr(callee_addr)) {
+  //           // dbg(callee_addr);
+  //           break;
+  //         } else if (type::IsDynAddr(callee_addr)) {
+  //           if (dyn_addr_to_debug_info.find(callee_addr) !=
+  //               dyn_addr_to_debug_info.end()) {
+  //             // dbg(callee_addr);
+  //             break;
+  //           }
+  //         }
+  //         call_path.pop();
+  //       }
+  //       /** For cases that all addresses are popped. Test whether the last
+  //        * address has debug info */
+  //       if (type::IsDynAddr(callee_addr) &&
+  //           dyn_addr_to_debug_info.find(callee_addr) ==
+  //               dyn_addr_to_debug_info.end()) {
+  //         continue;
+  //       }
 
-        std::pair<type::addr_t, type::addr_t> call_callee_pair =
-            std::make_pair(call_addr, callee_addr);
-        if (visited_call_callee.find(call_callee_pair) !=
-            visited_call_callee.end()) {
-          continue;
-        }
-        // dbg(call_addr, callee_addr);
+  //       std::pair<type::addr_t, type::addr_t> call_callee_pair =
+  //           std::make_pair(call_addr, callee_addr);
+  //       if (visited_call_callee.find(call_callee_pair) !=
+  //           visited_call_callee.end()) {
+  //         continue;
+  //       }
+  //       // dbg(call_addr, callee_addr);
 
-        auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
-        if (edge_id != -1) {
-          this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
-          // dbg("find edge", edge_id);
+  //       auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
+  //       if (edge_id != -1) {
+  //         this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+  //         // dbg("find edge", edge_id);
 
-        } else {
-          type::vertex_t call_vertex =
-              this->pcg->GetCallVertexWithAddr(call_addr);
-          if (call_vertex != -1) {
-            // dbg("find call vertex", call_vertex);
+  //       } else {
+  //         type::vertex_t call_vertex =
+  //             this->pcg->GetCallVertexWithAddr(call_addr);
+  //         if (call_vertex != -1) {
+  //           // dbg("find call vertex", call_vertex);
 
-            std::string &func_name =
-                dyn_addr_to_debug_info[callee_addr]->GetFuncName();
-            if (func_name.empty()) {
-              continue;
-            }
-            // dbg(func_name);
-            type::vertex_t new_func_vertex_id = this->pcg->AddVertex();
-            this->pcg->SetVertexBasicInfo(new_func_vertex_id, type::FUNC_NODE,
-                                          func_name.c_str());
-            this->pcg->SetVertexDebugInfo(new_func_vertex_id, callee_addr,
-                                          callee_addr);
+  //           std::string &func_name =
+  //               dyn_addr_to_debug_info[callee_addr]->GetFuncName();
+  //           if (func_name.empty()) {
+  //             continue;
+  //           }
+  //           // dbg(func_name);
+  //           type::vertex_t new_func_vertex_id = this->pcg->AddVertex();
+  //           this->pcg->SetVertexBasicInfo(new_func_vertex_id, type::FUNC_NODE,
+  //                                         func_name.c_str());
+  //           this->pcg->SetVertexDebugInfo(new_func_vertex_id, callee_addr,
+  //                                         callee_addr);
 
-            type::edge_t new_func_edge_id =
-                this->pcg->AddEdge(call_vertex, new_func_vertex_id);
-            this->pcg->SetEdgeType(new_func_edge_id,
-                                   type::DYN_CALL_EDGE); // dynamic
+  //           type::edge_t new_func_edge_id =
+  //               this->pcg->AddEdge(call_vertex, new_func_vertex_id);
+  //           this->pcg->SetEdgeType(new_func_edge_id,
+  //                                  type::DYN_CALL_EDGE); // dynamic
 
-            type::vertex_t new_call_vertex_id = this->pcg->AddVertex();
-            this->pcg->SetVertexBasicInfo(new_call_vertex_id, type::CALL_NODE,
-                                          func_name.c_str());
-            this->pcg->SetVertexDebugInfo(new_call_vertex_id, callee_addr,
-                                          callee_addr);
+  //           type::vertex_t new_call_vertex_id = this->pcg->AddVertex();
+  //           this->pcg->SetVertexBasicInfo(new_call_vertex_id, type::CALL_NODE,
+  //                                         func_name.c_str());
+  //           this->pcg->SetVertexDebugInfo(new_call_vertex_id, callee_addr,
+  //                                         callee_addr);
 
-            type::edge_t new_call_edge_id =
-                this->pcg->AddEdge(new_func_vertex_id, new_call_vertex_id);
-            dbg(new_func_vertex_id);
+  //           type::edge_t new_call_edge_id =
+  //               this->pcg->AddEdge(new_func_vertex_id, new_call_vertex_id);
+  //           dbg(new_func_vertex_id);
 
-            this->pcg->SetEdgeType(new_call_edge_id,
-                                   type::DYN_CALL_EDGE); // dynamic
+  //           this->pcg->SetEdgeType(new_call_edge_id,
+  //                                  type::DYN_CALL_EDGE); // dynamic
 
-            /** Build a program abstraction graph in the func_entry_addr_to_pag
-             */
-            core::ProgramAbstractionGraph *new_pag =
-                new core::ProgramAbstractionGraph();
-            new_pag->GraphInit(func_name.c_str());
-            new_func_vertex_id = new_pag->AddVertex();
-            new_pag->SetVertexBasicInfo(new_func_vertex_id, type::FUNC_NODE,
-                                        func_name.c_str());
-            new_pag->SetVertexDebugInfo(new_func_vertex_id, callee_addr,
-                                        callee_addr);
+  //           /** Build a program abstraction graph in the func_entry_addr_to_pag
+  //            */
+  //           core::ProgramAbstractionGraph *new_pag =
+  //               new core::ProgramAbstractionGraph();
+  //           new_pag->GraphInit(func_name.c_str());
+  //           new_func_vertex_id = new_pag->AddVertex();
+  //           new_pag->SetVertexBasicInfo(new_func_vertex_id, type::FUNC_NODE,
+  //                                       func_name.c_str());
+  //           new_pag->SetVertexDebugInfo(new_func_vertex_id, callee_addr,
+  //                                       callee_addr);
 
-            new_call_vertex_id = new_pag->AddVertex();
-            new_pag->SetVertexBasicInfo(new_call_vertex_id, type::CALL_NODE,
-                                        "CALL_SO");
-            new_pag->SetVertexDebugInfo(new_call_vertex_id, callee_addr,
-                                        callee_addr);
+  //           new_call_vertex_id = new_pag->AddVertex();
+  //           new_pag->SetVertexBasicInfo(new_call_vertex_id, type::CALL_NODE,
+  //                                       "CALL_SO");
+  //           new_pag->SetVertexDebugInfo(new_call_vertex_id, callee_addr,
+  //                                       callee_addr);
 
-            new_pag->AddEdge(new_func_vertex_id, new_call_vertex_id);
+  //           new_pag->AddEdge(new_func_vertex_id, new_call_vertex_id);
 
-            this->func_entry_addr_to_pag[callee_addr] = new_pag;
-            new_pag->SetGraphAttributeFlag("scanned", false);
+  //           this->func_entry_addr_to_pag[callee_addr] = new_pag;
+  //           new_pag->SetGraphAttributeFlag("scanned", false);
 
-          } else {
-            dbg("not find call vertex");
-          }
-        }
-        visited_call_callee.insert(std::make_pair(call_addr, callee_addr));
-      }
-    }
+  //         } else {
+  //           dbg("not find call vertex");
+  //         }
+  //       }
+  //       visited_call_callee.insert(std::make_pair(call_addr, callee_addr));
+  //     }
+  //   }
 
-    FREE_CONTAINER(visited_call_callee);
-  }
+  //   FREE_CONTAINER(visited_call_callee);
+  // }
 }
 
 void GPerf::GenerateProgramCallGraph(const char *pcg_name,
@@ -624,7 +629,7 @@ void GPerf::IntraProceduralAnalysis() {}
 bool IsAddrInSet(type::addr_t addr, unordered_set<type::addr_t> *set) {
   for (auto &set_addr : (*set)) {
     if (addr >= set_addr - 4 && addr <= set_addr + 4) {
-      dbg(addr, set_addr);
+      // dbg(addr, set_addr);
       return true;
     }
   }
