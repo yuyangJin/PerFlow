@@ -292,7 +292,7 @@ void TRACE_COLL(MPI_Comm comm, double exe_time){
 		}
 	}
 
-  if(coll_mpi_info_log_pointer >= LOG_SIZE-5){
+    if(coll_mpi_info_log_pointer >= LOG_SIZE-5){
 		writeCollMpiInfoLog();
 	}
 	if(trace_log_pointer >= MAX_TRACE_SIZE - 5){
