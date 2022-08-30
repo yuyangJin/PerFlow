@@ -276,6 +276,9 @@ class PerFlow(object):
 
         for v in V:
             vid = int(v['id'])
+            v_name = v['name']
+            if v_name.startswith('_mpi_') or v_name.startswith('mpi_') or v_name.startswith('_MPI_') or v_name.startswith('MPI_'):
+                continue
             if str(vid) in self.tdpag_perf_data.keys():
                 if metric in self.tdpag_perf_data[str(vid)].keys():
                     data = self.tdpag_perf_data[str(vid)][metric]
