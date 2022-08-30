@@ -387,22 +387,22 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
         }
       }
     }
-    
+
     // AddEdgeWithAddr for each <call_addr, callee_addr> pair of each call path
     for (auto &call_callee : call_callee_pairs) {
       auto call_addr = call_callee.first;
       auto callee_addr = call_callee.second;
-      auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr, callee_addr);
-      // auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
+      // auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr, callee_addr);
+      auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
       if (edge_id != -1) {
-        this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); // dynamic
-        // this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+        // this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); // dynamic
+        this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
         // dbg(call_addr, callee_addr, edge_id);
       }
     }
-    this->pcg->UpdateEdges();
+    // this->pcg->UpdateEdges();
     FREE_CONTAINER(call_callee_pairs);
-  } 
+  }
   // else {
   //   auto data_size = perf_data->GetVertexDataSize();
   //   std::set<std::pair<type::addr_t, type::addr_t>> visited_call_callee;
@@ -478,7 +478,8 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
   //           }
   //           // dbg(func_name);
   //           type::vertex_t new_func_vertex_id = this->pcg->AddVertex();
-  //           this->pcg->SetVertexBasicInfo(new_func_vertex_id, type::FUNC_NODE,
+  //           this->pcg->SetVertexBasicInfo(new_func_vertex_id,
+  //           type::FUNC_NODE,
   //                                         func_name.c_str());
   //           this->pcg->SetVertexDebugInfo(new_func_vertex_id, callee_addr,
   //                                         callee_addr);
@@ -489,7 +490,8 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
   //                                  type::DYN_CALL_EDGE); // dynamic
 
   //           type::vertex_t new_call_vertex_id = this->pcg->AddVertex();
-  //           this->pcg->SetVertexBasicInfo(new_call_vertex_id, type::CALL_NODE,
+  //           this->pcg->SetVertexBasicInfo(new_call_vertex_id,
+  //           type::CALL_NODE,
   //                                         func_name.c_str());
   //           this->pcg->SetVertexDebugInfo(new_call_vertex_id, callee_addr,
   //                                         callee_addr);
@@ -501,7 +503,8 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
   //           this->pcg->SetEdgeType(new_call_edge_id,
   //                                  type::DYN_CALL_EDGE); // dynamic
 
-  //           /** Build a program abstraction graph in the func_entry_addr_to_pag
+  //           /** Build a program abstraction graph in the
+  //           func_entry_addr_to_pag
   //            */
   //           core::ProgramAbstractionGraph *new_pag =
   //               new core::ProgramAbstractionGraph();
