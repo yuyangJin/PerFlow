@@ -669,7 +669,6 @@ public:
    */
   int SetEdgeTypeLazy(const type::edge_t edge_id, const int edge_type);
 
-
   /** Get the type of an edge.
    * @param edge_id - id of the edge
    * @return type of the edge
@@ -741,8 +740,7 @@ public:
    * @param callee_addr - address of the callee function
    * @return
    */
-  int AddEdgeWithAddrLazy(type::addr_t call_addr,
-                                  type::addr_t callee_addr);
+  int AddEdgeWithAddrLazy(type::addr_t call_addr, type::addr_t callee_addr);
 
   /** Get name of a vertex's callee vertex
    * @param vertex_id - id of vertex

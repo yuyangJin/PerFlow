@@ -87,7 +87,8 @@ int ProgramGraph::GetVertexType(type::vertex_t vertex_id) {
   return this->GetVertexAttributeNum("type", vertex_id);
 } // function GetVertexType
 
-int ProgramGraph::SetEdgeTypeLazy(const type::edge_t edge_id, const int edge_type) {
+int ProgramGraph::SetEdgeTypeLazy(const type::edge_t edge_id,
+                                  const int edge_type) {
   this->SetEdgeAttributeNumLazy("type", edge_id, edge_type);
   return 0;
 }
@@ -320,7 +321,7 @@ int ProgramGraph::AddEdgeWithAddr(type::addr_t call_addr,
 }
 
 int ProgramGraph::AddEdgeWithAddrLazy(type::addr_t call_addr,
-                                  type::addr_t callee_addr) {
+                                      type::addr_t callee_addr) {
   type::vertex_t call_vertex = GetCallVertexWithAddr(call_addr);
   type::vertex_t callee_vertex = GetFuncVertexWithAddr(callee_addr);
   if (call_vertex == -1 || callee_vertex == -1) {

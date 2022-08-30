@@ -1281,7 +1281,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //     _wrap_py_return_val =
 //         PMPI_Reduce(sendbuf, recvbuf, count, datatype, op, root, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Reduce");
@@ -1297,7 +1298,7 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                                        MPI_Fint *op, MPI_Fint *root,
 //                                        MPI_Fint *comm, MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val = MPI_Reduce((const void *)sendbuf, (void *)recvbuf,
 //                                    *count, (MPI_Datatype)(*datatype),
@@ -1305,7 +1306,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // #else  /* MPI-2 safe call */
 //   _wrap_py_return_val = MPI_Reduce((const void *)sendbuf, (void *)recvbuf,
 //                                    *count, MPI_Type_f2c(*datatype),
-//                                    MPI_Op_f2c(*op), *root, MPI_Comm_f2c(*comm));
+//                                    MPI_Op_f2c(*op), *root,
+//                                    MPI_Comm_f2c(*comm));
 // #endif /* MPICH test */
 //   *ierr = _wrap_py_return_val;
 // }
@@ -1313,28 +1315,34 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // _EXTERN_C_ void MPI_REDUCE(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
 //                            MPI_Fint *count, MPI_Fint *datatype, MPI_Fint *op,
 //                            MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root, comm,
+//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root,
+//   comm,
 //                              ierr);
 // }
 
 // _EXTERN_C_ void mpi_reduce(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
 //                            MPI_Fint *count, MPI_Fint *datatype, MPI_Fint *op,
 //                            MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root, comm,
+//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root,
+//   comm,
 //                              ierr);
 // }
 
 // _EXTERN_C_ void mpi_reduce_(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
-//                             MPI_Fint *count, MPI_Fint *datatype, MPI_Fint *op,
-//                             MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root, comm,
+//                             MPI_Fint *count, MPI_Fint *datatype, MPI_Fint
+//                             *op, MPI_Fint *root, MPI_Fint *comm, MPI_Fint
+//                             *ierr) {
+//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root,
+//   comm,
 //                              ierr);
 // }
 
 // _EXTERN_C_ void mpi_reduce__(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
-//                              MPI_Fint *count, MPI_Fint *datatype, MPI_Fint *op,
-//                              MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root, comm,
+//                              MPI_Fint *count, MPI_Fint *datatype, MPI_Fint
+//                              *op, MPI_Fint *root, MPI_Fint *comm, MPI_Fint
+//                              *ierr) {
+//   MPI_Reduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, root,
+//   comm,
 //                              ierr);
 // }
 
@@ -1346,16 +1354,19 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                              int recvcount, MPI_Datatype recvtype,
 //                              MPI_Comm comm);
 // _EXTERN_C_ int MPI_Alltoall(const void *sendbuf, int sendcount,
-//                             MPI_Datatype sendtype, void *recvbuf, int recvcount,
-//                             MPI_Datatype recvtype, MPI_Comm comm) {
+//                             MPI_Datatype sendtype, void *recvbuf, int
+//                             recvcount, MPI_Datatype recvtype, MPI_Comm comm)
+//                             {
 //   int _wrap_py_return_val = 0;
 //   {
 //     // First call collective communication
 //     auto st = chrono::system_clock::now();
-//     _wrap_py_return_val = PMPI_Alltoall(sendbuf, sendcount, sendtype, recvbuf,
+//     _wrap_py_return_val = PMPI_Alltoall(sendbuf, sendcount, sendtype,
+//     recvbuf,
 //                                         recvcount, recvtype, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Alltoall");
@@ -1366,21 +1377,24 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // }
 
 // /* =============== Fortran Wrappers for MPI_Alltoall =============== */
-// static void MPI_Alltoall_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint *sendcount,
-//                                          MPI_Fint *sendtype, MPI_Fint *recvbuf,
-//                                          MPI_Fint *recvcount,
+// static void MPI_Alltoall_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint
+// *sendcount,
+//                                          MPI_Fint *sendtype, MPI_Fint
+//                                          *recvbuf, MPI_Fint *recvcount,
 //                                          MPI_Fint *recvtype, MPI_Fint *comm,
 //                                          MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val =
-//       MPI_Alltoall((const void *)sendbuf, *sendcount, (MPI_Datatype)(*sendtype),
+//       MPI_Alltoall((const void *)sendbuf, *sendcount,
+//       (MPI_Datatype)(*sendtype),
 //                    (void *)recvbuf, *recvcount, (MPI_Datatype)(*recvtype),
 //                    (MPI_Comm)(*comm));
 // #else  /* MPI-2 safe call */
 //   _wrap_py_return_val =
-//       MPI_Alltoall((const void *)sendbuf, *sendcount, MPI_Type_f2c(*sendtype),
+//       MPI_Alltoall((const void *)sendbuf, *sendcount,
+//       MPI_Type_f2c(*sendtype),
 //                    (void *)recvbuf, *recvcount, MPI_Type_f2c(*recvtype),
 //                    MPI_Comm_f2c(*comm));
 // #endif /* MPICH test */
@@ -1391,7 +1405,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                              MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                              MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                              MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                                recvtype, comm, ierr);
 // }
 
@@ -1399,7 +1414,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                              MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                              MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                              MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                                recvtype, comm, ierr);
 // }
 
@@ -1407,7 +1423,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                               MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                               MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                               MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                                recvtype, comm, ierr);
 // }
 
@@ -1415,7 +1432,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                                MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                                MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                                MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Alltoall_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                                recvtype, comm, ierr);
 // }
 
@@ -1423,9 +1441,11 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 
 // /* ================== C Wrappers for MPI_Allreduce ================== */
 // _EXTERN_C_ int PMPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
-//                               MPI_Datatype datatype, MPI_Op op, MPI_Comm comm);
+//                               MPI_Datatype datatype, MPI_Op op, MPI_Comm
+//                               comm);
 // _EXTERN_C_ int MPI_Allreduce(const void *sendbuf, void *recvbuf, int count,
-//                              MPI_Datatype datatype, MPI_Op op, MPI_Comm comm) {
+//                              MPI_Datatype datatype, MPI_Op op, MPI_Comm comm)
+//                              {
 //   int _wrap_py_return_val = 0;
 //   {
 //     // First call collective communication
@@ -1433,7 +1453,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //     _wrap_py_return_val =
 //         PMPI_Allreduce(sendbuf, recvbuf, count, datatype, op, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Allreduce");
@@ -1444,12 +1465,13 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // }
 
 // /* =============== Fortran Wrappers for MPI_Allreduce =============== */
-// static void MPI_Allreduce_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
-//                                           MPI_Fint *count, MPI_Fint *datatype,
-//                                           MPI_Fint *op, MPI_Fint *comm,
-//                                           MPI_Fint *ierr) {
+// static void MPI_Allreduce_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint
+// *recvbuf,
+//                                           MPI_Fint *count, MPI_Fint
+//                                           *datatype, MPI_Fint *op, MPI_Fint
+//                                           *comm, MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val = MPI_Allreduce((const void *)sendbuf, (void *)recvbuf,
 //                                       *count, (MPI_Datatype)(*datatype),
@@ -1463,29 +1485,31 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // }
 
 // _EXTERN_C_ void MPI_ALLREDUCE(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
-//                               MPI_Fint *count, MPI_Fint *datatype, MPI_Fint *op,
-//                               MPI_Fint *comm, MPI_Fint *ierr) {
+//                               MPI_Fint *count, MPI_Fint *datatype, MPI_Fint
+//                               *op, MPI_Fint *comm, MPI_Fint *ierr) {
 //   MPI_Allreduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, comm,
 //                                 ierr);
 // }
 
 // _EXTERN_C_ void mpi_allreduce(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
-//                               MPI_Fint *count, MPI_Fint *datatype, MPI_Fint *op,
-//                               MPI_Fint *comm, MPI_Fint *ierr) {
+//                               MPI_Fint *count, MPI_Fint *datatype, MPI_Fint
+//                               *op, MPI_Fint *comm, MPI_Fint *ierr) {
 //   MPI_Allreduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, comm,
 //                                 ierr);
 // }
 
 // _EXTERN_C_ void mpi_allreduce_(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
 //                                MPI_Fint *count, MPI_Fint *datatype,
-//                                MPI_Fint *op, MPI_Fint *comm, MPI_Fint *ierr) {
+//                                MPI_Fint *op, MPI_Fint *comm, MPI_Fint *ierr)
+//                                {
 //   MPI_Allreduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, comm,
 //                                 ierr);
 // }
 
 // _EXTERN_C_ void mpi_allreduce__(MPI_Fint *sendbuf, MPI_Fint *recvbuf,
 //                                 MPI_Fint *count, MPI_Fint *datatype,
-//                                 MPI_Fint *op, MPI_Fint *comm, MPI_Fint *ierr) {
+//                                 MPI_Fint *op, MPI_Fint *comm, MPI_Fint *ierr)
+//                                 {
 //   MPI_Allreduce_fortran_wrapper(sendbuf, recvbuf, count, datatype, op, comm,
 //                                 ierr);
 // }
@@ -1503,7 +1527,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //     auto st = chrono::system_clock::now();
 //     _wrap_py_return_val = PMPI_Bcast(buffer, count, datatype, root, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Bcast");
@@ -1518,7 +1543,7 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                                       MPI_Fint *datatype, MPI_Fint *root,
 //                                       MPI_Fint *comm, MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val =
 //       MPI_Bcast((void *)buffer, *count, (MPI_Datatype)(*datatype), *root,
@@ -1531,25 +1556,27 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //   *ierr = _wrap_py_return_val;
 // }
 
-// _EXTERN_C_ void MPI_BCAST(MPI_Fint *buffer, MPI_Fint *count, MPI_Fint *datatype,
+// _EXTERN_C_ void MPI_BCAST(MPI_Fint *buffer, MPI_Fint *count, MPI_Fint
+// *datatype,
 //                           MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
 //   MPI_Bcast_fortran_wrapper(buffer, count, datatype, root, comm, ierr);
 // }
 
-// _EXTERN_C_ void mpi_bcast(MPI_Fint *buffer, MPI_Fint *count, MPI_Fint *datatype,
+// _EXTERN_C_ void mpi_bcast(MPI_Fint *buffer, MPI_Fint *count, MPI_Fint
+// *datatype,
 //                           MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
 //   MPI_Bcast_fortran_wrapper(buffer, count, datatype, root, comm, ierr);
 // }
 
 // _EXTERN_C_ void mpi_bcast_(MPI_Fint *buffer, MPI_Fint *count,
-//                            MPI_Fint *datatype, MPI_Fint *root, MPI_Fint *comm,
-//                            MPI_Fint *ierr) {
+//                            MPI_Fint *datatype, MPI_Fint *root, MPI_Fint
+//                            *comm, MPI_Fint *ierr) {
 //   MPI_Bcast_fortran_wrapper(buffer, count, datatype, root, comm, ierr);
 // }
 
 // _EXTERN_C_ void mpi_bcast__(MPI_Fint *buffer, MPI_Fint *count,
-//                             MPI_Fint *datatype, MPI_Fint *root, MPI_Fint *comm,
-//                             MPI_Fint *ierr) {
+//                             MPI_Fint *datatype, MPI_Fint *root, MPI_Fint
+//                             *comm, MPI_Fint *ierr) {
 //   MPI_Bcast_fortran_wrapper(buffer, count, datatype, root, comm, ierr);
 // }
 
@@ -1557,11 +1584,13 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 
 // /* ================== C Wrappers for MPI_Scatter ================== */
 // _EXTERN_C_ int PMPI_Scatter(const void *sendbuf, int sendcount,
-//                             MPI_Datatype sendtype, void *recvbuf, int recvcount,
-//                             MPI_Datatype recvtype, int root, MPI_Comm comm);
+//                             MPI_Datatype sendtype, void *recvbuf, int
+//                             recvcount, MPI_Datatype recvtype, int root,
+//                             MPI_Comm comm);
 // _EXTERN_C_ int MPI_Scatter(const void *sendbuf, int sendcount,
-//                            MPI_Datatype sendtype, void *recvbuf, int recvcount,
-//                            MPI_Datatype recvtype, int root, MPI_Comm comm) {
+//                            MPI_Datatype sendtype, void *recvbuf, int
+//                            recvcount, MPI_Datatype recvtype, int root,
+//                            MPI_Comm comm) {
 //   int _wrap_py_return_val = 0;
 //   {
 //     // First call collective communication
@@ -1569,7 +1598,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //     _wrap_py_return_val = PMPI_Scatter(sendbuf, sendcount, sendtype, recvbuf,
 //                                        recvcount, recvtype, root, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Scatter");
@@ -1580,23 +1610,25 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // }
 
 // /* =============== Fortran Wrappers for MPI_Scatter =============== */
-// static void MPI_Scatter_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint *sendcount,
-//                                         MPI_Fint *sendtype, MPI_Fint *recvbuf,
-//                                         MPI_Fint *recvcount, MPI_Fint *recvtype,
-//                                         MPI_Fint *root, MPI_Fint *comm,
-//                                         MPI_Fint *ierr) {
+// static void MPI_Scatter_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint
+// *sendcount,
+//                                         MPI_Fint *sendtype, MPI_Fint
+//                                         *recvbuf, MPI_Fint *recvcount,
+//                                         MPI_Fint *recvtype, MPI_Fint *root,
+//                                         MPI_Fint *comm, MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val =
-//       MPI_Scatter((const void *)sendbuf, *sendcount, (MPI_Datatype)(*sendtype),
-//                   (void *)recvbuf, *recvcount, (MPI_Datatype)(*recvtype), *root,
-//                   (MPI_Comm)(*comm));
+//       MPI_Scatter((const void *)sendbuf, *sendcount,
+//       (MPI_Datatype)(*sendtype),
+//                   (void *)recvbuf, *recvcount, (MPI_Datatype)(*recvtype),
+//                   *root, (MPI_Comm)(*comm));
 // #else  /* MPI-2 safe call */
 //   _wrap_py_return_val =
 //       MPI_Scatter((const void *)sendbuf, *sendcount, MPI_Type_f2c(*sendtype),
-//                   (void *)recvbuf, *recvcount, MPI_Type_f2c(*recvtype), *root,
-//                   MPI_Comm_f2c(*comm));
+//                   (void *)recvbuf, *recvcount, MPI_Type_f2c(*recvtype),
+//                   *root, MPI_Comm_f2c(*comm));
 // #endif /* MPICH test */
 //   *ierr = _wrap_py_return_val;
 // }
@@ -1605,7 +1637,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                             MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                             MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                             MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                               recvtype, root, comm, ierr);
 // }
 
@@ -1613,23 +1646,28 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                             MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                             MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                             MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                               recvtype, root, comm, ierr);
 // }
 
 // _EXTERN_C_ void mpi_scatter_(MPI_Fint *sendbuf, MPI_Fint *sendcount,
 //                              MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                              MPI_Fint *recvcount, MPI_Fint *recvtype,
-//                              MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//                              MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr)
+//                              {
+//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                               recvtype, root, comm, ierr);
 // }
 
 // _EXTERN_C_ void mpi_scatter__(MPI_Fint *sendbuf, MPI_Fint *sendcount,
 //                               MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                               MPI_Fint *recvcount, MPI_Fint *recvtype,
-//                               MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//                               MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr)
+//                               {
+//   MPI_Scatter_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                               recvtype, root, comm, ierr);
 // }
 
@@ -1637,11 +1675,13 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 
 // /* ================== C Wrappers for MPI_Gather ================== */
 // _EXTERN_C_ int PMPI_Gather(const void *sendbuf, int sendcount,
-//                            MPI_Datatype sendtype, void *recvbuf, int recvcount,
-//                            MPI_Datatype recvtype, int root, MPI_Comm comm);
+//                            MPI_Datatype sendtype, void *recvbuf, int
+//                            recvcount, MPI_Datatype recvtype, int root,
+//                            MPI_Comm comm);
 // _EXTERN_C_ int MPI_Gather(const void *sendbuf, int sendcount,
-//                           MPI_Datatype sendtype, void *recvbuf, int recvcount,
-//                           MPI_Datatype recvtype, int root, MPI_Comm comm) {
+//                           MPI_Datatype sendtype, void *recvbuf, int
+//                           recvcount, MPI_Datatype recvtype, int root,
+//                           MPI_Comm comm) {
 //   int _wrap_py_return_val = 0;
 //   {
 //     // First call collective communication
@@ -1649,7 +1689,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //     _wrap_py_return_val = PMPI_Gather(sendbuf, sendcount, sendtype, recvbuf,
 //                                       recvcount, recvtype, root, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Gather");
@@ -1660,18 +1701,20 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // }
 
 // /* =============== Fortran Wrappers for MPI_Gather =============== */
-// static void MPI_Gather_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint *sendcount,
+// static void MPI_Gather_fortran_wrapper(MPI_Fint *sendbuf, MPI_Fint
+// *sendcount,
 //                                        MPI_Fint *sendtype, MPI_Fint *recvbuf,
-//                                        MPI_Fint *recvcount, MPI_Fint *recvtype,
-//                                        MPI_Fint *root, MPI_Fint *comm,
-//                                        MPI_Fint *ierr) {
+//                                        MPI_Fint *recvcount, MPI_Fint
+//                                        *recvtype, MPI_Fint *root, MPI_Fint
+//                                        *comm, MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val =
-//       MPI_Gather((const void *)sendbuf, *sendcount, (MPI_Datatype)(*sendtype),
-//                  (void *)recvbuf, *recvcount, (MPI_Datatype)(*recvtype), *root,
-//                  (MPI_Comm)(*comm));
+//       MPI_Gather((const void *)sendbuf, *sendcount,
+//       (MPI_Datatype)(*sendtype),
+//                  (void *)recvbuf, *recvcount, (MPI_Datatype)(*recvtype),
+//                  *root, (MPI_Comm)(*comm));
 // #else  /* MPI-2 safe call */
 //   _wrap_py_return_val =
 //       MPI_Gather((const void *)sendbuf, *sendcount, MPI_Type_f2c(*sendtype),
@@ -1685,7 +1728,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                            MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                            MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                            MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                              recvtype, root, comm, ierr);
 // }
 
@@ -1693,7 +1737,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                            MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                            MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                            MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                              recvtype, root, comm, ierr);
 // }
 
@@ -1701,15 +1746,18 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                             MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                             MPI_Fint *recvcount, MPI_Fint *recvtype,
 //                             MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                              recvtype, root, comm, ierr);
 // }
 
 // _EXTERN_C_ void mpi_gather__(MPI_Fint *sendbuf, MPI_Fint *sendcount,
 //                              MPI_Fint *sendtype, MPI_Fint *recvbuf,
 //                              MPI_Fint *recvcount, MPI_Fint *recvtype,
-//                              MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr) {
-//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf, recvcount,
+//                              MPI_Fint *root, MPI_Fint *comm, MPI_Fint *ierr)
+//                              {
+//   MPI_Gather_fortran_wrapper(sendbuf, sendcount, sendtype, recvbuf,
+//   recvcount,
 //                              recvtype, root, comm, ierr);
 // }
 
@@ -1728,10 +1776,12 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //   {
 //     // First call collective communication
 //     auto st = chrono::system_clock::now();
-//     _wrap_py_return_val = PMPI_Allgather(sendbuf, sendcount, sendtype, recvbuf,
+//     _wrap_py_return_val = PMPI_Allgather(sendbuf, sendcount, sendtype,
+//     recvbuf,
 //                                          recvcount, recvtype, comm);
 //     auto ed = chrono::system_clock::now();
-//     double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//     double time = chrono::duration_cast<chrono::microseconds>(ed -
+//     st).count();
 
 // #ifdef DEBUG
 //     printf("%s\n", "MPI_Allgather");
@@ -1744,12 +1794,12 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 // /* =============== Fortran Wrappers for MPI_Allgather =============== */
 // static void MPI_Allgather_fortran_wrapper(MPI_Fint *sendbuf,
 //                                           MPI_Fint *sendcount,
-//                                           MPI_Fint *sendtype, MPI_Fint *recvbuf,
-//                                           MPI_Fint *recvcount,
+//                                           MPI_Fint *sendtype, MPI_Fint
+//                                           *recvbuf, MPI_Fint *recvcount,
 //                                           MPI_Fint *recvtype, MPI_Fint *comm,
 //                                           MPI_Fint *ierr) {
 //   int _wrap_py_return_val = 0;
-// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) &&                         \
+// #if (!defined(MPICH_HAS_C2F) && defined(MPICH_NAME) && \
 //      (MPICH_NAME == 1)) /* MPICH test */
 //   _wrap_py_return_val =
 //       MPI_Allgather((const void *)sendbuf, *sendcount,
@@ -1757,7 +1807,8 @@ _EXTERN_C_ void mpi_start__(MPI_Fint *request, MPI_Fint *ierr) {
 //                     (MPI_Datatype)(*recvtype), (MPI_Comm)(*comm));
 // #else  /* MPI-2 safe call */
 //   _wrap_py_return_val =
-//       MPI_Allgather((const void *)sendbuf, *sendcount, MPI_Type_f2c(*sendtype),
+//       MPI_Allgather((const void *)sendbuf, *sendcount,
+//       MPI_Type_f2c(*sendtype),
 //                     (void *)recvbuf, *recvcount, MPI_Type_f2c(*recvtype),
 //                     MPI_Comm_f2c(*comm));
 // #endif /* MPICH test */
