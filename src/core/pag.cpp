@@ -350,7 +350,7 @@ void in_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
   // struct hot_spot_t* extra_ = (struct hot_spot_t*)extra;
   // extra_->preserve = false;
 
-  pag->SetVertexAttributeFlag("preserve", vertex_id, false);
+  pag->SetVertexAttributeNum("preserve", vertex_id, 0);
 }
 
 void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
@@ -358,19 +358,19 @@ void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
   struct hot_spot_t *extra_ = (struct hot_spot_t *)extra;
   const char *metric_name = extra_->metric_name;
 
-  bool preserve_flag = false;
+  int preserve_flag = 0;
   type::perf_data_t data =
       strtod(pag->GetVertexAttributeString(std::string(metric_name).c_str(),
                                            (type::vertex_t)vertex_id),
              NULL);
   if (data > 0.0) {
-    preserve_flag = true;
+    preserve_flag = 1;
   } else {
     std::vector<type::vertex_t> children;
     pag->GetChildVertexSet(vertex_id, children);
 
     for (auto &child : children) {
-      bool child_preserve_flag = pag->GetVertexAttributeFlag("preserve", child);
+      int child_preserve_flag = pag->GetVertexAttributeFlag("preserve", child);
       preserve_flag |= child_preserve_flag;
     }
   }
@@ -380,7 +380,7 @@ void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
   //     (type::vertex_t)vertex_id), NULL), preserve_flag);  //,
   //     extra_->preserve);
 
-  pag->SetVertexAttributeFlag("preserve", vertex_id, preserve_flag);
+  pag->SetVertexAttributeNum("preserve", vertex_id, preserve_flag);
 }
 
 void ProgramAbstractionGraph::PreserveHotVertices(char *metric_name) {

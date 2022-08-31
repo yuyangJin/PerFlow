@@ -1512,6 +1512,11 @@ void in_pre_order_traversal(core::ProgramAbstractionGraph *pag, int vertex_id,
                             void *extra) {
   struct pre_order_traversal_t *arg = (struct pre_order_traversal_t *)extra;
   std::vector<type::vertex_t> *seq = arg->seq;
+
+  int preserve_flag = pag->GetVertexAttributeFlag("preserve", vertex_id);
+  if (preserve_flag == 0) {
+    return ;
+  }
   pag_vid_to_pre_order_seq_id[vertex_id] = seq->size();
   seq->push_back(vertex_id);
 }
@@ -1526,6 +1531,9 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(
       new std::vector<type::vertex_t>();
   arg->seq = pre_order_vertex_seq;
   this->root_pag->DFS(starting_vertex, in_pre_order_traversal, nullptr, arg);
+
+  /** Remove "preserve" flag */
+  this->root_pag->RemoveVertexAttribute("preserve");
 
   /** Build mpag and mpag's graph perf data */
 

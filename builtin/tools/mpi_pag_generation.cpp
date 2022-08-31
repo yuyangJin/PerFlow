@@ -130,6 +130,15 @@ int main(int argc, char **argv) {
        << std::endl;
 
   st = std::chrono::system_clock::now();
+  pag->PreserveHotVertices("CYCAVGPERCENT");
+  ed = std::chrono::system_clock::now();
+  time =
+      std::chrono::duration_cast<std::chrono::microseconds>(ed - st).count() /
+      1e6;
+  cout << "Pruning costs " << time << " seconds."
+       << std::endl;
+
+  st = std::chrono::system_clock::now();
   std::string output_pag_name = std::string(data_dir) + std::string("/pag.gml");
   pag->DumpGraphGML(output_pag_name.c_str());
   auto graph_perf_data = pag->GetGraphPerfData();
