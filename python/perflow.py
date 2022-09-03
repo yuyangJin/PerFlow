@@ -366,8 +366,14 @@ class PerFlow(object):
         # if V.attrbutes.keys().__contains__('time'):
         for v in V:
             # print(v)
+            vid = str(int(v['id']))
+            if not self.tdpag_to_ppag_map.keys().__contains__(vid):
+                continue
             for pid in range(nprocs):
-                vid = str(int(v['id']))
+                if not self.tdpag_to_ppag_map[vid].keys().__contains__(str(pid)):
+                    continue
+                if not self.tdpag_to_ppag_map[vid][str(pid)].keys().__contains__('0'):
+                    continue
                 ppag_vid = self.tdpag_to_ppag_map[vid][str(pid)]['0']
                 ppag_v = self.ppag.vs[int(ppag_vid)]
                 # e_list = self.ppag.es.select(_source=int(ppag_vid))
