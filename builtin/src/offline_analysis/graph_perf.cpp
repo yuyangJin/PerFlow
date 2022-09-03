@@ -454,7 +454,7 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
     // this->pcg->UpdateEdges();
 
 
-    // FREE_CONTAINER(call_callee_pairs);
+    FREE_CONTAINER(call_callee_pair_map);
   }
   // else {
   //   auto data_size = perf_data->GetVertexDataSize();
