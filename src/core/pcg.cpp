@@ -141,4 +141,31 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *,
 //     this->AddEdge(call_vertex, callee_vertex);
 //   }
 // }
+void ProgramCallGraph::VertexTraversal(
+  void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *),
+    void *extra) {
+  igraph_vs_t vs;
+  igraph_vit_t vit;
+  // printf("Function %s Start:\n", this->GetGraphAttributeString("name"));
+  // dbg(this->cur_vertex_num - 1);
+  igraph_vs_seq(&vs, 0, this->cur_vertex_num - 1);
+  igraph_vit_create(&ipag_->graph, vs, &vit);
+  while (!IGRAPH_VIT_END(vit)) {
+    // Get vector id
+    type::vertex_t vertex_id = (type::vertex_t)IGRAPH_VIT_GET(vit);
+    // printf("Traverse %d\n", vertex_id);
+
+    // Call user-defined function
+    (*CALL_BACK_FUNC)(this, vertex_id, extra);
+
+    IGRAPH_VIT_NEXT(vit);
+  }
+  // printf("\n");
+
+  igraph_vit_destroy(&vit);
+  igraph_vs_destroy(&vs);
+  // printf("Function %s End\n", this->GetGraphAttributeString("name"));
+}
+
+
 } // namespace baguatool::core

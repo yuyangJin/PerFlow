@@ -321,6 +321,46 @@ struct pair_hash {
   }
 };
 
+void add_dynamic_call(core::ProgramCallGraph *pcg,
+                             int vertex_id, void *extra) {
+  std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>>* call_callee_pair_map = (std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>> *) extra;
+  auto type = pcg->GetVertexType(vertex_id);
+  if ((type == type::CALL_NODE || type == type::CALL_REC_NODE || type == type::CALL_IND_NODE)){
+    return ;
+  }
+  auto saddr = pcg->GetVertexEntryAddr(vertex_id);
+  // auto eaddr = pcg->GetVertexExitAddr(vertex_id);
+  for (type::addr_t call_addr = saddr - 4; call_addr <= saddr + 4; call_addr++) {
+    if (call_callee_pair_map->find(call_addr) != call_callee_pair_map->end()) {
+      auto& callee_addrs = (*call_callee_pair_map)[call_addr];
+      std::vector<type::vertex_t> children;
+      pcg->GetChildVertexSet(vertex_id, children);
+      for (auto callee_addr: callee_addrs) {
+        type::edge_t edge_id = -1;
+        for (auto &child : children) {
+          if (pcg->GetVertexType(child) == type::FUNC_NODE) {
+            auto func_saddr = pcg->GetVertexEntryAddr(child);
+            auto func_eaddr = pcg->GetVertexExitAddr(child);
+            if (callee_addr >= func_saddr - 4 && callee_addr <= func_eaddr + 4) {
+              edge_id = pcg->QueryEdge(vertex_id, child);
+              break;
+            } 
+          }
+        }
+        if (edge_id == -1) {
+          type::vertex_t callee_vertex = pcg->GetFuncVertexWithAddr(callee_addr);
+          dbg(call_addr, callee_addr, vertex_id, callee_vertex);
+          if (vertex_id != -1 && callee_vertex != -1) {
+          edge_id = pcg->AddEdge(vertex_id, callee_vertex);
+          }
+        }
+        pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE);
+      }
+      FREE_CONTAINER(children);
+    }
+  }
+}
+
 void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
   if (this->has_dyn_addr_debug_info) {
     auto data_size = perf_data->GetVertexDataSize();
@@ -330,8 +370,10 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
      * callee_addr> pairs, then AddEdgeWithAddr. It can reduce redundant graph
      * query **/
 
-    std::unordered_set<std::pair<type::addr_t, type::addr_t>, pair_hash>
-        call_callee_pairs;
+    // std::unordered_set<std::pair<type::addr_t, type::addr_t>, pair_hash>
+        // call_callee_pairs;
+    
+    std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>> call_callee_pair_map;
 
     for (unsigned long int i = 0; i < data_size; i++) {
       std::stack<unsigned long long> call_path;
@@ -342,20 +384,20 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
       }
 
       while (!call_path.empty()) {
-        type::addr_t call_addr, callee_addr;
+        type::addr_t call_addr = 0, callee_addr = 0;
         // Get call fucntion address
         while (!call_path.empty()) {
-          call_addr = call_path.top();
+          auto top_addr = call_path.top();
           call_path.pop();
-          if (this->dyn_addr_to_debug_info.find(call_addr) !=
+          if (this->dyn_addr_to_debug_info.find(top_addr) !=
               this->dyn_addr_to_debug_info.end()) {
-            auto &debug_info = this->dyn_addr_to_debug_info[call_addr];
+            auto &debug_info = this->dyn_addr_to_debug_info[top_addr];
             if (debug_info->IsExecutable()) {
               call_addr = debug_info->GetAddress();
               break;
             }
           } else {
-            std::cout << call_addr << "not found!" << std::endl;
+            std::cout << top_addr << "not found!" << std::endl;
           }
           // if (type::IsTextAddr(call_addr)) {
           //   break;
@@ -363,10 +405,10 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
         }
         // Get callee function address
         while (!call_path.empty()) {
-          callee_addr = call_path.top();
-          if (this->dyn_addr_to_debug_info.find(callee_addr) !=
+          auto top_addr = call_path.top();
+          if (this->dyn_addr_to_debug_info.find(top_addr) !=
               this->dyn_addr_to_debug_info.end()) {
-            auto &debug_info = this->dyn_addr_to_debug_info[callee_addr];
+            auto &debug_info = this->dyn_addr_to_debug_info[top_addr];
             if (debug_info->IsExecutable()) {
               callee_addr = debug_info->GetAddress();
               break;
@@ -380,28 +422,39 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
           // }
         }
 
-        std::pair<type::addr_t, type::addr_t> call_callee =
-            std::make_pair(call_addr, callee_addr);
-        if (call_callee_pairs.find(call_callee) == call_callee_pairs.end()) {
-          call_callee_pairs.insert(call_callee);
-        }
+        if (call_addr && callee_addr) {
+          call_callee_pair_map[call_addr].insert(callee_addr);
+          dbg(call_addr, callee_addr);
+        } 
+        
+        // std::pair<type::addr_t, type::addr_t> call_callee =
+        //     std::make_pair(call_addr, callee_addr);
+        // if (call_callee_pairs.find(call_callee) == call_callee_pairs.end()) {
+        //   call_callee_pairs.insert(call_callee);
+        // }
       }
     }
 
+
     // AddEdgeWithAddr for each <call_addr, callee_addr> pair of each call path
-    for (auto &call_callee : call_callee_pairs) {
-      auto call_addr = call_callee.first;
-      auto callee_addr = call_callee.second;
-      // auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr, callee_addr);
-      auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
-      if (edge_id != -1) {
-        // this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); // dynamic
-        this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
-        // dbg(call_addr, callee_addr, edge_id);
-      }
-    }
+    this->pcg->VertexTraversal(add_dynamic_call, &call_callee_pair_map);
+
+
+    // for (auto &call_callee : call_callee_pairs) {
+    //   auto call_addr = call_callee.first;
+    //   auto callee_addr = call_callee.second;
+    //   // auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr, callee_addr);
+    //   auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
+    //   if (edge_id != -1) {
+    //     // this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); // dynamic
+    //     this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+    //     // dbg(call_addr, callee_addr, edge_id);
+    //   }
+    // }
     // this->pcg->UpdateEdges();
-    FREE_CONTAINER(call_callee_pairs);
+
+
+    // FREE_CONTAINER(call_callee_pairs);
   }
   // else {
   //   auto data_size = perf_data->GetVertexDataSize();

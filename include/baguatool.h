@@ -972,6 +972,19 @@ public:
    */
   void EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *),
                      void *extra);
+  
+  /** [Graph Algorithm] Traverse all vertices and execute CALL_BACK_FUNC when
+   * accessing each vertex.
+   * @param CALL_BACK_FUNC - callback function when a vertex is accessed. The
+   * input parameters of this function contain a pointer to the graph being
+   * traversed, id of the accessed vertex, and an extra pointer for developers
+   * to pass more parameters.
+   * @param extra - a pointer for developers to pass more parameters as the last
+   * parameter of CALL_BACK_FUNC
+   */
+  void VertexTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, int,
+                                              void *),
+                       void *extra);
 };
 
 typedef struct VERTEX_DATA_STRUCT VDS;
