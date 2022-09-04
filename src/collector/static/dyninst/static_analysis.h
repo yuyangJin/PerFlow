@@ -46,6 +46,7 @@ private:
   std::unordered_map<Block *, bool> visited_block_map;
   std::unordered_map<Address, std::string> addr_2_func_name;
   std::map<VMA, VMA> call_graph_map;
+  std::unordered_map<Address, Address> entry_addr_to_exit_addr;
 
   std::unique_ptr<core::ProgramCallGraph> pcg;
 

@@ -24,6 +24,7 @@
 #include <string>
 #include <unordered_map>
 #include <vector>
+#include <cstdlib>
 
 #include "baguatool.h"
 #include "common/utils.h"
@@ -82,6 +83,19 @@ StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
 
   strcpy(this->binary_name,
          binary_name_vec[binary_name_vec.size() - 1].c_str());
+
+  // Get function address space
+  std::string objdump_file = std::string(this->binary_name) + std::string(".obj");
+  std::string objdump_cmd = std::string("objdump -t ") + std::string(this->binary_name) + std::string(" | grep \" F .text\" | awk '{print $1, $5}' > ") + objdump_file;
+
+  system(objdump_cmd.c_str());
+
+  ReadHashMap<Address, Address>(entry_addr_to_exit_addr, objdump_file);
+
+  for (auto& kv: entry_addr_to_exit_addr) {
+    kv.second += kv.first;
+    // std::cout << kv.first << " " << kv.second << std::endl;
+  }
 }
 
 StaticAnalysisImpl::~StaticAnalysisImpl() {

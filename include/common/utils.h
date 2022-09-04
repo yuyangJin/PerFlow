@@ -48,6 +48,60 @@ void DumpMap(std::map<keyType, valueType> &m, std::string &file_name) {
   fout.close();
 }
 
+template <class keyType, class valueType>
+void ReadMap(std::map<keyType, valueType> &m, std::string &file_name) {
+  char file_name_str[MAX_STR_LEN];
+  strcpy(file_name_str, file_name.c_str());
+  // dbg(file_name_str);
+  std::ifstream fin;
+  fin.open(file_name_str);
+  if (!fin.is_open()) {
+    std::cout << "Failed to open" << file_name_str << std::endl;
+  }
+
+  keyType key;
+  valueType value;
+
+  std::string line;
+  while (getline(fin, line)) {
+    std::stringstream ss(line);
+    ss >> key >> value;
+    // dbg(key, value);
+    m[key] = value;
+  }
+
+  // dbg(m.size());
+
+  fin.close();
+}
+
+template <class keyType, class valueType>
+void ReadHashMap(std::unordered_map<keyType, valueType> &m, std::string &file_name) {
+  char file_name_str[MAX_STR_LEN];
+  strcpy(file_name_str, file_name.c_str());
+  // dbg(file_name_str);
+  std::ifstream fin;
+  fin.open(file_name_str);
+  if (!fin.is_open()) {
+    std::cout << "Failed to open" << file_name_str << std::endl;
+  }
+
+  keyType key;
+  valueType value;
+
+  std::string line;
+  while (getline(fin, line)) {
+    std::stringstream ss(line);
+    ss >> std::hex >> key >> value;
+    // dbg(key, value);
+    m[key] = value;
+  }
+
+  // dbg(m.size());
+
+  fin.close();
+}
+
 // template <class keyType, class valueType>
 // void ReadMap(std::map<keyType, valueType>& m, std::string& file_name){
 //   char file_name_str[MAX_STR_LEN];
