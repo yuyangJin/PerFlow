@@ -337,6 +337,7 @@ void add_dynamic_call(core::ProgramCallGraph *pcg,
       pcg->GetChildVertexSet(vertex_id, children);
       for (auto callee_addr: callee_addrs) {
         type::edge_t edge_id = -1;
+        // traverse children, check if children contain callee function 
         for (auto &child : children) {
           if (pcg->GetVertexType(child) == type::FUNC_NODE) {
             auto func_saddr = pcg->GetVertexEntryAddr(child);
@@ -347,14 +348,18 @@ void add_dynamic_call(core::ProgramCallGraph *pcg,
             } 
           }
         }
+        // if children do not contain callee function, search and add a new edge
         if (edge_id == -1) {
           type::vertex_t callee_vertex = pcg->GetFuncVertexWithAddr(callee_addr);
-          dbg(call_addr, callee_addr, vertex_id, callee_vertex);
+          // dbg(call_addr, callee_addr, vertex_id, callee_vertex);
           if (vertex_id != -1 && callee_vertex != -1) {
-          edge_id = pcg->AddEdge(vertex_id, callee_vertex);
+            edge_id = pcg->AddEdge(vertex_id, callee_vertex);
           }
         }
-        pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE);
+        // if successfully get the edge id, mark the edge as dynamic call
+        if (edge_id != -1) {
+          pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE);
+        }
       }
       FREE_CONTAINER(children);
     }
@@ -424,7 +429,7 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
 
         if (call_addr && callee_addr) {
           call_callee_pair_map[call_addr].insert(callee_addr);
-          dbg(call_addr, callee_addr);
+          // dbg(call_addr, callee_addr);
         } 
         
         // std::pair<type::addr_t, type::addr_t> call_callee =
@@ -1502,8 +1507,7 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       type::procs_t src_pid = comm_data->GetEdgeDataSrcProcsId(i);
       type::procs_t dest_pid = comm_data->GetEdgeDataDestProcsId(i);
 
-      // DumpCallPath(src_call_path);
-      // DumpCallPath(dest_call_path);
+
 
       // For cluster yes, the first address of the call path is _start_main
       if (!src_call_path.empty()) {
@@ -1513,11 +1517,17 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
         dest_call_path.pop();
       }
 
+      // DumpCallPath(src_call_path);
+      // DumpCallPath(dest_call_path);
+
       // dbg(HasDynAddrDebugInfo());
       if (this->HasDynAddrDebugInfo()) {
         this->ConvertDynAddrToOffset(src_call_path);
         this->ConvertDynAddrToOffset(dest_call_path);
       }
+
+      // DumpCallPath(src_call_path);
+      // DumpCallPath(dest_call_path);
 
       type::vertex_t queried_vertex_id_src =
           GetVertexWithInterThreadAnalysis(0, src_call_path);
