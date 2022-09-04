@@ -96,6 +96,28 @@ StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
     kv.second += kv.first;
     // std::cout << kv.first << " " << kv.second << std::endl;
   }
+
+  for (auto func : this->co->funcs()) {
+    Address entry_addr = func->addr();
+    Address exit_addr = 0;
+    const ParseAPI::Function::blocklist &blist = func->blocks();
+    if (entry_addr_to_exit_addr.find(entry_addr) != entry_addr_to_exit_addr.end())  {
+      exit_addr = entry_addr_to_exit_addr[entry_addr];
+      // dbg(func->name() , entry_addr, exit_addr);
+    } else {
+      exit_addr = blist.back()->last();
+      entry_addr_to_exit_addr[entry_addr] = exit_addr;
+      // dbg(func->name(), entry_addr, exit_addr, "not found in objdump");
+    }
+    
+    for (auto b : blist) {
+      Address b_entry_addr = b->start();
+      if (b_entry_addr >= entry_addr && b_entry_addr <= exit_addr) {
+        entry_addr_to_bvec[entry_addr].insert(b);
+      }
+    }
+    
+  }
 }
 
 StaticAnalysisImpl::~StaticAnalysisImpl() {
@@ -105,11 +127,14 @@ StaticAnalysisImpl::~StaticAnalysisImpl() {
   FREE_CONTAINER(visited_block_map);
   FREE_CONTAINER(addr_2_func_name);
   FREE_CONTAINER(call_graph_map);
+  FREE_CONTAINER(entry_addr_to_exit_addr);
 
   // TODO: it is better to use unique_ptr instead of raw pointer?
   // for (auto &it : func_2_graph) delete it.second;
   for (auto &it : entry_addr_to_graph)
     delete it.second;
+  
+  FREE_CONTAINER(entry_addr_to_graph);
 }
 
 // Capture a Program Call Graph (PCG)
@@ -138,14 +163,47 @@ void StaticAnalysisImpl::CaptureProgramCallGraph() {
     addr_2_vertex_id[func->addr()] = func_vertex_id;
   }
 
+  // // Traverse through all functions
+  // for (auto func : func_list) {
+  //   Address entry_addr = func->addr();
+  //   Address exit_addr = entry_addr_to_exit_addr[entry_addr];
+  //   const ParseAPI::Function::blocklist &blist = func->blocks();
+  //   std::vector<Block *> bvec(blist.begin(), blist.end());
+  //   std::vector<Block *>::iterator b = bvec.begin();
+  //   while (b != bvec.end()) {
+  //     Address b_entry_block = (*b)->start();
+  //     if (b_entry_block < entry_addr || b_entry_block > exit_addr) {
+  //       b = bvec.erase(b);
+  //     } else {
+  //       b++;
+  //     }
+  //   }
+  //   type::vertex_t func_vertex_id = addr_2_vertex_id[func->addr()];
+
+  //   // Traverse through all blocks
+  //   for (auto b : bvec) {
+  //     for (auto inst : b->targets()) {
+  //       if (inst->type() == CALL) {
+  //         Address entry_addr = inst->src()->last();
+  //       }
+  //     }  
+  //   }
+  // }
+
+
   // Traverse through all functions
   for (auto func : func_list) {
+    Address entry_addr = func->addr();
+    Address exit_addr = entry_addr_to_exit_addr[entry_addr];
     const Function::edgelist &elist = func->callEdges();
     type::vertex_t func_vertex_id = addr_2_vertex_id[func->addr()];
 
     // Traverse through all function calls in this function
     for (const auto &e : elist) {
       VMA src_addr = e->src()->last();
+      if (src_addr < entry_addr || src_addr > exit_addr) {
+        continue;
+      }
       VMA targ_addr = e->trg()->start();
       this->call_graph_map[src_addr] = targ_addr;
 
@@ -426,6 +484,24 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg,
     std::vector<Block *> blocks;
     loop_tree_node->loop->getLoopBasicBlocks(blocks);
 
+    Address func_entry_addr = loop_tree_node->loop->getFunction()->entry()->start();
+    Address func_exit_addr = entry_addr_to_exit_addr[func_entry_addr];
+
+    // for (auto b: blocks) {
+    std::vector<Block *>::iterator b = blocks.begin();
+    while (b != blocks.end()) {
+      Address b_entry_block = (*b)->start();
+      if (b_entry_block < func_entry_addr || b_entry_block > func_exit_addr) {
+        b = blocks.erase(b);
+      } else {
+        b++;
+      }
+    }
+
+    if (!blocks.size()) {
+      continue ;
+    }
+
     std::sort(blocks.begin(), blocks.end(), [](Block *a, Block *b) -> bool {
       return a->start() < b->start();
     });
@@ -462,6 +538,7 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
   // Traverse through all functions
   for (auto func : this->co->funcs()) {
     Address entry_addr = func->addr();
+    Address exit_addr = entry_addr_to_exit_addr[entry_addr];
     std::string func_name = func->name();
     // dbg(func_name );
     /** BUG: Hard coding for Q-E, and this BUG is caused by dyninst, not our
@@ -479,16 +556,34 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
 
     const ParseAPI::Function::blocklist &blist = func->blocks();
     std::vector<Block *> bvec(blist.begin(), blist.end());
-    std::sort(bvec.begin(), bvec.end(), [](Block *a, Block *b) -> bool {
-      return a->start() < b->start();
-    });
+    // std::sort(bvec.begin(), bvec.end(), [](Block *a, Block *b) -> bool {
+    //   return a->start() < b->start();
+    // });
 
-    entry_addr = bvec.front()->start();
-    Address exit_addr = bvec.back()->last();
+    // entry_addr = bvec.front()->start();
+    // Address exit_addr = 0; //= bvec.back()->last();
 
     /** TODO: Need to verify the entry and exit address
      * of each function by parsing execuutable's objdump
      * logs. **/
+    // if (entry_addr_to_exit_addr.find(entry_addr) != entry_addr_to_exit_addr.end())  {
+    //   exit_addr = entry_addr_to_exit_addr[entry_addr];
+    //   dbg(func_name, entry_addr, exit_addr);
+    // } else {
+    //   exit_addr = bvec.back()->last();
+    //   dbg(func_name, entry_addr, exit_addr, "not found in objdump");
+    // }
+
+    // for (auto b: blocks) {
+    std::vector<Block *>::iterator b = bvec.begin();
+    while (b != bvec.end()) {
+      Address b_entry_block = (*b)->start();
+      if (b_entry_block < entry_addr || b_entry_block > exit_addr) {
+        b = bvec.erase(b);
+      } else {
+        b++;
+      }
+    }
 
     /** For debug */
     // if
