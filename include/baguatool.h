@@ -937,6 +937,10 @@ public:
   void SetPagToMpagMap(type::vertex_t pag_vertex_id, type::procs_t procs_id,
                        type::thread_t thread_id, type::vertex_t mpag_vertex_id);
 
+  type::vertex_t GetMpagIdByPagvidPidTid(
+    type::vertex_t pag_vertex_id, type::procs_t procs_id,
+    type::thread_t thread_id);
+
   void DumpPagToMpagMap(std::string &file_name);
 };
 

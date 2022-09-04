@@ -107,6 +107,33 @@ void MultiProgramAbstractionGraph::SetPagToMpagMap(
       mpag_vertex_id;
 }
 
+type::vertex_t MultiProgramAbstractionGraph::GetMpagIdByPagvidPidTid(
+    type::vertex_t pag_vertex_id, type::procs_t procs_id,
+    type::thread_t thread_id) {
+  std::string pag_vertex_id_str = std::to_string(pag_vertex_id);
+  std::string process_id_str = std::to_string(procs_id);
+  std::string thread_id_str = std::to_string(thread_id);
+  // std::string new_vertex_id_str = std::to_string(new_vertex_id);
+  type::vertex_t mpag_vertex_id = 1;
+  
+  if (this->j_pag_to_mpag_map.contains(pag_vertex_id_str)) {
+    if (this->j_pag_to_mpag_map[pag_vertex_id_str].contains(process_id_str)) {
+      if (this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str].contains(
+              thread_id_str)) {
+        auto ret = this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str]
+                                      [thread_id_str];
+        if (ret != nullptr) {
+          mpag_vertex_id = this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str]
+                                    [thread_id_str]
+                                        .get<type::vertex_t>();
+        }
+      }
+    }
+  }
+
+  return mpag_vertex_id;
+}
+
 void MultiProgramAbstractionGraph::DumpPagToMpagMap(std::string &output_file) {
   std::ofstream output(output_file);
   output << this->j_pag_to_mpag_map << std::endl;
