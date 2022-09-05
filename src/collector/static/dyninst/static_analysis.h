@@ -50,7 +50,7 @@ private:
 
   std::unique_ptr<core::ProgramCallGraph> pcg;
 
-  std::unordered_map<Address, std::unordered_set<Block*>> entry_addr_to_bvec;
+  std::unordered_map<Address, std::unordered_set<Block *>> entry_addr_to_bvec;
 
   // std::unordered_map<std::string, core::ControlFlowGraph *> func_2_graph;
   std::unordered_map<Address, core::ControlFlowGraph *> entry_addr_to_graph;

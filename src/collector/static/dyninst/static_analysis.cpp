@@ -18,13 +18,13 @@
 #include <Symtab.h>
 
 #include <algorithm>
+#include <cstdlib>
 #include <fstream>
 #include <map>
 #include <sstream>
 #include <string>
 #include <unordered_map>
 #include <vector>
-#include <cstdlib>
 
 #include "baguatool.h"
 #include "common/utils.h"
@@ -85,14 +85,18 @@ StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
          binary_name_vec[binary_name_vec.size() - 1].c_str());
 
   // Get function address space
-  std::string objdump_file = std::string(this->binary_name) + std::string(".obj");
-  std::string objdump_cmd = std::string("objdump -t ") + std::string(this->binary_name) + std::string(" | grep \" F .text\" | awk '{print $1, $5}' > ") + objdump_file;
+  std::string objdump_file =
+      std::string(this->binary_name) + std::string(".obj");
+  std::string objdump_cmd =
+      std::string("objdump -t ") + std::string(this->binary_name) +
+      std::string(" | grep \" F .text\" | awk '{print $1, $5}' > ") +
+      objdump_file;
 
   system(objdump_cmd.c_str());
 
   ReadHashMap<Address, Address>(entry_addr_to_exit_addr, objdump_file);
 
-  for (auto& kv: entry_addr_to_exit_addr) {
+  for (auto &kv : entry_addr_to_exit_addr) {
     kv.second += kv.first;
     // std::cout << kv.first << " " << kv.second << std::endl;
   }
@@ -101,7 +105,8 @@ StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
     Address entry_addr = func->addr();
     Address exit_addr = 0;
     const ParseAPI::Function::blocklist &blist = func->blocks();
-    if (entry_addr_to_exit_addr.find(entry_addr) != entry_addr_to_exit_addr.end())  {
+    if (entry_addr_to_exit_addr.find(entry_addr) !=
+        entry_addr_to_exit_addr.end()) {
       exit_addr = entry_addr_to_exit_addr[entry_addr];
       // dbg(func->name() , entry_addr, exit_addr);
     } else {
@@ -109,14 +114,13 @@ StaticAnalysisImpl::StaticAnalysisImpl(char *binary_name) {
       entry_addr_to_exit_addr[entry_addr] = exit_addr;
       // dbg(func->name(), entry_addr, exit_addr, "not found in objdump");
     }
-    
+
     for (auto b : blist) {
       Address b_entry_addr = b->start();
       if (b_entry_addr >= entry_addr && b_entry_addr <= exit_addr) {
         entry_addr_to_bvec[entry_addr].insert(b);
       }
     }
-    
   }
 }
 
@@ -133,7 +137,7 @@ StaticAnalysisImpl::~StaticAnalysisImpl() {
   // for (auto &it : func_2_graph) delete it.second;
   for (auto &it : entry_addr_to_graph)
     delete it.second;
-  
+
   FREE_CONTAINER(entry_addr_to_graph);
 }
 
@@ -186,10 +190,9 @@ void StaticAnalysisImpl::CaptureProgramCallGraph() {
   //       if (inst->type() == CALL) {
   //         Address entry_addr = inst->src()->last();
   //       }
-  //     }  
+  //     }
   //   }
   // }
-
 
   // Traverse through all functions
   for (auto func : func_list) {
@@ -484,7 +487,8 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg,
     std::vector<Block *> blocks;
     loop_tree_node->loop->getLoopBasicBlocks(blocks);
 
-    Address func_entry_addr = loop_tree_node->loop->getFunction()->entry()->start();
+    Address func_entry_addr =
+        loop_tree_node->loop->getFunction()->entry()->start();
     Address func_exit_addr = entry_addr_to_exit_addr[func_entry_addr];
 
     // for (auto b: blocks) {
@@ -499,7 +503,7 @@ void StaticAnalysisImpl::ExtractLoopStructure(core::ControlFlowGraph *func_cfg,
     }
 
     if (!blocks.size()) {
-      continue ;
+      continue;
     }
 
     std::sort(blocks.begin(), blocks.end(), [](Block *a, Block *b) -> bool {
@@ -566,7 +570,8 @@ void StaticAnalysisImpl::IntraProceduralAnalysis() {
     /** TODO: Need to verify the entry and exit address
      * of each function by parsing execuutable's objdump
      * logs. **/
-    // if (entry_addr_to_exit_addr.find(entry_addr) != entry_addr_to_exit_addr.end())  {
+    // if (entry_addr_to_exit_addr.find(entry_addr) !=
+    // entry_addr_to_exit_addr.end())  {
     //   exit_addr = entry_addr_to_exit_addr[entry_addr];
     //   dbg(func_name, entry_addr, exit_addr);
     // } else {

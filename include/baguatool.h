@@ -937,9 +937,9 @@ public:
   void SetPagToMpagMap(type::vertex_t pag_vertex_id, type::procs_t procs_id,
                        type::thread_t thread_id, type::vertex_t mpag_vertex_id);
 
-  type::vertex_t GetMpagIdByPagvidPidTid(
-    type::vertex_t pag_vertex_id, type::procs_t procs_id,
-    type::thread_t thread_id);
+  type::vertex_t GetMpagIdByPagvidPidTid(type::vertex_t pag_vertex_id,
+                                         type::procs_t procs_id,
+                                         type::thread_t thread_id);
 
   void DumpPagToMpagMap(std::string &file_name);
 };
@@ -976,7 +976,7 @@ public:
    */
   void EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *),
                      void *extra);
-  
+
   /** [Graph Algorithm] Traverse all vertices and execute CALL_BACK_FUNC when
    * accessing each vertex.
    * @param CALL_BACK_FUNC - callback function when a vertex is accessed. The
@@ -986,8 +986,7 @@ public:
    * @param extra - a pointer for developers to pass more parameters as the last
    * parameter of CALL_BACK_FUNC
    */
-  void VertexTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, int,
-                                              void *),
+  void VertexTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *),
                        void *extra);
 };
 

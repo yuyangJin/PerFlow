@@ -115,17 +115,18 @@ type::vertex_t MultiProgramAbstractionGraph::GetMpagIdByPagvidPidTid(
   std::string thread_id_str = std::to_string(thread_id);
   // std::string new_vertex_id_str = std::to_string(new_vertex_id);
   type::vertex_t mpag_vertex_id = 1;
-  
+
   if (this->j_pag_to_mpag_map.contains(pag_vertex_id_str)) {
     if (this->j_pag_to_mpag_map[pag_vertex_id_str].contains(process_id_str)) {
       if (this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str].contains(
               thread_id_str)) {
         auto ret = this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str]
-                                      [thread_id_str];
+                                          [thread_id_str];
         if (ret != nullptr) {
-          mpag_vertex_id = this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str]
-                                    [thread_id_str]
-                                        .get<type::vertex_t>();
+          mpag_vertex_id =
+              this->j_pag_to_mpag_map[pag_vertex_id_str][process_id_str]
+                                     [thread_id_str]
+                                         .get<type::vertex_t>();
         }
       }
     }

@@ -76,7 +76,8 @@ void ReadMap(std::map<keyType, valueType> &m, std::string &file_name) {
 }
 
 template <class keyType, class valueType>
-void ReadHashMap(std::unordered_map<keyType, valueType> &m, std::string &file_name) {
+void ReadHashMap(std::unordered_map<keyType, valueType> &m,
+                 std::string &file_name) {
   char file_name_str[MAX_STR_LEN];
   strcpy(file_name_str, file_name.c_str());
   // dbg(file_name_str);

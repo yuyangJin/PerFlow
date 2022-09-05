@@ -321,36 +321,42 @@ struct pair_hash {
   }
 };
 
-void add_dynamic_call(core::ProgramCallGraph *pcg,
-                             int vertex_id, void *extra) {
-  std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>>* call_callee_pair_map = (std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>> *) extra;
+void add_dynamic_call(core::ProgramCallGraph *pcg, int vertex_id, void *extra) {
+  std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>>
+      *call_callee_pair_map =
+          (std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>> *)
+              extra;
   auto type = pcg->GetVertexType(vertex_id);
-  if ((type == type::CALL_NODE || type == type::CALL_REC_NODE || type == type::CALL_IND_NODE)){
-    return ;
+  if ((type == type::CALL_NODE || type == type::CALL_REC_NODE ||
+       type == type::CALL_IND_NODE)) {
+    return;
   }
   auto saddr = pcg->GetVertexEntryAddr(vertex_id);
   // auto eaddr = pcg->GetVertexExitAddr(vertex_id);
-  for (type::addr_t call_addr = saddr - 4; call_addr <= saddr + 4; call_addr++) {
+  for (type::addr_t call_addr = saddr - 4; call_addr <= saddr + 4;
+       call_addr++) {
     if (call_callee_pair_map->find(call_addr) != call_callee_pair_map->end()) {
-      auto& callee_addrs = (*call_callee_pair_map)[call_addr];
+      auto &callee_addrs = (*call_callee_pair_map)[call_addr];
       std::vector<type::vertex_t> children;
       pcg->GetChildVertexSet(vertex_id, children);
-      for (auto callee_addr: callee_addrs) {
+      for (auto callee_addr : callee_addrs) {
         type::edge_t edge_id = -1;
-        // traverse children, check if children contain callee function 
+        // traverse children, check if children contain callee function
         for (auto &child : children) {
           if (pcg->GetVertexType(child) == type::FUNC_NODE) {
             auto func_saddr = pcg->GetVertexEntryAddr(child);
             auto func_eaddr = pcg->GetVertexExitAddr(child);
-            if (callee_addr >= func_saddr - 4 && callee_addr <= func_eaddr + 4) {
+            if (callee_addr >= func_saddr - 4 &&
+                callee_addr <= func_eaddr + 4) {
               edge_id = pcg->QueryEdge(vertex_id, child);
               break;
-            } 
+            }
           }
         }
         // if children do not contain callee function, search and add a new edge
         if (edge_id == -1) {
-          type::vertex_t callee_vertex = pcg->GetFuncVertexWithAddr(callee_addr);
+          type::vertex_t callee_vertex =
+              pcg->GetFuncVertexWithAddr(callee_addr);
           // dbg(call_addr, callee_addr, vertex_id, callee_vertex);
           if (vertex_id != -1 && callee_vertex != -1) {
             edge_id = pcg->AddEdge(vertex_id, callee_vertex);
@@ -376,9 +382,10 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
      * query **/
 
     // std::unordered_set<std::pair<type::addr_t, type::addr_t>, pair_hash>
-        // call_callee_pairs;
-    
-    std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>> call_callee_pair_map;
+    // call_callee_pairs;
+
+    std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>>
+        call_callee_pair_map;
 
     for (unsigned long int i = 0; i < data_size; i++) {
       std::stack<unsigned long long> call_path;
@@ -430,8 +437,8 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
         if (call_addr && callee_addr) {
           call_callee_pair_map[call_addr].insert(callee_addr);
           // dbg(call_addr, callee_addr);
-        } 
-        
+        }
+
         // std::pair<type::addr_t, type::addr_t> call_callee =
         //     std::make_pair(call_addr, callee_addr);
         // if (call_callee_pairs.find(call_callee) == call_callee_pairs.end()) {
@@ -440,24 +447,22 @@ void GPerf::ReadDynamicProgramCallGraph(core::PerfData *perf_data) {
       }
     }
 
-
     // AddEdgeWithAddr for each <call_addr, callee_addr> pair of each call path
     this->pcg->VertexTraversal(add_dynamic_call, &call_callee_pair_map);
-
 
     // for (auto &call_callee : call_callee_pairs) {
     //   auto call_addr = call_callee.first;
     //   auto callee_addr = call_callee.second;
-    //   // auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr, callee_addr);
-    //   auto edge_id = this->pcg->AddEdgeWithAddr(call_addr, callee_addr);
-    //   if (edge_id != -1) {
-    //     // this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); // dynamic
-    //     this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); // dynamic
+    //   // auto edge_id = this->pcg->AddEdgeWithAddrLazy(call_addr,
+    //   callee_addr); auto edge_id = this->pcg->AddEdgeWithAddr(call_addr,
+    //   callee_addr); if (edge_id != -1) {
+    //     // this->pcg->SetEdgeTypeLazy(edge_id, type::DYN_CALL_EDGE); //
+    //     dynamic this->pcg->SetEdgeType(edge_id, type::DYN_CALL_EDGE); //
+    //     dynamic
     //     // dbg(call_addr, callee_addr, edge_id);
     //   }
     // }
     // this->pcg->UpdateEdges();
-
 
     FREE_CONTAINER(call_callee_pair_map);
   }
@@ -1507,8 +1512,6 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       type::procs_t src_pid = comm_data->GetEdgeDataSrcProcsId(i);
       type::procs_t dest_pid = comm_data->GetEdgeDataDestProcsId(i);
 
-
-
       // For cluster yes, the first address of the call path is _start_main
       if (!src_call_path.empty()) {
         src_call_path.pop();
@@ -1546,11 +1549,15 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
       // type::vertex_t mpag_src_vertex_id =
       //     pag_vid_to_pre_order_seq_id[queried_vertex_id_src] +
       //     src_pid * pag_num_vertex + 1;
-      type::vertex_t mpag_src_vertex_id = this->root_mpag->GetMpagIdByPagvidPidTid(queried_vertex_id_src, src_pid, 0);
+      type::vertex_t mpag_src_vertex_id =
+          this->root_mpag->GetMpagIdByPagvidPidTid(queried_vertex_id_src,
+                                                   src_pid, 0);
       // type::vertex_t mpag_dest_vertex_id =
       //     pag_vid_to_pre_order_seq_id[queried_vertex_id_dest] +
       //     dest_pid * pag_num_vertex + 1;
-      type::vertex_t mpag_dest_vertex_id = this->root_mpag->GetMpagIdByPagvidPidTid(queried_vertex_id_dest, dest_pid, 0);
+      type::vertex_t mpag_dest_vertex_id =
+          this->root_mpag->GetMpagIdByPagvidPidTid(queried_vertex_id_dest,
+                                                   dest_pid, 0);
       // dbg(mpag_src_vertex_id, mpag_dest_vertex_id);
 
       type::edge_t edge_id =
@@ -1580,7 +1587,7 @@ void in_pre_order_traversal(core::ProgramAbstractionGraph *pag, int vertex_id,
   if (preserve_flag != 0) {
     pag_vid_to_pre_order_seq_id[vertex_id] = seq->size();
     seq->push_back(vertex_id);
-  } 
+  }
 }
 
 void GPerf::GenerateMultiProcessProgramAbstractionGraph(

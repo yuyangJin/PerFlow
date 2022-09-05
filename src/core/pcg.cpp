@@ -142,8 +142,7 @@ void ProgramCallGraph::EdgeTraversal(void (*CALL_BACK_FUNC)(ProgramCallGraph *,
 //   }
 // }
 void ProgramCallGraph::VertexTraversal(
-  void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *),
-    void *extra) {
+    void (*CALL_BACK_FUNC)(ProgramCallGraph *, int, void *), void *extra) {
   igraph_vs_t vs;
   igraph_vit_t vit;
   // printf("Function %s Start:\n", this->GetGraphAttributeString("name"));
@@ -166,6 +165,5 @@ void ProgramCallGraph::VertexTraversal(
   igraph_vs_destroy(&vs);
   // printf("Function %s End\n", this->GetGraphAttributeString("name"));
 }
-
 
 } // namespace baguatool::core

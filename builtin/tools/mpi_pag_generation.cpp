@@ -135,8 +135,7 @@ int main(int argc, char **argv) {
   time =
       std::chrono::duration_cast<std::chrono::microseconds>(ed - st).count() /
       1e6;
-  cout << "Pruning costs " << time << " seconds."
-       << std::endl;
+  cout << "Pruning costs " << time << " seconds." << std::endl;
 
   st = std::chrono::system_clock::now();
   std::string output_pag_name = std::string(data_dir) + std::string("/pag.gml");

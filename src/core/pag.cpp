@@ -364,12 +364,13 @@ void out_func(baguatool::core::ProgramAbstractionGraph *pag, int vertex_id,
       strtod(pag->GetVertexAttributeString(std::string(metric_name).c_str(),
                                            (type::vertex_t)vertex_id),
              NULL);
-  std::string name = std::string(pag->GetVertexAttributeString("name",
-                                           (type::vertex_t)vertex_id));
-  
-  if (name.rfind("MPI_", 0) == 0 || name.rfind("mpi_", 0) == 0 || name.rfind("_mpi_", 0) == 0 || name.rfind("_MPI_", 0) == 0) {
+  std::string name = std::string(
+      pag->GetVertexAttributeString("name", (type::vertex_t)vertex_id));
+
+  if (name.rfind("MPI_", 0) == 0 || name.rfind("mpi_", 0) == 0 ||
+      name.rfind("_mpi_", 0) == 0 || name.rfind("_MPI_", 0) == 0) {
     is_mpi_call = 1;
-  } 
+  }
   if (data > 0.0 || is_mpi_call) {
     preserve_flag = 1;
   } else {
