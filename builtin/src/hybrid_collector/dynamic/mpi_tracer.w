@@ -67,30 +67,22 @@ typedef struct P2PInfoStruct{
 	double exe_time = 0.0;
 }PIS;
 
-struct RequestConverter
-{
+struct RequestConverter {
     char data[sizeof(MPI_Request)];
-    RequestConverter(MPI_Request * mpi_request)
-    {
+    RequestConverter(MPI_Request * mpi_request) {
         memcpy(data, mpi_request, sizeof(MPI_Request));
     }
-    RequestConverter()
-    { }
-    RequestConverter(const RequestConverter & req)
-    {
+    RequestConverter() {}
+    RequestConverter(const RequestConverter & req) {
 		memcpy(data, req.data, sizeof(MPI_Request));
 	}
-	RequestConverter & operator=(const RequestConverter & req)
-	{
+	RequestConverter & operator=(const RequestConverter & req) {
 		memcpy(data, req.data, sizeof(MPI_Request));
 		return *this;
 	}
-	bool operator<(const RequestConverter & request) const
-	{
-		for(size_t i=0; i<sizeof(MPI_Request); i++)
-		{
-			if(data[i]!=request.data[i])
-			{
+	bool operator<(const RequestConverter & request) const {
+		for(size_t i=0; i<sizeof(MPI_Request); i++) {
+			if(data[i]!=request.data[i]) {
 				return data[i]<request.data[i];
 			}
 		}
@@ -301,6 +293,14 @@ void TRACE_COLL(MPI_Comm comm, double exe_time){
 	**/
 }
 
+void TRANSLATE_RANK(MPI_Comm comm, int rank, int* crank)
+{
+  MPI_Group group1, group2;
+  PMPI_Comm_group(comm, &group1);
+  PMPI_Comm_group(MPI_COMM_WORLD, &group2);
+  PMPI_Group_translate_ranks(group1, 1, &rank, group2, crank);
+}
+
 void TRACE_P2P(char type, int request_count, int *source, int *dest, int *tag, double exe_time){
 #ifdef MY_BT
   unw_word_t buffer[MAX_STACK_DEPTH] = {0};
@@ -389,13 +389,16 @@ k1:
 		auto ed = chrono::system_clock::now();
 		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
 
-		int source_list[1];
-		int dest_list[1];
-		int tag_list[1];
+		int source_list[1] = {-1};
+		int dest_list[1] = {-1};
+		int tag_list[1] = {-1};
 
 		source_list[0] = mpi_rank;
-		dest_list[0] = dest;
+		int real_dest = 0;
+    	TRANSLATE_RANK(comm, dest, &real_dest); 
+		dest_list[0] = real_dest;
 		tag_list[0] = tag;
+
 #ifdef DEBUG
 		printf("%s\n", "{{func}}");
 #endif
@@ -414,10 +417,11 @@ k1:
 		int tag_list[1] = {-1};
 
 		source_list[0] = mpi_rank;
-		dest_list[0] = dest;
+		int real_dest = 0;
+    	TRANSLATE_RANK(comm, dest, &real_dest);
+		dest_list[0] = real_dest;
 		tag_list[0] = tag;
-		//if (mpi_rank == 0){
-		//printf("isend record %x %d %d\n",request, mpi_rank , tag);}
+
 		request_converter[RequestConverter(request)] = pair<int, int>(mpi_rank, tag);
 #ifdef DEBUG
 		printf("%s\n", "{{func}}");
@@ -433,13 +437,16 @@ k1:
 		auto ed = chrono::system_clock::now();
 		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
 
-		int source_list[1];
-		int dest_list[1];
-		int tag_list[1];
+		int source_list[1] = {-1};
+		int dest_list[1] = {-1};
+		int tag_list[1] = {-1};
 
-		source_list[0] = source;
+		int real_source = 0;
+    	TRANSLATE_RANK(comm, source, &real_source); 
+		source_list[0] = real_source;
 		dest_list[0] = mpi_rank;
 		tag_list[0] = tag;
+
 #ifdef DEBUG
 		printf("%s\n", "{{func}}");
 #endif
@@ -457,15 +464,19 @@ k1:
 		int dest_list[1] = {-1};
 		int tag_list[1] = {-1};
 
-		source_list[0] = source;
+		int real_source = 0;
+    	TRANSLATE_RANK(comm, source, &real_source); 
+		source_list[0] = real_source;
 		dest_list[0] = mpi_rank;
 		tag_list[0] = tag;
+
 #ifdef DEBUG		
 		if (mpi_rank == 0){
 		printf("irecv record %x %d %d\n", request, source , tag);
 		}
 #endif
-		request_converter[RequestConverter(request)] = pair<int, int>(source, tag);
+		request_converter[RequestConverter(request)] = pair<int, int>(real_source, tag);
+
 #ifdef DEBUG
 		printf("%s\n", "{{func}}");
 #endif
@@ -505,13 +516,10 @@ k1:
 		map<RequestConverter, pair<int, int>> :: iterator iter;
 		iter = request_converter.find(RequestConverter(request));
 		if (iter != request_converter.end()){
-			pair<int, int> p = request_converter[RequestConverter(request)];
-			//if (p.first >= 0 && p.second >= 0){
+			pair<int, int>& p = request_converter[RequestConverter(request)];
 			source_list[0] = p.first;
 			tag_list[0] = p.second;
-			//printf("%d %d\n", p.first, p.second);
 			valid_flag = true;
-			//}
 			request_converter.erase(RequestConverter(request));
 		}
 		
@@ -556,9 +564,8 @@ k1:
 			map<RequestConverter, pair<int, int>> :: iterator iter;
 			iter = request_converter.find(RequestConverter(&array_of_requests[i]));
 			if (iter != request_converter.end()){
-				pair<int, int> p = request_converter[RequestConverter(&array_of_requests[i])];
+				pair<int, int>& p = request_converter[RequestConverter(&array_of_requests[i])];
 
-				//if (p.first >= 0 && p.second >= 0){
 				source_list[i] = p.first;
 				tag_list[i] = p.second;
 #ifdef DEBUG
@@ -567,8 +574,6 @@ k1:
 				}
 #endif
 				valid_flag[i] = 1;
-				
-				//}
 				request_converter.erase(RequestConverter(&array_of_requests[i]));
 			}
 		}
@@ -655,18 +660,18 @@ k1:
 
 
 // collective communication
-{{fn func MPI_Reduce MPI_Alltoall MPI_Allreduce MPI_Bcast MPI_Scatter MPI_Gather MPI_Allgather}}{
-    // First call collective communication
-		auto st = chrono::system_clock::now();
-    {{callfn}} 
-		auto ed = chrono::system_clock::now();
-		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
-
-#ifdef DEBUG
-		printf("%s\n", "{{func}}");
-#endif
-		TRACE_COLL(comm, time);
-}{{endfn}}
+// {{fn func MPI_Reduce MPI_Alltoall MPI_Allreduce MPI_Bcast MPI_Scatter MPI_Gather MPI_Allgather}}{
+//    // First call collective communication
+//		auto st = chrono::system_clock::now();
+//    {{callfn}} 
+//		auto ed = chrono::system_clock::now();
+//		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+//
+//#ifdef DEBUG
+//		printf("%s\n", "{{func}}");
+//#endif
+//		TRACE_COLL(comm, time);
+// }{{endfn}}
 
 
 {{fn func MPI_Finalize}}{
