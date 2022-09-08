@@ -483,6 +483,37 @@ k1:
 		TRACE_P2P('R', 1, source_list, dest_list, tag_list, time);
 }{{endfn}}
 
+{{fn func MPI_Sendrecv}}{
+    // First call P2P communication
+		auto st = chrono::system_clock::now();
+    {{callfn}}
+		auto ed = chrono::system_clock::now();
+		double time = chrono::duration_cast<chrono::microseconds>(ed - st).count();
+
+		int myrank_list[1] = {-1};
+		int source_list[1] = {-1};
+		int dest_list[1] = {-1};
+		int send_tag_list[1] = {-1};
+		int recv_tag_list[1] = {-1};
+
+		int real_source = 0;
+		int real_dest = 0;
+    	TRANSLATE_RANK(comm, source, &real_source); 
+    	TRANSLATE_RANK(comm, dest, &real_dest); 
+
+		myrank_list[0] = mpi_rank;
+		source_list[0] = real_source;
+		dest_list[0] = real_dest;
+		send_tag_list[0] = sendtag;
+		recv_tag_list[0] = recvtag;
+
+#ifdef DEBUG
+		printf("%s\n", "{{func}}");
+#endif
+		TRACE_P2P('s', 1, myrank_list, dest_list, send_tag_list, time);
+		TRACE_P2P('r', 1, source_list, myrank_list, recv_tag_list, time);
+}{{endfn}}
+
 {{fn func MPI_Recv_init}}{
 	// First call P2P communication
 	//	auto st = chrono::system_clock::now();
