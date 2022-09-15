@@ -180,8 +180,6 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(
   }
   /**====================================================**/
 
-  // dbg(addr);
-
 #ifdef IGNORE_SHARED_OBJ
   /** Step over .dynamic address */
   if (type::IsDynAddr(addr)) {
@@ -233,6 +231,7 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(
   call_path_stack.pop();
 
   // From the found_vertex, recursively search vertex with current call path
+  // dbg(addr, found_vertex);
   return GetVertexWithCallPath(found_vertex, call_path_stack);
 
 } // function GetVertexWithCallPath

@@ -45,6 +45,24 @@ void build_create_tid_to_callpath_and_tid(core::PerfData *perf_data) {
   build_create_tid_to_callpath_and_tid_flag = true;
 }
 
+void DumpCallPath(type::call_path_t &call_path) {
+  std::stack<type::addr_t> tmp;
+  while (!call_path.empty()) {
+    type::addr_t addr = call_path.top();
+    call_path.pop();
+    tmp.push(addr);
+  }
+
+  while (!tmp.empty()) {
+    type::addr_t addr = tmp.top();
+    tmp.pop();
+    call_path.push(addr);
+    std::cout << std::hex << addr << " ";
+  }
+  std::cout << std::endl;
+  FREE_CONTAINER(tmp);
+}
+
 GPerf::GPerf() {
   this->root_mpag = new core::MultiProgramAbstractionGraph();
   this->has_dyn_addr_debug_info = false;
@@ -327,8 +345,8 @@ void add_dynamic_call(core::ProgramCallGraph *pcg, int vertex_id, void *extra) {
           (std::unordered_map<type::addr_t, std::unordered_set<type::addr_t>> *)
               extra;
   auto type = pcg->GetVertexType(vertex_id);
-  if ((type == type::CALL_NODE || type == type::CALL_REC_NODE ||
-       type == type::CALL_IND_NODE)) {
+  if ((type != type::CALL_NODE && type != type::CALL_REC_NODE &&
+       type != type::CALL_IND_NODE)) {
     return;
   }
   auto saddr = pcg->GetVertexEntryAddr(vertex_id);
@@ -1165,6 +1183,9 @@ void GPerf::DataEmbedding(core::PerfData *perf_data) {
     if (HasDynAddrDebugInfo()) {
       ConvertDynAddrToOffset(call_path);
     }
+
+    // DumpCallPath(call_path);
+
     // dbg("start querying");
     auto queried_vertex_id =
         GetVertexWithInterThreadAnalysis(thread_id, call_path);
@@ -1475,24 +1496,6 @@ void GPerf::GenerateOpenMPProgramAbstractionGraph(int num_threads) {
   // FREE_CONTAINER(*pag_vertex_id_2_mpag_vertex_id);
   // delete pag_vertex_id_2_mpag_vertex_id;
   delete arg;
-}
-
-void DumpCallPath(type::call_path_t &call_path) {
-  std::stack<type::addr_t> tmp;
-  while (!call_path.empty()) {
-    type::addr_t addr = call_path.top();
-    call_path.pop();
-    tmp.push(addr);
-  }
-
-  while (!tmp.empty()) {
-    type::addr_t addr = tmp.top();
-    tmp.pop();
-    call_path.push(addr);
-    std::cout << std::hex << addr << " ";
-  }
-  std::cout << std::endl;
-  FREE_CONTAINER(tmp);
 }
 
 std::map<type::vertex_t, type::vertex_t> pag_vid_to_pre_order_seq_id;
