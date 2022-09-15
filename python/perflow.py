@@ -436,7 +436,13 @@ class PerFlow(object):
         print()
         for v in V:
             for attr in attrs:
-                print(v[attr], end='\t')
+                format_print = '{0:^10}'
+                if attr == 'saddr' or attr == 'eaddr':
+                    # print(hex(int(v[attr])), end='\t\t')
+                    print(format_print.format(hex(int(v[attr]))), end='\t')
+                else:
+                    # print(v[attr], end='\t\t')
+                    print(format_print.format(v[attr]), end='\t')
             print()
 
     def draw(self, g, save_pdf = '', mark_edges = []):
@@ -451,6 +457,16 @@ class PerFlow(object):
 
 
     # builtin models / diagrams
+    def hotspot_detection_model(self, tdpag = None, ppag = None):
+        if tdpag == None:
+            print("No top-down view of PAG")
+        ## a hotspot detection pass
+        V_hot = self.hotspot_detection(tdpag.vs)
+        V_hot_sorted = sorted(V_hot, key=lambda v:float(v["CYCAVGPERCENT"]), reverse=True)
+        ## a report pass
+        attrs_list = ["name", "CYCAVGPERCENT", "saddr"] 
+        self.report(V = V_hot_sorted, attrs = attrs_list)
+
 
     def mpi_profiler_model(self, tdpag = None, ppag = None):
         if tdpag == None:
@@ -475,7 +491,9 @@ class PerFlow(object):
             V_comm = self.filter(self.tdpag.vs, name = "_MPI_")
 
         ## a communication pattern analysis pass
-        self.communication_pattern_analysis(V_comm, nprocs)
+        
+        #self.communication_pattern_analysis(V_comm, nprocs)
+        self.communication_pattern_analysis(self.tdpag.vs, nprocs)
 
 
 
