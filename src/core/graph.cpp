@@ -103,7 +103,7 @@ void Graph::SwapVertex(type::vertex_t vertex_id_1, type::vertex_t vertex_id_2) {
   // printf("\n");
 }
 
-void Graph::SetLazyEdgeTrunkSize(int trunk_size){
+void Graph::SetLazyEdgeTrunkSize(int trunk_size) {
   this->lazy_edge_trunk_size = trunk_size;
   igraph_vector_resize(&this->edges_to_be_added->edges,
                        this->lazy_edge_trunk_size * 2);
@@ -111,9 +111,9 @@ void Graph::SetLazyEdgeTrunkSize(int trunk_size){
 
 void Graph::UpdateEdges() {
   if (this->num_edges_to_be_added == 0) {
-    return ;
+    return;
   }
-  if (this->lazy_edge_trunk_size != this->num_edges_to_be_added){
+  if (this->lazy_edge_trunk_size != this->num_edges_to_be_added) {
     igraph_vector_resize(&this->edges_to_be_added->edges,
                          this->num_edges_to_be_added * 2);
   }
@@ -125,12 +125,12 @@ void Graph::UpdateEdges() {
   //   this->GetEdgeDest(eid));
   // }
 
-  if (this->lazy_edge_trunk_size != this->num_edges_to_be_added){
+  if (this->lazy_edge_trunk_size != this->num_edges_to_be_added) {
     igraph_vector_resize(&this->edges_to_be_added->edges,
                          this->lazy_edge_trunk_size * 2);
   }
   this->num_edges_to_be_added = 0;
-  //igraph_vector_resize(&this->edges_to_be_added->edges, TRUNK_SIZE * 2);
+  // igraph_vector_resize(&this->edges_to_be_added->edges, TRUNK_SIZE * 2);
 
   for (auto &edge_data : this->edges_attr_to_be_added.items()) {
     int edge_id = std::stoi(edge_data.key());

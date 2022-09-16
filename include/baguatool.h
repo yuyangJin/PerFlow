@@ -227,7 +227,7 @@ public:
 
   /**
    * @brief Set the Lazy Edge Trunk Size object
-   * 
+   *
    */
   void SetLazyEdgeTrunkSize(int trunk_size);
 

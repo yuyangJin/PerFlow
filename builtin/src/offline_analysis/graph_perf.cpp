@@ -1621,7 +1621,8 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(
   auto pag_graph_perf_data = this->root_pag->GetGraphPerfData();
   auto mpag_graph_perf_data = this->root_mpag->GetGraphPerfData();
 
-  this->root_mpag->SetLazyEdgeTrunkSize(num_procs * (pre_order_vertex_seq->size()));
+  this->root_mpag->SetLazyEdgeTrunkSize(num_procs *
+                                        (pre_order_vertex_seq->size()));
 
   for (int i = 0; i < num_procs; i++) {
     type::vertex_t last_new_vertex_id = root_vertex_id;
