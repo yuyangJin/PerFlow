@@ -1504,6 +1504,7 @@ void GPerf::AddCommEdgesToMPAG(core::PerfData *comm_data) {
   int pag_num_vertex = pag_vid_to_pre_order_seq_id.size();
   auto edge_data_size = comm_data->GetEdgeDataSize();
   // dbg(edge_data_size);
+  this->root_mpag->SetLazyEdgeTrunkSize(edge_data_size);
   for (unsigned long int i = 0; i < edge_data_size; i++) {
     auto value = comm_data->GetEdgeDataValue(i);
     if (value > COMM_TIME_THRD) {
@@ -1619,6 +1620,8 @@ void GPerf::GenerateMultiProcessProgramAbstractionGraph(
   // Build for each process
   auto pag_graph_perf_data = this->root_pag->GetGraphPerfData();
   auto mpag_graph_perf_data = this->root_mpag->GetGraphPerfData();
+
+  this->root_mpag->SetLazyEdgeTrunkSize(num_procs * (pre_order_vertex_seq->size()));
 
   for (int i = 0; i < num_procs; i++) {
     type::vertex_t last_new_vertex_id = root_vertex_id;

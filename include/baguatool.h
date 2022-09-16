@@ -191,6 +191,7 @@ protected:
   int cur_vertex_num; /**<initial the number of vertices in this graph */
   GraphPerfData *graph_perf_data; /**<performance data in a graph*/
 
+  int lazy_edge_trunk_size;
   std::unique_ptr<type::edge_vector_t> edges_to_be_added;
   int num_edges_to_be_added;
   json edges_attr_to_be_added;
@@ -223,6 +224,12 @@ public:
    */
   type::edge_t AddEdge(const type::vertex_t src_vertex_id,
                        const type::vertex_t dest_vertex_id);
+
+  /**
+   * @brief Set the Lazy Edge Trunk Size object
+   * 
+   */
+  void SetLazyEdgeTrunkSize(int trunk_size);
 
   /** Sync edges (to be added) to the graph.
    */
