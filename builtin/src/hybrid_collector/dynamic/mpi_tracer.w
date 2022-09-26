@@ -293,6 +293,7 @@ void TRACE_COLL(MPI_Comm comm, double exe_time){
 	**/
 }
 
+#ifdef ENABLE_SUBCOMMUNICATOR
 void TRANSLATE_RANK(MPI_Comm comm, int rank, int* crank)
 {
   MPI_Group group1, group2;
@@ -300,6 +301,12 @@ void TRANSLATE_RANK(MPI_Comm comm, int rank, int* crank)
   PMPI_Comm_group(MPI_COMM_WORLD, &group2);
   PMPI_Group_translate_ranks(group1, 1, &rank, group2, crank);
 }
+#else
+void TRANSLATE_RANK(MPI_Comm comm, int rank, int* crank)
+{
+	*crank = rank;
+}
+#endif
 
 void TRACE_P2P(char type, int request_count, int *source, int *dest, int *tag, double exe_time){
 #ifdef MY_BT
@@ -395,7 +402,11 @@ k1:
 
 		source_list[0] = mpi_rank;
 		int real_dest = 0;
-    	TRANSLATE_RANK(comm, dest, &real_dest); 
+#ifdef ENABLE_SUBCOMMUNICATOR
+    TRANSLATE_RANK(comm, dest, &real_dest); 
+#else
+    real_dest = dest;
+#endif
 		dest_list[0] = real_dest;
 		tag_list[0] = tag;
 
@@ -418,7 +429,11 @@ k1:
 
 		source_list[0] = mpi_rank;
 		int real_dest = 0;
-    	TRANSLATE_RANK(comm, dest, &real_dest);
+#ifdef ENABLE_SUBCOMMUNICATOR
+    TRANSLATE_RANK(comm, dest, &real_dest);
+#else
+    real_dest = dest;
+#endif
 		dest_list[0] = real_dest;
 		tag_list[0] = tag;
 
@@ -442,7 +457,11 @@ k1:
 		int tag_list[1] = {-1};
 
 		int real_source = 0;
-    	TRANSLATE_RANK(comm, source, &real_source); 
+#ifdef ENABLE_SUBCOMMUNICATOR
+    TRANSLATE_RANK(comm, source, &real_source); 
+#else
+    real_source = source;
+#endif
 		source_list[0] = real_source;
 		dest_list[0] = mpi_rank;
 		tag_list[0] = tag;
@@ -465,7 +484,11 @@ k1:
 		int tag_list[1] = {-1};
 
 		int real_source = 0;
-    	TRANSLATE_RANK(comm, source, &real_source); 
+#ifdef ENABLE_SUBCOMMUNICATOR
+    TRANSLATE_RANK(comm, source, &real_source); 
+#else
+    real_source = source;
+#endif
 		source_list[0] = real_source;
 		dest_list[0] = mpi_rank;
 		tag_list[0] = tag;
@@ -498,8 +521,14 @@ k1:
 
 		int real_source = 0;
 		int real_dest = 0;
-    	TRANSLATE_RANK(comm, source, &real_source); 
-    	TRANSLATE_RANK(comm, dest, &real_dest); 
+#ifdef ENABLE_SUBCOMMUNICATOR
+    TRANSLATE_RANK(comm, source, &real_source); 
+		TRANSLATE_RANK(comm, dest, &real_dest); 
+#else
+    real_source = source;
+		real_dest = dest;
+#endif
+    	
 
 		myrank_list[0] = mpi_rank;
 		source_list[0] = real_source;
