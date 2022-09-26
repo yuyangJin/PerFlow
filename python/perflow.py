@@ -31,7 +31,16 @@ class PerFlow(object):
         self.ppag_perf_data = None
         self.tdpag_to_ppag_map = None
         self.ppag_to_tdpag_map = None
-
+    
+    ''' 
+    =========================================== 
+    
+    Settings 
+    
+    ===========================================
+    '''
+    
+    
     def setBinary(self, bin_name = ""):
         if bin_name != "":
             self.static_analysis_binary_name = bin_name
@@ -49,7 +58,14 @@ class PerFlow(object):
             self.nprocs = nprocs
         else:
             self.nprocs = 1
-        
+
+    ''' 
+    =========================================== 
+    
+    Hybrid Analysis 
+    
+    ===========================================
+    '''
 
     def staticAnalysis(self):
         cmd_line = 'time $BAGUA_DIR/build/builtin/binary_analyzer ' + self.static_analysis_binary_name + ' ' + self.data_dir + '/static_data'
@@ -84,7 +100,14 @@ class PerFlow(object):
 
         mv_cmd_line = 'mv dynamic_data' + ' ./' + self.data_dir + '/'
         os.system(mv_cmd_line)
-        
+
+    ''' 
+    =========================================== 
+    
+    PAG related operations
+    
+    ===========================================
+    '''   
 
     def pagGeneration(self):
         pag_generation_cmd_line = ''
@@ -209,23 +232,39 @@ class PerFlow(object):
         return self.tdpag, self.ppag
 
 
-    # Some builtin passes 
+    ''' 
+    =========================================== 
+    
+    Builtin Passes 
+    
+    ===========================================
+    '''
 
     def filter(self, V, name = '', type = ''):
         if name != '':
             #print(name)
             # return V.select(lambda v: (v["name"].find(name) != -1) )
-            return V.select(lambda v: (v["name"].startswith(name) == True) )
+            return V.select(lambda v: (v['name'].startswith(name) == True) )
         if type != '':
             return V.select(type_eq = type)
 
 
-    # def top(self, V, metric, n):
-    #     topk = []
-    #     k = n
-    #     for v in V:
-    #         if float(v['CYCAVGPERCENT']) > 0.05:
-    #             topk.append(v)
+    def sort_by(self, V, metric = 'CYCAVGPERCENT', reverse_flag = True ):
+        V_sorted = sorted(V, key=lambda v:float(v[metric]), reverse=reverse_flag)
+        return V_sorted
+
+
+    def topk(self, V, k):
+        i = 0
+        V_topk = []
+        for v in V:
+            if i >= k:
+                break
+            V_topk.append(v)
+            i += 1
+        V_topk_ret = self.tdpag.vs.select(lambda v: v in V_topk)
+        return V_topk_ret
+    
 
     def hotspot_detection(self, V, metric = '', n = 0):
         if metric == '':
@@ -233,14 +272,18 @@ class PerFlow(object):
         if n == 0:
             n = 10
         return V.select(lambda v: float(v['CYCAVGPERCENT']) > 0.0001)
-        #return V.sort_by(metric).top(n)
-    
-    
+
+
     def imbalance_analysis(self, V, nprocs = 1):
+        self.inter_vertex_imbalance_analysis(V, nprocs)
+
+
+    def inter_vertex_imbalance_analysis(self, V, nprocs = 1):
+        imb_V = []
         for v in V:
-            if str(int(v['id'])) in self.tdpag_perf_data.keys():
-                # print(int(v['id']), self.tdpag_perf_data[str(int(v['id']))])
-                data = self.tdpag_perf_data[str(int(v['id']))]
+            vid = str(int(v['id']))
+            if vid in self.tdpag_perf_data.keys():
+                data = self.tdpag_perf_data[vid]
                 for metric, metric_data in data.items():
                     # gather all procs data
                     metric_data_list = [0 for _ in range(nprocs)]
@@ -251,27 +294,141 @@ class PerFlow(object):
                         procs_data_tot_num = 0.0
                         for thread, thread_data in procs_data.items():
                             procs_data_tot_num += thread_data
-                        # metric_data_list.append(procs_data_tot_num)
                         metric_data_list[int(procs)] = procs_data_tot_num
                     
+                    def normalization(data):
+                        _range = numpy.max(data) - numpy.min(data)
+                        return (data - numpy.min(data)) / _range
+
                     # Calculate variance
                     mean = numpy.mean(metric_data_list)
                     var = numpy.var(metric_data_list)
-                    std_var = numpy.std(metric_data_list)
-                    if std_var > 70:
+                    std_var = numpy.std(normalization(metric_data_list))
+                    if std_var > 0.15:
                         # print(metric, "mean:", mean, "variance:", var, "standard variance:", std_var)
-
-                        # Show the figures
-                        # metric_data_array = []
 
                         # draw_scatter_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
                         # draw_plot_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
                         draw_bar_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
-                        
+                        imb_V.append(v)
+        return imb_V
+
+
+    def inter_process_imbalance_analysis(self, V, nprocs = 1, threshold = 1.3):     
+        imb_VS = dict()
+        for v in V:
+            vid = str(int(v['id']))
+            if vid in self.tdpag_perf_data.keys():
+                data = self.tdpag_perf_data[vid]
+                for metric, metric_data in data.items():
+                    # gather all procs data
+                    metric_data_list = [0 for _ in range(nprocs)]
+                    if metric_data == None:
+                        continue
+                    for procs, procs_data in metric_data.items():
+                        # gather all thread data
+                        procs_data_tot_num = 0.0
+                        for thread, thread_data in procs_data.items():
+                            procs_data_tot_num += thread_data
+                        metric_data_list[int(procs)] = procs_data_tot_num
+
+                    if int(v['type']) == 1: # MPI func
+                        if '_barrier' in v['name']:
+                            min_value = numpy.min(metric_data_list)
+                            min_pids = numpy.argmin(metric_data_list)
+                            for pid in range(nprocs):
+                                wait = metric_data_list[pid] - min_value
+                                if wait > 0:      
+                                    ppag_vid = self.tdpag_to_ppag_map[str(vid)][str(pid)]['0']
+                                    target_pid = min_pids
+                                    ppag_target_vid = self.tdpag_to_ppag_map[str(vid)][str(target_pid)]['0']
+                                    self.ppag.add_edges([(ppag_target_vid, ppag_vid)])
+                                    e = self.ppag.es[-1]
+                                    e['time'] = metric_data_list[pid] - min_value
+                                    print(ppag_vid, ppag_target_vid, e['time'])
+
+                    mean = numpy.mean(metric_data_list)
+
+                    imb_pid_V = []
+                    for pid in range(nprocs):
+                        if metric_data_list[pid] > threshold * mean:
+                            ppag_vid = self.tdpag_to_ppag_map[str(vid)][str(pid)]['0']
+                            imb_pid_V.append(ppag_vid)
+                    print(imb_pid_V)
+                    tmp_imb_V = self.ppag.vs.select(lambda v:v['id'] in imb_pid_V)
+                    imb_VS[v] = tmp_imb_V
+        return imb_VS
+
+    def get_comm_edges(self, V, nprocs, threshold = 0):
+        E = dict()
+        for v in V:
+            if v['type'] != 1:
+                continue
+            E[v] = []
+            tdpag_vid = int(v['id'])
+
+            for pid in range(nprocs):
+                ppag_vid = self.tdpag_to_ppag_map[str(tdpag_vid)][str(pid)]['0']
+                ppag_v = self.ppag.vs.find(id=ppag_vid)
+                ppag_v_next = self.ppag.vs.find(id=ppag_vid+1)
+
+                E_tmp = self.ppag.es.select(lambda e: e.source == ppag_v.index and e.target != ppag_v_next.index)
+
+                for e in E_tmp:
+                    if e.attributes().__contains__('time'):
+                        if e['time'] != float('nan') and e['time'] != float('inf'):
+                            if e['time'] > threshold: 
+                                E[v].append([e.source, e.target])
+
+        return E 
+
+    def communication_pattern_analysis(self, V, nprocs=1):
+        comm_pattern_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
+        for v in V:
+            vid = str(int(v['id']))
+            if not self.tdpag_to_ppag_map.keys().__contains__(vid):
+                continue
+            for pid in range(nprocs):
+                if not self.tdpag_to_ppag_map[vid].keys().__contains__(str(pid)):
+                    continue
+                if not self.tdpag_to_ppag_map[vid][str(pid)].keys().__contains__('0'):
+                    continue
+                ppag_vid = self.tdpag_to_ppag_map[vid][str(pid)]['0']
+                ppag_v = self.ppag.vs[int(ppag_vid)]
+                edges = ppag_v.out_edges()
+                # print(vid, ppag_vid, edges)
+                for e in edges:
+                    if e.attributes().__contains__('time'):
+                        if (e['time'] != float('nan') and e['time'] != float('inf')):
+                            ''' the return value of e.target is vertex id (python-igraph id), but not the attribute 'id' of vertex, the latter one is what we need.'''
+                            ppag_target_v = self.ppag.vs[e.target]
+                            ppag_target_vid = int(ppag_target_v['id'])
+
+                            if self.ppag_to_tdpag_map.keys().__contains__(ppag_target_vid):
+                                tdpag_info = self.ppag_to_tdpag_map[ppag_target_vid]
+                                dest_pid = tdpag_info[1]
+                                comm_pattern_mat[pid][dest_pid] += float(e['time'])
+                                comm_pattern_mat[dest_pid][pid] += float(e['time'])
+
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, vmax = 1.0, edgecolors='grey', linewidths=0.1)
+        plt.colorbar(label = "Time(ms)")
+        plt.title("Communication Pattern")
+        plt.xlabel("Process ID")
+        plt.ylabel("Process ID")
+        plt.savefig("comm_pattern.pdf")
+        plt.clf()
+
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.1)
+        plt.colorbar(label = "Time(ms)")
+        plt.title("Communication Time")
+        plt.xlabel("Process ID")
+        plt.ylabel("Process ID")
+        plt.savefig("comm_time.pdf")
+        plt.clf()
+
                         
     def process_similarity_analysis(self, V, nprocs, metric = 'TOT_CYC'):
-        ''' process character vector
-        '''
+        ''' process character vector '''
         charact_vec = [[] for _ in range(nprocs)]
 
         for v in V:
@@ -303,27 +460,10 @@ class PerFlow(object):
                 for i in range(nprocs):
                     charact_vec[i].append(0)
 
-        # for procs_charact_vec in charact_vec:
-        #     print(procs_charact_vec, end = ' ')
-        # print()
-
         charact_vec = normalize(charact_vec)
 
-        # Calculate dot
-        # similarity_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
-        # for i in range(nprocs):
-        #     for j in range(i, nprocs):
-        #         value = numpy.dot(charact_vec[i], charact_vec[j])
-        #         similarity_mat[i][j] = value
-        #         similarity_mat[j][i] = value
-        # plt.imshow(similarity_mat, cmap=plt.cm.binary)
-        # plt.colorbar()
-        # plt.savefig("sim_mat.pdf")
-        # plt.clf()
-        # plt.show()
-        # print(similarity_mat)
+        # Calculate distance matrix
 
-        # Hierarchical clustering
         euclidean_dist = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
         for i in range(nprocs):
             for j in range(i + 1, nprocs):
@@ -342,7 +482,7 @@ class PerFlow(object):
             A.append(a)
 
         
-
+        # Hierarchical clustering
         # euclidean_dist = scipy.cluster.hierarchy.distance.pdist(charact_vec, 'euclidean')
         # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean', optimal_ordering=True)
         clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean')
@@ -356,77 +496,38 @@ class PerFlow(object):
         print(clusters)
 
 
-        # model = AgglomerativeClustering(n_clusters=None)
-        # model = model.fit(charact_vec)
-        # labels = model.fit_predict(charact_vec)
-        # x = range(1,len(model.distances_)+1)
-
-    def communication_pattern_analysis(self, V, nprocs=1):
-        comm_pattern_mat = numpy.zeros(nprocs * nprocs).reshape(nprocs, nprocs)
-        # if V.attrbutes.keys().__contains__('time'):
-        for v in V:
-            # print(v)
-            vid = str(int(v['id']))
-            if not self.tdpag_to_ppag_map.keys().__contains__(vid):
+    def connection_path_analysis_pass(self, V):
+        V_path = []
+        V_seq = self.ppag.vs.select(lambda vertex:vertex in V)
+        for v in V_seq:
+            if 'main' in v['name']:
                 continue
-            for pid in range(nprocs):
-                if not self.tdpag_to_ppag_map[vid].keys().__contains__(str(pid)):
-                    continue
-                if not self.tdpag_to_ppag_map[vid][str(pid)].keys().__contains__('0'):
-                    continue
-                ppag_vid = self.tdpag_to_ppag_map[vid][str(pid)]['0']
-                ppag_v = self.ppag.vs[int(ppag_vid)]
-                # e_list = self.ppag.es.select(_source=int(ppag_vid))
-                edges = ppag_v.out_edges()
-                # print(vid, ppag_vid, edges)
-                for e in edges:
-                    # if (e['time'] != None) and (e['time'] != float('inf')) and (e['time'] != float('nan')):
-                    if e.attributes().__contains__('time'):
-                        if (e['time'] != float('nan')):
-                            ''' the return value of e.target is vertex id (python-igraph id), but not the attribute 'id' of vertex, the latter one is what we need.'''
-                            ppag_target_v = self.ppag.vs[e.target]
-                            ppag_target_vid = int(ppag_target_v['id'])
-                            # matched_flag = False
-                            # for dest_v in V:
-                            #     dest_vid = str(int(dest_v['id']))
-                            #     for dest_pid, dest_vid in self.tdpag_to_ppag_map[dest_vid].items():
-                            #         ppag_target_vid = int(ppag_target_v['id'])
-                            #         # print(dest_vid['0'], ppag_target_vid) 
-                                    
-                            #         if dest_vid['0'] == ppag_target_vid: 
-                            #             # print(dest_vid['0'], ppag_vid, ppag_target_vid, e['time'])
-                            #             comm_pattern_mat[pid][int(dest_pid)] += float(e['time'])
-                            #             comm_pattern_mat[int(dest_pid)][pid] += float(e['time'])
-                            #             matched_flag = True
-                            #             break
-                            #     if matched_flag == True:
-                            #         break
-                            # print(ppag_target_vid)
-                            if self.ppag_to_tdpag_map.keys().__contains__(ppag_target_vid):
-                                tdpag_info = self.ppag_to_tdpag_map[ppag_target_vid]
-                                # print(ppag_target_vid, tdpag_info)
-                                # dest_vid = tdpag_info[0]
-                                dest_pid = tdpag_info[1]
-                                comm_pattern_mat[pid][dest_pid] += float(e['time'])
-                                comm_pattern_mat[dest_pid][pid] += float(e['time'])
+            saddr = v['saddr']
+            V_other = V_seq.select(lambda vertex: vertex['saddr'] != saddr)
+            # V_path += self.ppag.get_all_simple_paths(v, V_other, cutoff = len(self.tdpag_to_ppag_map.keys()) / 2, mode = 'out')
+            V_path += self.ppag.get_all_shortest_paths(v, V_other, mode = 'out')
 
-        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, vmax = 1.0, edgecolors='grey', linewidths=0.1)
-        plt.colorbar(label = "Time(ms)")
-        plt.title("Communication Pattern")
-        plt.xlabel("Process ID")
-        plt.ylabel("Process ID")
-        plt.savefig("comm_pattern.pdf")
-        plt.clf()
+        return V_path
 
-        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.1)
-        plt.colorbar(label = "Time(ms)")
-        plt.title("Communication Time")
-        plt.xlabel("Process ID")
-        plt.ylabel("Process ID")
-        plt.savefig("comm_time.pdf")
-        plt.clf()
-        
-                     
+    def backtracking_analysis_pass(self, VS):
+        '''
+        A SIMPLE version: 
+            get the shorstest paths between computation vertices and communication vertices.
+        '''
+        E_path = []
+        V_comp = []
+        V_comm = []
+        for tdpag_v, V in VS.items():
+            if tdpag_v['type'] != 1:
+                V_comp += V
+            else:
+                V_comm += V
+        for v_comp in V_comp:
+            V_path = self.ppag.get_all_shortest_paths(v_comp, V_comm, mode = 'out')
+            print(V_path)
+            E_path+=V_path
+        return E_path
+
     
     def report(self, V, attrs=[]):
         if len(attrs) == 0:
@@ -438,12 +539,11 @@ class PerFlow(object):
             for attr in attrs:
                 format_print = '{0:^10}'
                 if attr == 'saddr' or attr == 'eaddr':
-                    # print(hex(int(v[attr])), end='\t\t')
                     print(format_print.format(hex(int(v[attr]))), end='\t')
                 else:
-                    # print(v[attr], end='\t\t')
                     print(format_print.format(v[attr]), end='\t')
             print()
+
 
     def draw(self, g, save_pdf = '', mark_edges = []):
         if save_pdf == '':
@@ -456,14 +556,24 @@ class PerFlow(object):
         graphviz_output.show()
 
 
-    # builtin models / diagrams
+
+    ''' 
+    =========================================== 
+    
+    Builtin Models / Diagrams 
+    
+    ===========================================
+    '''
+
+
     def hotspot_detection_model(self, tdpag = None, ppag = None):
         if tdpag == None:
             print("No top-down view of PAG")
-        ## a hotspot detection pass
+
+        ''' 1. Hotspot detection pass '''
         V_hot = self.hotspot_detection(tdpag.vs)
         V_hot_sorted = sorted(V_hot, key=lambda v:float(v["CYCAVGPERCENT"]), reverse=True)
-        ## a report pass
+        ''' 2. Report pass '''
         attrs_list = ["name", "CYCAVGPERCENT", "saddr"] 
         self.report(V = V_hot_sorted, attrs = attrs_list)
 
@@ -472,16 +582,16 @@ class PerFlow(object):
         if tdpag == None:
             print("No top-down view of PAG")
         
-        ## a filter pass
+        ''' 1. Filter pass '''
         V_comm = self.filter(tdpag.vs, name = "mpi_")
-        ## a hotspot detection pass
+        ''' 2. Hotspot detection pass '''
         V_hot = self.hotspot_detection(V_comm)
-        ## a report pass
+        ''' 3. Report pass '''
         attrs_list = ["name", "CYCAVGPERCENT", "saddr"] 
         self.report(V = V_hot, attrs = attrs_list)
 
     def communication_pattern_analysis_model(self, nprocs=1):
-        ## a filter pass
+        ''' 1. Filter pass '''
         V_comm = self.filter(self.tdpag.vs, name = "_mpi_")
         if len(V_comm) == 0:
             V_comm = self.filter(self.tdpag.vs, name = "MPI_")
@@ -490,13 +600,189 @@ class PerFlow(object):
         if len(V_comm) == 0:
             V_comm = self.filter(self.tdpag.vs, name = "_MPI_")
 
-        ## a communication pattern analysis pass
-        
+        ''' 2. Communication pattern analysis pass '''
         #self.communication_pattern_analysis(V_comm, nprocs)
         self.communication_pattern_analysis(self.tdpag.vs, nprocs)
 
 
+    def backtracking_analysis_model(self, nprocs=1):
+        if self.tdpag == None:
+            print("No top-down view of PAG")
 
+        ''' 1. Hotspot detection'''
+        V_hot = self.hotspot_detection(self.tdpag.vs)
+        V_hot_sorted = self.sort_by(V_hot, metric='CYCAVGPERCENT', reverse_flag=True)
+        V_hot_top = self.topk(V_hot_sorted, 4)
+        # for v in V_hot_top:
+        #     print(v['id'], v['name'], v['saddr'], v['eaddr'], v['CYCAVGPERCENT'])
+
+        ''' 2. Inter-vertex imbalance analysis'''
+        V_imb = self.inter_vertex_imbalance_analysis(V_hot_top, nprocs)
+        # for v in V_imb:
+        #     ppag_v = int(v['id'])
+        #     pid = self.ppag_to_tdpag_map[ppag_v][1]
+        #     print(v['id'], v['name'], pid,  v['saddr'], v['eaddr'], v['TOTCYCSUM'])
+
+        ''' 3. Inter-process imbalance analysis'''
+        VS_imb = self.inter_process_imbalance_analysis(V_imb, nprocs)
+
+
+        ''' 4. Backtracking analysis'''
+        V_paths = self.backtracking_analysis_pass(VS_imb)
+
+
+        ''' 5. Show the backtracking results '''
+        '''
+        Below shows an example output.
+        Vertices are code snippets, edges are dependence.
+         - 'o' represents imbalance
+         - '.' represents normal
+
+        ........o..o.....o.....oo......
+                |  |    / \    /\       
+        ........o..o...o...o..o..o.....    
+               /   |    \   \/    \        
+              /    |     |   \     |            
+             /     |      \   \    |           
+        ....o......o.......o...o...o...             
+        '''
+
+        def get_all_related_vertices(V_imb):
+            V_related = []
+            
+            # Need check with vid of process 0 in ppag
+            # here simplily use vid of tdpag
+            V_imb_sorted_by_execution_order = self.sort_by(V_imb, metric='id')
+            tdpag_first_v = V_imb[0]
+            tdpag_end_v = V_imb[-1]
+            ppag_first_vid = self.tdpag_to_ppag_map[str(int(tdpag_first_v['id']))]['0']['0']
+            # ppag_end_vid = self.tdpag_to_ppag_map[str(int(tdpag_end_v['id']))]['0']['0']
+            tdpag_v = tdpag_first_v
+            ppag_vid = ppag_first_vid
+            
+            while True:
+                if tdpag_v in V_imb:
+                    V_related.append(tdpag_v)
+                elif  tdpag_v['type'] == 1: # MPI
+                    V_related.append(tdpag_v)
+                
+                if tdpag_v == tdpag_end_v:
+                    break
+
+                # next tdpag_v
+                ppag_vid += 1
+                tdpag_vid = self.ppag_to_tdpag_map[ppag_vid][0]
+                V_tmp = self.tdpag.vs.select(lambda v: v['id'] == tdpag_vid)
+                tdpag_v = V_tmp[0]
+            
+            return V_related
+
+        ''' 5.1 Get all related vertices '''
+        V_related = get_all_related_vertices(V_imb)
+
+        ''' 5.2 Build matrix map: key(vertex id), value(position in the matrix) '''
+        V_mat = dict()
+        for i in range(len(V_related)):
+            v = V_related[len(V_related) - 1 - i]
+            for pid in range(nprocs):
+                ppag_vid = self.tdpag_to_ppag_map[str(int(v['id']))][str(pid)]['0']
+                ppag_vID = self.ppag.vs.find(id=ppag_vid).index
+                V_mat[ppag_vID] = [pid, i]
+                # print(ppag_vID, [pid, i])
+
+
+        ''' 5.3 Prepare arrays for drawing imbalance/normal points'''
+
+        Y_imb_v= [([]) for i in range(len(V_related))]
+        X_imb_v= [([]) for i in range(len(V_related))]
+
+        Y_norm_v= [([]) for i in range(len(V_related))]
+        X_norm_v= [([]) for i in range(len(V_related))]
+
+        for i in range(len(V_related)):
+            v = V_related[len(V_related) - 1 - i]
+            if v not in V_imb:
+                for j in range(nprocs):
+                    X_norm_v[i].append(j)
+                    Y_norm_v[i].append(i)
+
+            else:
+                V_inter_process_imb = VS_imb[v]
+                PID_inter_process_imb = []
+                for v in V_inter_process_imb:
+                    ppag_v = int(v['id'])
+                    pid = self.ppag_to_tdpag_map[ppag_v][1]
+                    PID_inter_process_imb.append(pid)
+                for j in range(nprocs):
+                    if j in PID_inter_process_imb:
+                        X_imb_v[i].append(j)
+                        Y_imb_v[i].append(i)
+                    else:
+                        X_norm_v[i].append(j)
+                        Y_norm_v[i].append(i)
+
+        ''' 5.4 Prepare arrays for drawing arrows between points '''
+        E_arrow = []
+
+        for path in V_paths:
+            src_vID = path[0]
+            dest_vID = -1
+            for i in range(1, len(path)):
+                if path[i] != path[i-1] + 1:
+                    dest_vID = path[i-1]
+                    if V_mat.keys().__contains__(src_vID) and V_mat.keys().__contains__(dest_vID):
+                        src = V_mat[src_vID]
+                        dest = V_mat[dest_vID]
+                        E_arrow.append([src, dest])
+                    src_vID = path[i-1]
+                    dest_vID = path[i]
+                    if V_mat.keys().__contains__(src_vID) and V_mat.keys().__contains__(dest_vID):
+                        src = V_mat[src_vID]
+                        dest = V_mat[dest_vID]
+                        E_arrow.append([src, dest])
+                elif i == len(path) - 1:
+                    dest_vID = path[i]
+                    if V_mat.keys().__contains__(src_vID) and V_mat.keys().__contains__(dest_vID):
+                        src = V_mat[src_vID]
+                        dest = V_mat[dest_vID]
+                        E_arrow.append([src, dest])
+                    break
+                else:
+                    continue
+                    
+                src_vID = path[i]
+                
+        
+        # E_arrow = []
+        # for v, E in E_comm.items():
+        #     for e in E:
+        #         # print(e[0], e[1])
+        #         if V_mat.keys().__contains__(e[0]) and V_mat.keys().__contains__(e[1]):
+        #             src = V_mat[e[0]]
+        #             dest = V_mat[e[1]]
+        #             E_arrow.append([src, dest])
+
+        # print('E_arrows======', E_arrow)
+
+        ''' 5.5 Draw the results'''
+
+        plt.figure(figsize=(nprocs*0.3, len(V_related)))
+
+        for i in range(len(V_related)):
+            draw_points(X_norm_v[i], Y_norm_v[i])
+            draw_points(X_imb_v[i], Y_imb_v[i], marker_shape='o')
+
+        draw_arrows(E_arrow)
+
+        Y_name = []
+        for v in V_related:
+            Y_name.append(v['name'])
+        Y_name.reverse()
+
+        plt.yticks(numpy.arange(len(Y_name)), Y_name, fontsize = 18)
+
+        plt.savefig(Y_name[0]+'_backtacking.pdf')
+        plt.clf()
 
 
 def draw_scatter_figure(X, Y, xlabel='', ylabel='', title = ''):
@@ -558,3 +844,14 @@ def draw_bar_figure(X, Y, xlabel='', ylabel='', title = ''):
     plt.savefig(title+'.pdf')
 
     plt.clf()
+
+def draw_points(X, Y, marker_shape = '.'):
+    if marker_shape == 'o':
+        plt.scatter(X, Y, marker=marker_shape, c = 'white', edgecolors='black', s = 150, linewidths=2)
+    else:
+        plt.scatter(X, Y, marker=marker_shape, color='black')
+
+
+def draw_arrows(E, ):
+    for e in E:
+        plt.annotate("", xy=(e[1][0], e[1][1]), xytext=(e[0][0], e[0][1]), arrowprops=dict(arrowstyle="->"),size=24)
