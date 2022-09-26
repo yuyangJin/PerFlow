@@ -19,7 +19,7 @@
 #define NUM_EVENTS 1
 #define MAX_CALL_PATH_DEPTH 100
 #define MAX_THREAD_PER_PROCS 65530 // cat /proc/sys/vm/max_map_count
-#define MAX_NUM_CORE 24
+#define MAX_NUM_CORE 200
 
 #define gettid() syscall(__NR_gettid)
 
