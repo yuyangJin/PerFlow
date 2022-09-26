@@ -308,7 +308,22 @@ void commOpMatchWithMPIInfo(int pid) {
             one_comm_dep_edge->src_pid = src_pid;
             one_comm_dep_edge->exe_time = exe_time;
             comm_dep_edge.push_back(one_comm_dep_edge);
-
+            
+            if (src_type == 's') {
+              double src_exe_time = 0.0;
+              if (!(*src_iter)->exe_time.empty()) {
+                src_exe_time = stod((*src_iter)->exe_time);
+              }
+              CDE *one_reverse_comm_dep_edge = new CDE;
+              one_reverse_comm_dep_edge->dest_type = src_type;
+              one_reverse_comm_dep_edge->src_type = dest_type;
+              one_reverse_comm_dep_edge->dest_callpath = src_callpath;
+              one_reverse_comm_dep_edge->src_callpath = dest_callpath;
+              one_reverse_comm_dep_edge->dest_pid = src_pid;
+              one_reverse_comm_dep_edge->src_pid = dest_pid;
+              one_reverse_comm_dep_edge->exe_time = src_exe_time;
+              comm_dep_edge.push_back(one_reverse_comm_dep_edge);
+            }
             break;
           }
         }
