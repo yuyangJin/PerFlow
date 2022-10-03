@@ -26,6 +26,26 @@
          <changefreq>daily</changefreq>
     </url>
     <url>
+         <loc>https://yuyangjin.github.io/PerFlow/documentation/builtinmodel/</loc>
+         <lastmod>2022-10-03</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://yuyangjin.github.io/PerFlow/documentation/builtinpass/</loc>
+         <lastmod>2022-10-03</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://yuyangjin.github.io/PerFlow/documentation/documentation/</loc>
+         <lastmod>2022-10-03</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
+         <loc>https://yuyangjin.github.io/PerFlow/documentation/pythonapi/</loc>
+         <lastmod>2022-10-03</lastmod>
+         <changefreq>daily</changefreq>
+    </url>
+    <url>
          <loc>https://yuyangjin.github.io/PerFlow/examples/example/</loc>
          <lastmod>2022-10-03</lastmod>
          <changefreq>daily</changefreq>
