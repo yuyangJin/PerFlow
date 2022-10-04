@@ -218,10 +218,82 @@
         <div class="container">
             <div class="col-md-3">
   
+<div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+    
+        <li class="main active"><a href="#installation">Installation</a></li>
+        
+            <li><a href="#dependencies">Dependencies</a></li>
+        
+            <li><a href="#environment-setting">Environment Setting</a></li>
+        
+            <li><a href="#build-perflow">Build PerFlow</a></li>
+        
+    
+    </ul>
+</div>
+  
 </div>
             <div class="col-md-9" role="main">
 
-<h1 id="getting-started">Getting started</h1></div>
+<h1 id="installation">Installation</h1>
+<h2 id="dependencies">Dependencies</h2>
+<p>PerFlow is dependent on:</p>
+<ul>
+<li><a href="https://github.com/dyninst/dyninst">Dyninst</a></li>
+<li>Boost (Boost will be installed automatically with Dyninst)</li>
+<li><a href="https://bitbucket.org/icl/papi/src/master/">PAPI</a></li>
+<li><a href="https://www.nongnu.org/libunwind/download">libunwind</a></li>
+<li><a href="https://github.com/igraph/igraph">igraph</a></li>
+<li>cmake &gt;= 3.16</li>
+</ul>
+<p>Dyninst and PAPI need user to build themselves. <code>igraph</code> has been integrated into PerFlow as submodule. </p>
+<pre><code class="language-bash">git submodule update --init
+</code></pre>
+<p>You can build dependencies from <strong>source codes</strong> or build dependencies with <strong><a href="https://github.com/spack/spack">Spack</a></strong> 
+(The recommended way to build Dyninst (with Boost) and PAPI is to use Spack)</p>
+<pre><code class="language-bash">spack install dyninst # boost will be installed at the same time
+spack install papi
+spack install libunwind
+</code></pre>
+<h2 id="environment-setting">Environment Setting</h2>
+<p>If your dependencies are built from source codes, please use the following scripts to load the dependence libraries:</p>
+<pre><code class="language-bash">PREFIX=/home/jinyuyang/build
+DEPLIST=&quot;papi-6.0.0 dyninst-10.1.0 libunwind-1.6.0&quot;
+
+for dep in $DEPLIST
+do
+    export PATH=${PREFIX}/${dep}/bin64:${PREFIX}/${dep}/bin:$PATH
+    export INCLUDE=${PREFIX}/${dep}/include64:${PREFIX}/${dep}/include:$INCLUDE
+    export C_INCLUDE_PATH=${PREFIX}/${dep}/include64:${PREFIX}/${dep}/include:$C_INCLUDE_PATH
+    export CPLUS_INCLUDE_PATH=${PREFIX}/${dep}/include64:${PREFIX}/${dep}/include:$CPLUS_INCLUDE_PATH
+    export LIBRARY_PATH=${PREFIX}/${dep}/lib64:${PREFIX}/${dep}/lib:$LIBRARY_PATH
+    export LD_LIBRARY_PATH=${PREFIX}/${dep}/lib64:${PREFIX}/${dep}/lib:$LD_LIBRARY_PATH
+done
+</code></pre>
+<p>If your dependencies are built with spack, please use the following scripts to load the dependence libraries:</p>
+<pre><code class="language-bash"># before building PerFlow
+spack load dyninst # boost will be loaded at the same time
+spack load papi
+spack load libunwind
+</code></pre>
+<h2 id="build-perflow">Build PerFlow</h2>
+<p>If your dependencies are built from source codes, the cmake commands for PerFlow would be like:</p>
+<pre><code class="language-bash">cmake .. -DBOOST_ROOT=/path_to_your_boost_install_dir -DDyninst_DIR=/path_to_your_dyninst_install_dir/lib/cmake/Dyninst -DPAPI_PREFIX=/path_to_your_papi_install_dir
+
+# You should make sure that there is `DyninstConfig.cmake` in /path_to_your_dyninst_install_dir/lib/cmake/Dyninst
+# And there is `include` `lib` in /path_to_your_papi_install_dir
+# And there is `include` `lib` in /path_to_your_boost_install_dir, `boost` in /path_to_your_boost_install_dir/include
+</code></pre>
+<p>Note that if dyninst is built from source, the boost will be downloaded and installed automatically with it, in the install directory of dyninst.</p>
+<pre><code class="language-bash">cmake .. -DBOOST_ROOT=/path_to_your_dyninst_install_dir  -DDyninst_DIR=/path_to_your_dyninst_install_dir/lib/cmake/Dyninst -DPAPI_PREFIX=/path_to_your_papi_install_dir
+</code></pre>
+<p>If your dependencies are built with spack, the cmake commands for PerFlow would be like:</p>
+<pre><code class="language-bash"># build
+mkdir build
+cd build
+cmake ..
+</code></pre></div>
         </div>
 
     <footer class="col-md-12">
