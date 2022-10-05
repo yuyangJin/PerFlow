@@ -218,10 +218,159 @@
         <div class="container">
             <div class="col-md-3">
   
+<div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+    
+        <li class="main active"><a href="#customizing-performance-analysis-with-perflow">Customizing performance analysis with PerFlow</a></li>
+        
+            <li><a href="#hotspot-detection-pass">Hotspot detection pass</a></li>
+        
+            <li><a href="#performance-differential-analysis-pass">Performance differential analysis pass</a></li>
+        
+            <li><a href="#causal-analysis-pass">Causal analysis pass</a></li>
+        
+            <li><a href="#contention-detection-pass">Contention detection pass</a></li>
+        
+            <li><a href="#scalability-analysis-model-scalana">Scalability analysis model (ScalAna)</a></li>
+        
+    
+    </ul>
+</div>
+  
 </div>
             <div class="col-md-9" role="main">
 
-<h1 id="customizing-performance-analysis-with-perflow">Customizing performance analysis with PerFlow</h1></div>
+<h1 id="customizing-performance-analysis-with-perflow">Customizing performance analysis with PerFlow</h1>
+<p>Here we provide more examples to show how to customizing performance analysis passes and models:</p>
+<h2 id="hotspot-detection-pass">Hotspot detection pass</h2>
+<p>Hotspot detection refers to identifying the code snippets with the highest value of specific metrics, such as total execution cycles, cache misses, and instruction count, etc.
+The most common hotspot detection is to identify the most time-consuming code snippets, whose specific metric is total execution cycles or execution time. 
+The following code shows a hotspot detection pass.</p>
+<pre><code class="language-python"># Define an &quot;hotspot detection&quot; pass
+# Input:  The vertex set of a PAG - V
+#         Sorting metric - m
+#         The number of returned vertices - n
+# Output: Hotspot vertex set
+def hotspot(V, m, n):
+  return V.sort_by(m).top(n)
+</code></pre>
+<h2 id="performance-differential-analysis-pass">Performance differential analysis pass</h2>
+<p>Performance differential analysis refers to a comparison of program performance conducted under the independent variables of input data, parameters, or different executions. 
+The comparison helps analysts understand the trend of performance as the input changes. 
+The performance difference can be intuitively represented on a top-down view of PAG, and we leverage the graph difference to perform differential analysis.
+Graph difference intuitively shows the changes in performance between program runs with different inputs.</p>
+<pre><code class="language-python"># Define a &quot;differential analysis&quot; pass
+# Input:  Vertex sets of two PAGs - V1, V2 
+# Output: A set of difference vertices
+def differential_analysis(V1, V2):
+  V_res = []
+  for (v1, v2) in (V1, V2):
+    v = pflow.vertex()
+    for metric in v1.metrics:
+      v[metric] = v1[metric] - v2[metric]
+  V_res.append(v) 11 return V_res
+</code></pre>
+<h2 id="causal-analysis-pass">Causal analysis pass</h2>
+<p>Performance bugs can propagate through complex inter-process communications as well as inter-thread locks, and lead to many secondary performance bugs, which makes root cause detection even harder. 
+Paths that consist of a parallel view of PAG’s edges can well represent correlations across these performance bugs in different processes and threads. 
+We leverage a graph algorithm, lowest common ancestor (LCA), and specific restrictions to detect the correlations and thus achieve the purpose of causal analysis. 
+The goal of the LCA algorithm is to search the deepest vertex that has both v and w as descendants in a tree or directed acyclic graph.
+The causal analysis pass is designed based on the LCA algorithm.</p>
+<pre><code class="language-python"># Define a &quot;causal analysis&quot; pass
+# Input: A set of vertices with performance bugs - V 
+# Output: A set of vertices that cause the bugs
+def casual_analysis(V)
+  V_res, S = [], [] # S for scanned vertices
+  for (v1, v2) in (V, V):
+    if v1 != v2 and v1 not in S and v2 not in S:
+      # v1 and v2 are regarded as descendants
+      v, path = pflow.lowest_common_ancestor(v1, v2)
+      # v is the detected lowest common ancestor 11 # path is an edge set
+      if v in V:
+        V_res.append(v)
+  return V_res
+</code></pre>
+<h2 id="contention-detection-pass">Contention detection pass</h2>
+<p>Contention refers to a conflict over a shared resource across processes or threads, which leads to a negative impact on the performance of processes or threads competing for the resource. 
+It can cause several kinds of misbehavior, such as unwanted synchronization or periodicity, deadlock, livelock, and many more, which need expensive human efforts to be detected.
+We observe that misbehaviors have specific patterns on the parallel view of PAGs. 
+Subgraph matching, which searches all embeddings of a subgraph query in a large graph, is leveraged to search these specific patterns on the PAGs and detect resource contention.
+The contention detection pass determines whether resource contention exists in the vertices of input sets. 
+The input of a contention detection pass is a set of vertices detected by the previous pass, while the outputs are the detected subgraph embeddings. 
+We define a set of candidate subgraphs to represent resource contention patterns. 
+Then we identify resource contentions by searching the embeddings of candidate subgraphs around the vertices of the input set.</p>
+<pre><code class="language-python"># Define a &quot;contention detection&quot; pass
+# Input:  Vertex set - V
+# Output: Subgraph embeddings
+def contention_detection(V):
+  V_res = []
+  # Build a candidate subgraph with contention pattern
+  sub_pag = pflow.graph()
+  sub_pag.add_vertices([(1,&quot;A&quot;), (2,&quot;B&quot;), (3,&quot;C&quot;), (4,&quot;D&quot;), (5,&quot;E&quot;)])
+  sub_pag.add_edges([(1,3), (2,3), (3,4), (3,5)])
+  # Execute subgraph matching algorithm
+  V_ebd, E_ebd = pflow.subgraph_matching(V.pag, sub_pag)
+  return V_ebd, E_ebd
+</code></pre>
+<h2 id="scalability-analysis-model-scalana">Scalability analysis model (<a href="">ScalAna</a>)</h2>
+<p>The scalability analysis task in ScalAna first detects code snippets with scaling loss and imbalance, then finds the complex dependence between the detected code snippets by a back- tracking algorithm, and finally identifies the root causes of scaling loss. 
+We decompose the scalability analysis task into multiple steps. 
+Most of the steps can be completed with PerFlow’s built-in passes, and we only need to implement the backtracking step as a user-defined pass.
+We build the scalability analysis model, containing three built-in passes (differential analysis pass, hotspot detection pass, and imbalance analysis pass), a user-defined pass (backtracking analysis pass), a union operation, and a report module. </p>
+<pre><code class="language-python"># Define a &quot;scalability analysis&quot; paradigm
+# Input:  PAGs of two program runs - PAG1, PAG2
+def scalability_analysis_paradigm(PAG1, PAG2):
+
+  # Part 1: Define a &quot;backtracking analysis&quot; pass
+  # Input:  A set of vertices with performance bugs - V
+  # Output: Vertices and edges on backtracking paths
+  def backtracking_analysis(V):
+    V_bt, E_bt, S = [], [], [] # S for scanned vertices
+    for v in V:
+      if v not in S:
+        S.append(v)
+        in_es = v.es.select(IN_EDGE)
+        while len(in_es) != 0 
+                and v[name] not in pflow.COLL_COMM:
+          if v[type] == pflow.MPI:
+            e = in_es.select(type = pflow.COMM)
+          elif v[type] == pflow.LOOP or 
+                            v[type] == pflow.BRANCH:
+            e = in_es.select(type = pflow.CTRL_FLOW)
+          else 
+            e = in_es.select(type = pflow.DATA_FLOW)
+          V_bt.append(v)
+          E_bt.append(e)
+          v = e.src
+    return V_bt, E_bt
+
+  # Part 2: Build the PerFlowGraph of scalability analysis paradigm
+  V1, V2 = PAG1.vs, PAG2.vs
+  V_diff = pflow.differential_analysis(V1, V2)
+  V_hot = pflow.hotspot_detection(V_diff)
+  V_imb = pflow.imbalance_analysis(V_diff)
+  V_union = pflow.union(V_hot, V_imb)
+  V_bt, E_bt = backtracking_analysis(V_union) 
+  attrs = [&quot;name&quot;, &quot;time&quot;, &quot;dbg-info&quot;, &quot;pmu&quot;]
+  pflow.report([V_bt, E_bt], attrs)
+
+# Use the scalability analysis paradigm
+pag_p4 = pflow.run(bin = &quot;./a.out&quot;, 
+                cmd = &quot;mpirun -np 4 ./a.out&quot;)
+pag_p64 = pflow.run(bin = &quot;./a.out&quot;, 
+                cmd = &quot;mpirun -np 64 ./a.out&quot;)
+scalability_analysis_paradigm(pag_p4, pag_p64)
+</code></pre>
+<p>The code above shows the implementation of the scalability anal- ysis paradigm, which consists of two parts: 
+(1) Writing a backtracking analysis pass. 
+We first write a backtracking analysis pass, which is not provided by our built-in pass library. 
+This pass implements a backward traversal through communications, and control/data flow with several graph operation APIs, including neighbor acquisition (<code>v.es</code> at Line 13), edge filter (<code>select()</code> at Line 13, 17, 20, and 22), attribute access (<code>v[...]</code> at Line 15-16, 18-19), and source vertex acquisition (<code>e.src</code> at Line 25). 
+(2) Building the scalability analysis model. 
+Then, we build a PerFlowGraph with built-in and user-defined passes. 
+The differential analysis pass (Line 30) takes two executions (i.e., a small-scale run and a large-scale run) as input, and outputs all vertices with their scaling loss. 
+Then the hotspot analysis pass (Line 31) outputs vertices with the poorest scalability, while the imbalance analysis pass (Line 32) outputs imbalanced vertices between different processes. 
+The union operation (Line 33) merges two sets (outputs of the hotspot analysis pass and the imbalance analysis pass) as the input of the backtracking analysis pass (Line 34). 
+Finally, the backtracking paths and the root causes of scalability are stored in (<code>V_bt</code>, <code>E_bt</code>) and reported (Line 36).</p></div>
         </div>
 
     <footer class="col-md-12">
