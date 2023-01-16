@@ -218,10 +218,50 @@
         <div class="container">
             <div class="col-md-3">
   
+<div class="bs-sidebar hidden-print affix well" role="complementary">
+    <ul class="nav bs-sidenav">
+    
+        <li class="main active"><a href="#using-perflow">Using PerFlow</a></li>
+        
+            <li><a href="#using-models">Using Models</a></li>
+        
+            <li><a href="#building-customized-models">Building Customized Models</a></li>
+        
+            <li><a href="#writing-customized-passes">Writing Customized Passes</a></li>
+        
+            <li><a href="#_1"></a></li>
+        
+    
+    </ul>
+</div>
+  
 </div>
             <div class="col-md-9" role="main">
 
-<h1 id="run-with-perflow">Run with PerFlow</h1></div>
+<h1 id="using-perflow">Using PerFlow</h1>
+<p>There are two main ways for developers to implement specific analysis tasks with PerFlow’s APIs: using built-in models and customize models with built-in passes.</p>
+<h2 id="using-models">Using Models</h2>
+<p>Developers can directly use built-in models to obtain related performance analysis reports. </p>
+<pre><code class="language-python">example1
+</code></pre>
+<h2 id="building-customized-models">Building Customized Models</h2>
+<p>PerFlow provides a built-in performance analysis pass library for building customized models. 
+For scenarios where analysis tasks have already been designed, the following example shows a complete process of implementation. </p>
+<pre><code class="language-python">example2
+</code></pre>
+<p>For scenarios in which developers do not know what analysis to apply, PerFlow supports an interactive mode. 
+It is advisable to first use a general built-in analysis pass, such as hotspot detection. 
+The output of the previous pass will provide some insights to help determine or design the next passes. 
+Then analysts can add other analysis passes into models step by step. 
+Finally, models are generated according to detailed analysis.</p>
+<h2 id="writing-customized-passes">Writing Customized Passes</h2>
+<p>If built-in passes cannot satisfy the demands, developers need to write customized passes and combine these user-defined passes with other built-in passes to build models.</p>
+<!-- Developers require some basic knowledge to write user-defined passes.  -->
+<!-- The implementations of several passes have been introduced (four built-in passes in Section 4.3.2 and the backtracking analysis pass at Line 5-26 in Listing 7). -->
+
+<pre><code class="language-python">example3
+</code></pre>
+<h2 id="_1"></h2></div>
         </div>
 
     <footer class="col-md-12">
