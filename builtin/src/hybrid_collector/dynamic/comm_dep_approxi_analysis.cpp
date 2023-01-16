@@ -308,7 +308,7 @@ void commOpMatchWithMPIInfo(int pid) {
             one_comm_dep_edge->src_pid = src_pid;
             one_comm_dep_edge->exe_time = exe_time;
             comm_dep_edge.push_back(one_comm_dep_edge);
-            
+
             if (src_type == 's') {
               double src_exe_time = 0.0;
               if (!(*src_iter)->exe_time.empty()) {
