@@ -121,10 +121,10 @@ class PerFlow(object):
 
         if self.mode == 'omp':
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/omp_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE*TXT ./SOMAP*.TXT'
-            print(communication_analysis_cmd_line)
-            os.system(communication_analysis_cmd_line)
-            self.tdpag_file = 'pag.gml'
-            self.ppag_file = 'mpi_mpag.gml'
+            # print(communication_analysis_cmd_line)
+            # os.system(communication_analysis_cmd_line)
+            self.tdpag_file = 'static_pag.gml'
+            self.ppag_file = 'omp_mpag.gml'
 
         if self.mode == 'pthread':
             pag_generation_cmd_line = '$BAGUA_DIR/build/builtin/tools/pthread_pag_generation ' + self.static_analysis_binary_name + ' ./SAMPLE.TXT'
@@ -266,11 +266,7 @@ class PerFlow(object):
         return V_topk_ret
     
 
-    def hotspot_detection(self, V, metric = '', n = 0):
-        if metric == '':
-            metric = 'time'
-        if n == 0:
-            n = 10
+    def hotspot_detection(self, V, metric = 'time', n = 10):
         return V.select(lambda v: float(v['CYCAVGPERCENT']) > 0.0001)
 
 
@@ -434,7 +430,8 @@ class PerFlow(object):
         for v in V:
             vid = int(v['id'])
             v_name = v['name']
-            if v_name.startswith('_mpi_') or v_name.startswith('mpi_') or v_name.startswith('_MPI_') or v_name.startswith('MPI_'):
+            # if not (v_name.startswith('_mpi_') or v_name.startswith('mpi_') or v_name.startswith('_MPI_') or v_name.startswith('MPI_')):
+            if vid not in [1357, 1411] :
                 continue
             if str(vid) in self.tdpag_perf_data.keys():
                 if metric in self.tdpag_perf_data[str(vid)].keys():
@@ -484,10 +481,10 @@ class PerFlow(object):
         
         # Hierarchical clustering
         # euclidean_dist = scipy.cluster.hierarchy.distance.pdist(charact_vec, 'euclidean')
-        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean', optimal_ordering=True)
-        clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean')
+        clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean', optimal_ordering=False)
+        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'ward', metric='euclidean')
         # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'single', metric='euclidean')
-        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'average', metric='euclidean')
+        # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'average', metric='euclidean', optimal_ordering=True)
         # clusters = scipy.cluster.hierarchy.linkage(charact_vec, method = 'complete', metric='euclidean')
         scipy.cluster.hierarchy.dendrogram(clusters, labels=numpy.arange(nprocs))
         plt.savefig("cluster_results.pdf")
@@ -529,13 +526,16 @@ class PerFlow(object):
         return E_path
 
     
-    def report(self, V, attrs=[]):
+    def report(self, V, attrs=[], n=10):
         if len(attrs) == 0:
             attrs = ['name', 'type', 'time', 'debug']
         for attr in attrs:
             print(attr, end='\t')
         print()
+        i = 0
         for v in V:
+            if i > 10:
+                break
             for attr in attrs:
                 format_print = '{0:^10}'
                 if attr == 'saddr' or attr == 'eaddr':
@@ -543,6 +543,7 @@ class PerFlow(object):
                 else:
                     print(format_print.format(v[attr]), end='\t')
             print()
+            i+=1
 
 
     def draw(self, g, save_pdf = '', mark_edges = []):
@@ -574,7 +575,7 @@ class PerFlow(object):
         V_hot = self.hotspot_detection(tdpag.vs)
         V_hot_sorted = sorted(V_hot, key=lambda v:float(v["CYCAVGPERCENT"]), reverse=True)
         ''' 2. Report pass '''
-        attrs_list = ["name", "CYCAVGPERCENT", "saddr"] 
+        attrs_list = ["id", "name", "CYCAVGPERCENT", "saddr"] 
         self.report(V = V_hot_sorted, attrs = attrs_list)
 
 
