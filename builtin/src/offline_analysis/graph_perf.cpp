@@ -993,38 +993,40 @@ void GPerf::DynamicInterProceduralAnalysis(core::PerfData *pthread_data) {
 
   /** pthread_mutex_lock waiting events */
 
-  for (unsigned long int i = 0; i < edge_data_size; i++) {
-    // Value of pthread_create is recorded as (-1)
-    auto value = pthread_data->GetEdgeDataValue(i);
-    if (value >= (type::perf_data_t)(0)) {
-      std::stack<unsigned long long> src_call_path;
+  // for (unsigned long int i = 0; i < edge_data_size; i++) {
+  //   // Value of pthread_create is recorded as (-1)
+  //   auto value = pthread_data->GetEdgeDataValue(i);
+  //   if (value >= (type::perf_data_t)(0)) {
+  //     dbg(value);
+  //     std::stack<unsigned long long> src_call_path;
 
-      std::stack<unsigned long long> dest_call_path;
-      pthread_data->GetEdgeDataSrcCallPath(i, src_call_path);
-      pthread_data->GetEdgeDataDestCallPath(i, dest_call_path);
-      type::thread_t src_thread_id = pthread_data->GetEdgeDataSrcThreadId(i);
-      type::thread_t dest_thread_id = pthread_data->GetEdgeDataDestThreadId(i);
-      type::vertex_t queried_vertex_id_src =
-          GetVertexWithInterThreadAnalysis(src_thread_id, src_call_path);
-      type::vertex_t queried_vertex_id_dest =
-          GetVertexWithInterThreadAnalysis(dest_thread_id, dest_call_path);
-      // dbg(src_thread_id, queried_vertex_id_src, dest_thread_id,
-      // queried_vertex_id_dest);
-      if (-1 != queried_vertex_id_src && -1 != queried_vertex_id_dest) {
-        // dbg(this->root_pag->GetVertexAttributeString("name",
-        // queried_vertex_id_src),
-        //    this->root_pag->GetVertexAttributeString("name",
-        //    queried_vertex_id_dest));
-        // this->root_pag->AddEdge(pthread_create_vertex_id, func_vertex_id);
-        this->root_pag->SetVertexAttributeNum("wait", queried_vertex_id_src,
-                                              queried_vertex_id_dest);
-        std::string metric = std::string("TOT_CYC");
-        this->root_pag->GetGraphPerfData()->SetPerfData(
-            queried_vertex_id_dest, metric,
-            pthread_data->GetEdgeDataDestProcsId(i), dest_thread_id, value);
-      }
-    }
-  }
+  //     std::stack<unsigned long long> dest_call_path;
+  //     pthread_data->GetEdgeDataSrcCallPath(i, src_call_path);
+  //     pthread_data->GetEdgeDataDestCallPath(i, dest_call_path);
+  //     type::thread_t src_thread_id = pthread_data->GetEdgeDataSrcThreadId(i);
+  //     type::thread_t dest_thread_id = pthread_data->GetEdgeDataDestThreadId(i);
+  //     type::vertex_t queried_vertex_id_src =
+  //         GetVertexWithInterThreadAnalysis(src_thread_id, src_call_path);
+  //     type::vertex_t queried_vertex_id_dest =
+  //         GetVertexWithInterThreadAnalysis(dest_thread_id, dest_call_path);
+  //     // dbg(src_thread_id, queried_vertex_id_src, dest_thread_id,
+  //     // queried_vertex_id_dest);
+  //     if (-1 != queried_vertex_id_src && -1 != queried_vertex_id_dest) {
+  //       // dbg(this->root_pag->GetVertexAttributeString("name",
+  //       // queried_vertex_id_src),
+  //       //    this->root_pag->GetVertexAttributeString("name",
+  //       //    queried_vertex_id_dest));
+  //       // this->root_pag->AddEdge(pthread_create_vertex_id, func_vertex_id);
+  //       this->root_pag->SetVertexAttributeNum("wait", queried_vertex_id_src,
+  //                                             queried_vertex_id_dest);
+  //       std::string metric = std::string("TOT_CYC");
+
+  //       this->root_pag->GetGraphPerfData()->SetPerfData(
+  //           queried_vertex_id_dest, metric,
+  //           pthread_data->GetEdgeDataDestProcsId(i), dest_thread_id, value);
+  //     }
+  //   }
+  // }
 }
 
 void GPerf::InterProceduralAnalysis(core::PerfData *pthread_data) {
