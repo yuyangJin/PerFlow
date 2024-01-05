@@ -180,13 +180,13 @@ type::vertex_t ProgramGraph::GetVertexWithCallPath(
   }
   /**====================================================**/
 
-#ifdef IGNORE_SHARED_OBJ
+// #ifdef IGNORE_SHARED_OBJ
   /** Step over .dynamic address */
   if (type::IsDynAddr(addr)) {
     call_path_stack.pop();
     return GetVertexWithCallPath(root_vertex, call_path_stack);
   }
-#endif
+// #endif
 
   // Find the CALL vertex of current addr, addr is from calling context
   type::vertex_t found_vertex = root_vertex;

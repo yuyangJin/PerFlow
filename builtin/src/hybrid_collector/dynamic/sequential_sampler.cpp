@@ -1,6 +1,9 @@
+#define _GNU_SOURCE
+
 #include "baguatool.h"
 #include <stdio.h>
 #include <string.h>
+#include <string>
 
 #define MODULE_INITED 1
 
@@ -16,6 +19,8 @@ static int CYC_SAMPLE_COUNT = 0;
 static int module_init = 0;
 
 int mpiRank = 0;
+char *addr_threshold;
+
 
 void RecordCallPath(int y) {
   baguatool::type::addr_t call_path[MAX_CALL_PATH_DEPTH] = {0};
@@ -36,9 +41,10 @@ static void init_mock() {
   sampler = std::make_unique<baguatool::collector::Sampler>();
   // TODO one perf_data corresponds to one metric, export it to an array
   perf_data = std::make_unique<baguatool::core::PerfData>();
+  addr_threshold = (char *)malloc(sizeof(char));
 
-  sampler->SetSamplingFreq(CYC_SAMPLE_COUNT);
   sampler->Setup();
+  sampler->SetSamplingFreq(CYC_SAMPLE_COUNT);
 
   void (*RecordCallPathPointer)(int) = &(RecordCallPath);
   sampler->SetOverflow(RecordCallPathPointer);
@@ -49,6 +55,13 @@ static void init_mock() {
 // User-defined what to do at destructor
 static void fini_mock() {
   sampler->Stop();
-  perf_data->Dump("SAMPLE.TXT");
+  perf_data->Dump("dynamic_data/SAMPLE+0.TXT");
   // sampler->RecordLdLib();
+
+  std::unique_ptr<baguatool::collector::SharedObjAnalysis> shared_obj_analysis =
+      std::make_unique<baguatool::collector::SharedObjAnalysis>();
+  shared_obj_analysis->CollectSharedObjMap();
+  // sprintf(output_file_name, "SOMAP-%lu.TXT", gettid());
+  std::string output_file_name_str = std::string("dynamic_data/SOMAP+0.TXT");
+  shared_obj_analysis->DumpSharedObjMap(output_file_name_str);
 }

@@ -94,6 +94,11 @@ class PerFlow(object):
             profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libpthread_sampler.so ' + self.dynamic_analysis_command_line
             os.system(profiling_cmd_line)
         
+        if self.mode == 'seq':
+            remove_cmd_line = 'rm -rf ./SAMPLE* ./SOMAP*'
+            os.system(remove_cmd_line)
+            profiling_cmd_line = 'LD_PRELOAD=$BAGUA_DIR/build/builtin/libsequential_sampler.so ' + self.dynamic_analysis_command_line
+            os.system(profiling_cmd_line) 
 
         # mv_cmd_line = 'mv SAMPLE* SOMAP* MPID* MPIT*' + ' ./' + self.data_dir + '/dynamic_data/'
         # os.system(mv_cmd_line)
@@ -131,6 +136,10 @@ class PerFlow(object):
             self.tdpag_file = 'pthread_tdpag.gml'
             self.ppag_file = 'pthread_ppag.gml'
 
+        if self.mode == 'seq':
+            pag_generation_cmd_line = 'time $BAGUA_DIR/build/builtin/tools/pag_generation ' + self.static_analysis_binary_name + ' ' + self.data_dir
+            self.tdpag_file = 'pag.gml'      
+
         if pag_generation_cmd_line == '':
             exit()
 
@@ -138,7 +147,7 @@ class PerFlow(object):
         os.system(pag_generation_cmd_line)
 
 
-    def readPag(self, dir = ''):
+    def readPag(self, dir = '', mode = ''):
         if dir != '':
             self.data_dir = dir
         self.mode = 'mpi+omp'
@@ -152,12 +161,16 @@ class PerFlow(object):
             self.ppag_file = self.data_dir + '/mpi_mpag.gml'
         if self.mode == 'pthread':
             self.tdpag_file = self.data_dir + '/pthread_tdpag.gml'
-            self.ppag_file = self.data_dir + '/pthread_ppag.gml'
-        
+            self.ppag_file = self.data_dir + '/pthread_ppag.gml'        
+        if self.mode == 'seq':
+            self.tdpag_file = self.data_dir + '/pag.gml'
+            self.ppag_file = ''
+
+
 
         if self.tdpag_file != '':
             self.tdpag = ProgramAbstractionGraph.Read_GML(self.tdpag_file)
-        if self.ppag_file != '':
+        if self.ppag_file != '' and mode != 'seq':
             self.ppag = ProgramAbstractionGraph.Read_GML(self.ppag_file)
         
         # read pag performance data
@@ -168,21 +181,24 @@ class PerFlow(object):
 
         # print(self.tdpag_perf_data)
 
-        with open(self.data_dir + '/mpag_perf_data.json', 'r') as f:
-            self.ppag_perf_data = json.load(f)
-        f.close()
-        # self.ppag_perf_data = ppag_perf_data
+        if mode != 'seq':
+            with open(self.data_dir + '/mpag_perf_data.json', 'r') as f:
+                self.ppag_perf_data = json.load(f)
+            f.close()
+            # self.ppag_perf_data = ppag_perf_data
 
-        with open(self.data_dir + '/pag_to_mpag.json', 'r') as f:
-            self.tdpag_to_ppag_map = json.load(f)
-        f.close()
-    
-        self.getPpagToTdpagMap()
+            with open(self.data_dir + '/pag_to_mpag.json', 'r') as f:
+                self.tdpag_to_ppag_map = json.load(f)
+            f.close()
+        
+            self.getPpagToTdpagMap()
 
         return self.tdpag, self.ppag
 
     def getPpagToTdpagMap(self):
         self.ppag_to_tdpag_map = dict()
+        if self.tdpag_to_ppag_map == None:
+            return
         for tdpag_v_str, pid_to_ppag in self.tdpag_to_ppag_map.items():
             tdpag_v = int(tdpag_v_str)
             for pid_str, tid_to_ppag in pid_to_ppag.items():
@@ -266,8 +282,45 @@ class PerFlow(object):
         return V_topk_ret
     
 
-    def hotspot_detection(self, V, metric = 'time', n = 10):
-        return V.select(lambda v: float(v['CYCAVGPERCENT']) > 0.0001)
+    def hotspot_detection(self, V, metric = 'time', n = 10, thd = 0.0001):
+        return V.select(lambda v: float(v['CYCAVGPERCENT']) > thd)
+
+
+    def get_process_level_metric_data(self, V, nprocs = 1):     
+        VS = dict()
+        for v in V:
+            vid = str(int(v['id']))
+            if vid in self.tdpag_perf_data.keys():
+                data = self.tdpag_perf_data[vid]
+                for metric, metric_data in data.items():
+                    # gather all procs data
+                    metric_data_list = [0 for _ in range(nprocs)]
+                    if metric_data == None:
+                        continue
+                    for procs, procs_data in metric_data.items():
+                        # gather all thread data
+                        procs_data_tot_num = 0.0
+                        for thread, thread_data in procs_data.items():
+                            procs_data_tot_num += thread_data
+                        metric_data_list[int(procs)] = procs_data_tot_num
+
+                    # if int(v['type']) == 1: # MPI func
+                    #     if '_barrier' in v['name']:
+                    #         min_value = numpy.min(metric_data_list)
+                    #         min_pids = numpy.argmin(metric_data_list)
+                    #         for pid in range(nprocs):
+                    #             wait = metric_data_list[pid] - min_value
+                    #             if wait > 0:      
+                    #                 ppag_vid = self.tdpag_to_ppag_map[str(vid)][str(pid)]['0']
+                    #                 target_pid = min_pids
+                    #                 ppag_target_vid = self.tdpag_to_ppag_map[str(vid)][str(target_pid)]['0']
+                    #                 self.ppag.add_edges([(ppag_target_vid, ppag_vid)])
+                    #                 e = self.ppag.es[-1]
+                    #                 e['time'] = metric_data_list[pid] - min_value
+                    #                 # print(ppag_vid, ppag_target_vid, e['time'])
+
+                    VS[v] = metric_data_list
+        return VS
 
 
     def imbalance_analysis(self, V, nprocs = 1):
@@ -301,6 +354,7 @@ class PerFlow(object):
                     var = numpy.var(metric_data_list)
                     std_var = numpy.std(normalization(metric_data_list))
                     if std_var > 0.15:
+                        v['variance'] = std_var
                         # print(metric, "mean:", mean, "variance:", var, "standard variance:", std_var)
 
                         # draw_scatter_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
@@ -308,7 +362,32 @@ class PerFlow(object):
                         draw_bar_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
                         imb_V.append(v)
         return imb_V
-
+    
+    def get_all_process_values(self, V, nprocs = 1):
+        VS = []
+        for v in V:
+            vid = str(int(v['id']))
+            if vid in self.tdpag_perf_data.keys():
+                data = self.tdpag_perf_data[vid]
+                for metric, metric_data in data.items():
+                    # gather all procs data
+                    metric_data_list = [0 for _ in range(nprocs)]
+                    if metric_data == None:
+                        continue
+                    for procs, procs_data in metric_data.items():
+                        # gather all thread data
+                        procs_data_tot_num = 0.0
+                        for thread, thread_data in procs_data.items():
+                            procs_data_tot_num += thread_data
+                        metric_data_list[int(procs)] = procs_data_tot_num
+                    
+                    def normalization(data):
+                        _range = numpy.max(data) - numpy.min(data)
+                        return (data - numpy.min(data)) / _range
+                    
+                    draw_bar_figure(numpy.arange(nprocs), metric_data_list, xlabel='Process ID', ylabel='Execution Cycles', title = str(int(v['id'])) + '-' + v['name'] )
+                    VS.append(metric_data_list)
+        return VS
 
     def inter_process_imbalance_analysis(self, V, nprocs = 1, threshold = 1.3):     
         imb_VS = dict()
@@ -406,19 +485,27 @@ class PerFlow(object):
                                 comm_pattern_mat[pid][dest_pid] += float(e['time'])
                                 comm_pattern_mat[dest_pid][pid] += float(e['time'])
 
-        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, vmax = 1.0, edgecolors='grey', linewidths=0.1)
-        plt.colorbar(label = "Time(ms)")
-        plt.title("Communication Pattern")
-        plt.xlabel("Process ID")
-        plt.ylabel("Process ID")
+        plt.figure(figsize=(4.6,4.6))
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, vmax = 1.0, edgecolors='grey', linewidths=0.001)
+        # plt.colorbar(label = "Time(ms)")
+        # plt.title("Communication Pattern")
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.xlabel("Sender Rank", fontsize=16)
+        plt.ylabel("Receiver Rank", fontsize=16)
         plt.savefig("comm_pattern.pdf")
         plt.clf()
 
-        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.1)
-        plt.colorbar(label = "Time(ms)")
-        plt.title("Communication Time")
-        plt.xlabel("Process ID")
-        plt.ylabel("Process ID")
+        plt.figure(figsize=(4.6,4.6))
+        plt.pcolormesh(comm_pattern_mat, cmap=plt.cm.binary, vmin = 0.0, edgecolors='grey', linewidths=0.001)
+        # cbar = plt.colorbar(label = "Time(ms)", shrink=0.7)
+        # cbar.set_label(r"Time(ms)", size=14)
+        # cbar.ax.tick_params(labelsize=12) 
+        # plt.title("Communication Time")
+        plt.xticks(fontsize=12)
+        plt.yticks(fontsize=12)
+        plt.xlabel("Sender Rank", fontsize=16)
+        plt.ylabel("Receiver Rank", fontsize=16)
         plt.savefig("comm_time.pdf")
         plt.clf()
 
@@ -546,11 +633,14 @@ class PerFlow(object):
             i+=1
 
 
-    def draw(self, g, save_pdf = '', mark_edges = []):
+    def draw(self, g, save_pdf = '', mark_edges = [], prune = False):
         if save_pdf == '':
             save_pdf = 'pag.gml'
         graphviz_output = GraphvizOutput(output_file = save_pdf)
-        graphviz_output.draw(g, vertex_attrs = ["id", "name", "type", "saddr", "eaddr" , "TOTCYCAVG", "CYCAVGPERCENT"], edge_attrs = ["id"], vertex_color_depth_attr = "CYCAVGPERCENT") #, preserve_attrs = "preserve")
+        if prune == False:
+            graphviz_output.draw(g, vertex_attrs = ["id", "name", "type", "saddr", "eaddr" , "TOTCYCAVG", "CYCAVGPERCENT"], edge_attrs = ["id"], vertex_color_depth_attr = "CYCAVGPERCENT") #, preserve_attrs = "preserve")
+        else:
+            graphviz_output.draw(g, vertex_attrs = ["id", "name", "type", "saddr", "eaddr" , "TOTCYCAVG", "CYCAVGPERCENT"], edge_attrs = ["id"], vertex_color_depth_attr = "CYCAVGPERCENT", preserve_attrs = "preserve")
         if mark_edges != []:
             graphviz_output.draw_edge(mark_edges, color=0.1)
         
@@ -611,18 +701,18 @@ class PerFlow(object):
             print("No top-down view of PAG")
 
         ''' 1. Hotspot detection'''
-        V_hot = self.hotspot_detection(self.tdpag.vs)
+        V_hot = self.hotspot_detection(self.tdpag.vs, thd = 0.01)
         V_hot_sorted = self.sort_by(V_hot, metric='CYCAVGPERCENT', reverse_flag=True)
-        V_hot_top = self.topk(V_hot_sorted, 4)
-        # for v in V_hot_top:
-        #     print(v['id'], v['name'], v['saddr'], v['eaddr'], v['CYCAVGPERCENT'])
+        V_hot_top = self.topk(V_hot_sorted, 10)
+        for v in V_hot_top:
+            print(v['id'], v['name'], hex(int(v['saddr'])), hex(int(v['eaddr'])), v['CYCAVGPERCENT'])
 
         ''' 2. Inter-vertex imbalance analysis'''
-        V_imb = self.inter_vertex_imbalance_analysis(V_hot_top, nprocs)
-        # for v in V_imb:
-        #     ppag_v = int(v['id'])
-        #     pid = self.ppag_to_tdpag_map[ppag_v][1]
-        #     print(v['id'], v['name'], pid,  v['saddr'], v['eaddr'], v['TOTCYCSUM'])
+        V_imb = self.inter_vertex_imbalance_analysis(V_hot, nprocs)
+        for v in V_imb:
+            ppag_v = int(v['id'])
+            pid = self.ppag_to_tdpag_map[ppag_v][1]
+            print(v['id'], v['name'], pid,  hex(int(v['saddr'])), hex(int(v['eaddr'])), v['TOTCYCSUM'], v['CYCAVGPERCENT'], v['variance'])
 
         ''' 3. Inter-process imbalance analysis'''
         VS_imb = self.inter_process_imbalance_analysis(V_imb, nprocs)
@@ -753,17 +843,6 @@ class PerFlow(object):
                     
                 src_vID = path[i]
                 
-        
-        # E_arrow = []
-        # for v, E in E_comm.items():
-        #     for e in E:
-        #         # print(e[0], e[1])
-        #         if V_mat.keys().__contains__(e[0]) and V_mat.keys().__contains__(e[1]):
-        #             src = V_mat[e[0]]
-        #             dest = V_mat[e[1]]
-        #             E_arrow.append([src, dest])
-
-        # print('E_arrows======', E_arrow)
 
         ''' 5.5 Draw the results'''
 
@@ -773,7 +852,7 @@ class PerFlow(object):
             draw_points(X_norm_v[i], Y_norm_v[i])
             draw_points(X_imb_v[i], Y_imb_v[i], marker_shape='o')
 
-        draw_arrows(E_arrow)
+        # draw_arrows(E_arrow)
 
         Y_name = []
         for v in V_related:

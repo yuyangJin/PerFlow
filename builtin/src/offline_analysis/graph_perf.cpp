@@ -1,6 +1,6 @@
 #include "graph_perf.h"
 
-//#define IGNORE_SHARED_OBJ
+#define IGNORE_SHARED_OBJ
 
 // some functions are based on graph perf-specific sampler & static analyzer
 
