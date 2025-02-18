@@ -1,6 +1,0 @@
-set(THREADS_PREFER_PTHREAD_FLAG ON)
-find_package(Threads REQUIRED)
-add_executable(pthread pthread.cpp)
-target_compile_options(pthread PRIVATE -O0 -g)
-target_link_libraries(pthread PRIVATE Threads::Threads)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/pass_validation.py ${CMAKE_CURRENT_BINARY_DIR}/pass_validation.py COPYONLY)

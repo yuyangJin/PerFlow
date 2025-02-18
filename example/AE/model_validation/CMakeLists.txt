@@ -1,2 +1,0 @@
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/model_validation.py ${CMAKE_CURRENT_BINARY_DIR}/model_validation.py COPYONLY)
-configure_file(${CMAKE_CURRENT_SOURCE_DIR}/cg.B.8 ${CMAKE_CURRENT_BINARY_DIR}/cg.B.8 COPYONLY)
