@@ -2,4 +2,14 @@
 
 A programmable and fast performance analysis for parallel programs
 
-Developing ...
+** Developing ... **
+
+## Install
+```
+pip install .
+```
+
+## Test
+```
+pytest tests/
+```
