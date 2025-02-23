@@ -2,6 +2,8 @@
 module timeline viewer
 '''
 
+from ...flow.flow import *
+
 '''
 @class TimelineViewer
 Visualize the results with a timeline/trace format

@@ -2,6 +2,8 @@
 module vtune reader
 '''
 
+from ...flow.flow import *
+
 '''
 @class VtuneReader
 Read the performance data from Intel Vtune's collected files
