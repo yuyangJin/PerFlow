@@ -1,0 +1,330 @@
+@startuml
+
+' A module for user to describe tasks
+namespace flow {
+
+    ' The workflow diagram/graph
+    class FlowGraph {
+        "The workflow diagram/graph"
+        + m_nodes: list<FlowNode*>
+        + m_edges: unordered_map<FlowNode*, list<FlowNode*>>
+
+        + run()
+    }
+
+    ' The sub-task node
+    interface FlowNode {
+        "The sub-task node"
+        - m_inputs: FlowData
+        - m_outputs: FlowData
+
+        + get_inputs()
+        + get_outputs()
+        + run()
+    }
+
+    ' The data flowing through the edges between sub-task nodes
+    class FlowData {
+        "The data flowing through the 
+        edges between sub-task nodes"
+
+        - m_data: set<Trace|Profile>
+
+        + get_data()
+    }
+
+    FlowData -down-* FlowNode
+    FlowNode -right-* FlowGraph
+}
+
+
+namespace perf_data_structure {
+
+    namespace base {
+        Enum NodeType {
+            FUNC
+            LOOP
+            BRANCH
+            CALL
+            INDRCT_CALL
+            REC_CALL
+        }
+        
+        ' A class represents program structures or code segments 
+        class Node {
+            "Represent program structures 
+            or code segments"
+
+            - m_id: int
+            - m_type: NodeType
+        }
+
+        ' A class represents the relationships between program structures or code segments
+        interface Graph {
+            "Represent the relationships 
+            between program structures or 
+            code segments"
+            - m_nodes: list<>
+        }
+
+        ' A specfic tree structure based on the Graph class
+        interface Tree {
+            "A specfic tree structure based
+            on the Graph class"
+            +
+        }
+
+        NodeType -right-* Node
+        Node --* Graph
+        Graph <|-down- Tree
+    }
+
+    namespace static {
+
+        ' A class represents a program structure graph @PerFlow(PPoPP22)
+        class ProgramStructureGraph {
+            "Represent a program structure 
+            graph. See ScalAna@SC20."
+
+        }
+
+        ' A class represents a communication structure tree @Cypress(SC14)
+        class CommStructureTree {
+            "Represent a communication 
+            structure tree. See Cypress@SC14"
+
+        }
+
+        ProgramStructureGraph -up-|> Graph
+        CommStructureTree -up-|> Tree
+
+    }
+
+    namespace dynamic {
+
+        namespace trace {
+
+            ' Represent an execution event 
+            interface Event{
+                "Represent an execution event"
+
+                + m_type: event_type_t
+                + m_idx: id_t
+                + m_name: string
+                + m_pid: id_t
+                + m_tid: id_t
+                + m_timestamp: timestamp_t
+                + m_replay_pid: id_t
+
+                + getType()
+                + getIdx()
+                + getName()
+                + getPid()
+                + getTid()
+                + getTimestamp()
+                + getReplayPid()
+            }
+
+            class MpiEvent{
+                + m_communicator: comm_t
+
+            }
+
+            MpiEvent ..|> Event
+
+            class MpiP2PEvent{
+                + m_tag: id_t
+            }
+
+            MpiP2PEvent -|> MpiEvent
+
+            class MpiSendEvent{
+                + m_dest_pid: id_t
+                + m_recv_event: Event
+            }
+
+            class MpiRecvEvent{
+                + m_src_pid: id_t
+                + m_send_event: Event
+            }
+
+            MpiSendEvent --|> MpiP2PEvent
+
+            MpiRecvEvent --|> MpiP2PEvent
+
+
+
+            /'The trace belonging to which part'/
+            class TraceInfo{
+                + m_pid: id_t
+                + m_tid: id_t
+
+            }
+
+            TraceInfo *-- Trace
+
+            class Trace{
+                + m_events: List<Event>
+                + m_traceinfo: TraceInfo
+
+            }
+
+            Event -o Trace
+
+            class TileTrace{
+                + m_tiles
+            }
+
+            Trace <|-- TileTrace
+
+            class CompressedTrace{
+
+            }
+
+
+        }
+
+        namespace profile {
+
+            class SampleData {
+                "Represent the sampling data."
+            }
+
+            class PerfData {
+                "Represent the profiling data.
+                Maybe in a sparse format"
+
+            }
+
+            class CommMatrix {
+                "Represent a communication matrix"
+            }
+
+            SampleData -down- PerfData
+        }
+        
+    }
+
+    namespace hybrid {
+        class PerformanceAbstractGraph {
+            "Represent a performance abstraction 
+            graph. See PerFlow@PPoPP."
+        }
+
+        PerformanceAbstractGraph -left-|> ProgramStructureGraph
+
+        PerformanceAbstractGraph -up-o PerfData 
+    }
+
+}
+
+'Theorically, all classes in namespace task is the inherited class of FlowNode
+namespace task {
+    namespace set_operation {
+        class Filter {}
+
+        class Union {}
+
+        class Difference {}
+    }
+
+    namespace trace_analysis {
+
+        namespace low_level {
+            class TraceReplayer{
+                + m_trace: Trace
+                
+                + registerCallback()
+                + forwardReplay()
+                + backwardReplay()
+            }
+            Trace -- TraceReplayer 
+        }
+
+        class LateSender {
+
+        }
+        class WrongOrder {
+
+        }
+        class WaitAtNxN {
+
+        }
+
+        LateSender -up-> TraceReplayer
+        WrongOrder -up-> TraceReplayer
+        WaitAtNxN-up-> TraceReplayer
+        
+    }
+
+    TraceReplayer -up-|> FlowNode
+
+    namespace profile_analysis {
+        class HotSpotAnalysis {
+
+        }
+
+        class DifferentialAnalysis {
+
+        }
+
+        class ImbalancedAnalysis {
+
+        }
+
+        class BacktrackingAnalysis {
+            "Backtrack the root causes of 
+            performance bugs. See ScalAna@SC20"
+        }
+    }
+
+    namespace report {
+        class TextViewer {}
+
+        class GraphViewer {}
+
+        class TraceViewer {}
+
+        TraceViewer -up-|> FlowNode
+    }
+
+    namespace reader {
+        class OTF2TraceReader{}
+        class CTFTraceReader{}
+        class HPCToolkitTraceReader{}
+        class VTuneTraceReader{}
+        class NsightTraceReader{}
+        class HPCToolkitSamplesReader{}
+
+        OTF2TraceReader -up-|> FlowNode
+    }
+
+}
+
+
+'  #FFDDC1  
+'  #C1FFD2  
+'  #C1D2FF  
+'  #D2C1FF  
+
+' Highlighting classes with colors to show necessary classes of TileTrace analysis.
+class perf_data_structure.dynamic.trace.Event #D2C1FF
+class perf_data_structure.dynamic.trace.MpiEvent #D2C1FF
+class perf_data_structure.dynamic.trace.MpiP2PEvent #D2C1FF
+class perf_data_structure.dynamic.trace.MpiSendEvent #D2C1FF
+class perf_data_structure.dynamic.trace.MpiRecvEvent #D2C1FF
+class perf_data_structure.dynamic.trace.TileTrace #D2C1FF
+class perf_data_structure.dynamic.trace.Trace #D2C1FF
+class perf_data_structure.dynamic.trace.TraceInfo #D2C1FF
+class perf_data_structure.dynamic.trace.TileTrace #D2C1FF
+
+class flow.FlowData #D2C1FF
+class flow.FlowNode #D2C1FF
+class flow.FlowGraph #D2C1FF
+
+class task.trace_analysis.low_level.TraceReplayer #D2C1FF
+class task.trace_analysis.LateSender #D2C1FF
+class task.reader.OTF2TraceReader #D2C1FF
+class task.report.TraceViewer #D2C1FF
+
+@enduml
