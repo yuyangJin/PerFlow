@@ -2,6 +2,8 @@
 module hpctoolkit reader
 '''
 
+from ...flow.flow import *
+
 '''
 @class HpctoolkitReader
 Read the performance data from hpctoolkit's collected files

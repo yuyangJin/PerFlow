@@ -2,6 +2,8 @@
 module nsight reader
 '''
 
+from ...flow.flow import *
+
 '''
 @class NsightReader
 Read the performance data from Nsys's collected files

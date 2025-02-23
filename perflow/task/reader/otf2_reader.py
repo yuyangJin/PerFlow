@@ -2,6 +2,8 @@
 module OTF2 reader
 '''
 
+from ...flow.flow import *
+
 '''
 @class OTF2Reader
 Read the performance data from otf2 format files
