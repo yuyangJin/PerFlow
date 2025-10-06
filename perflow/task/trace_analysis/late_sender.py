@@ -119,10 +119,12 @@ class LateSender(TraceReplayer):
                 self.setTrace(data)
                 self.forwardReplay()
                 
-                # Add analysis results to outputs
-                self.m_outputs.add_data({
-                    "trace": data,
-                    "late_sends": self.m_late_sends.copy(),
-                    "wait_times": self.m_wait_times.copy(),
-                    "total_wait_time": self.getTotalWaitTime()
-                })
+                # Add analysis results to outputs as tuple (hashable)
+                output = (
+                    "LateSenderAnalysis",
+                    data,
+                    tuple(self.m_late_sends.copy()),
+                    tuple(self.m_wait_times.items()),
+                    self.getTotalWaitTime()
+                )
+                self.m_outputs.add_data(output)

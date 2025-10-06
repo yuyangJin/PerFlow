@@ -192,8 +192,11 @@ class TimelineViewer(FlowNode):
         # Generate visualization
         if self.m_traces:
             visualization = self.visualize()
-            self.m_outputs.add_data({
-                "visualization": visualization,
-                "format": self.m_output_format,
-                "trace_count": len(self.m_traces)
-            })
+            # Create output as tuple (hashable) instead of dict
+            output = (
+                "TimelineVisualization",
+                visualization,
+                self.m_output_format,
+                len(self.m_traces)
+            )
+            self.m_outputs.add_data(output)
