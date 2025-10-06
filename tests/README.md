@@ -22,7 +22,8 @@ tests/
 └── examples/              # End-to-end examples
     ├── example_late_sender_analysis.py      # Late sender detection
     ├── example_comm_pattern_analysis.py     # Communication patterns
-    └── example_load_imbalance_analysis.py   # Load imbalance detection
+    ├── example_load_imbalance_analysis.py   # Load imbalance detection
+    └── example_multiple_trace_readers.py    # Multiple trace format readers
 ```
 
 ## Running Tests
@@ -65,18 +66,21 @@ python tests/examples/example_comm_pattern_analysis.py
 
 # Load imbalance analysis
 python tests/examples/example_load_imbalance_analysis.py
+
+# Multiple trace readers
+python tests/examples/example_multiple_trace_readers.py
 ```
 
 ## Test Coverage
 
-### Unit Tests (92 tests)
+### Unit Tests (122 tests)
 - **Event Classes** (6 tests): Event, EventType
 - **Trace Classes** (11 tests): Trace, TraceInfo
 - **MPI Events** (15 tests): MpiEvent, MpiP2PEvent, MpiSendEvent, MpiRecvEvent
 - **TiledTrace** (8 tests): Tile management and operations
 - **Flow Framework** (26 tests): FlowData, FlowNode, FlowGraph
 - **TraceReplayer** (15 tests): Replay, callbacks, late sender analysis
-- **Readers/Viewers** (11 tests): OTF2Reader, TimelineViewer
+- **Readers/Viewers** (41 tests): OTF2Reader, VtuneReader, NsightReader, HpctoolkitReader, CTFReader, ScalatraceReader, TimelineViewer
 
 ### Integration Tests (12 tests)
 - **Trace Visualization**: Reading and visualizing traces in multiple formats
@@ -84,10 +88,11 @@ python tests/examples/example_load_imbalance_analysis.py
 - **Late Sender Detection**: Identifying communication delays
 - **Workflow Pipelines**: End-to-end analysis workflows
 
-### End-to-End Examples (3 examples)
+### End-to-End Examples (4 examples)
 - **Late Sender Analysis**: Complete workflow for detecting late senders
 - **Communication Pattern Analysis**: Analyzing message patterns and topology
 - **Load Imbalance Analysis**: Detecting and quantifying load imbalance
+- **Multiple Trace Readers**: Using different trace format readers
 
 ## Test Highlights
 
