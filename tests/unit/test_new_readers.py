@@ -38,23 +38,45 @@ class TestVtuneReader:
     
     def test_vtune_reader_load(self):
         """Test loading trace"""
-        reader = VtuneReader("/test/vtune.result")
-        trace = reader.load()
+        import tempfile
+        import os
         
-        assert trace is not None
-        assert isinstance(trace, Trace)
-        assert reader.getTrace() == trace
+        # Create a temporary JSON file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write('{"events": [{"name": "test", "pid": 0, "tid": 0, "timestamp": 1.0}]}')
+            temp_file = f.name
+        
+        try:
+            reader = VtuneReader(temp_file)
+            trace = reader.load()
+            
+            assert trace is not None
+            assert isinstance(trace, Trace)
+            assert reader.getTrace() == trace
+        finally:
+            os.unlink(temp_file)
     
     def test_vtune_reader_run(self):
         """Test running VtuneReader"""
-        reader = VtuneReader("/test/vtune.result")
-        reader.run()
+        import tempfile
+        import os
         
-        outputs = reader.get_outputs().get_data()
-        assert len(outputs) == 1
+        # Create a temporary JSON file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write('{"events": [{"name": "test", "pid": 0, "tid": 0, "timestamp": 1.0}]}')
+            temp_file = f.name
         
-        output_trace = list(outputs)[0]
-        assert isinstance(output_trace, Trace)
+        try:
+            reader = VtuneReader(temp_file)
+            reader.run()
+            
+            outputs = reader.get_outputs().get_data()
+            assert len(outputs) == 1
+            
+            output_trace = list(outputs)[0]
+            assert isinstance(output_trace, Trace)
+        finally:
+            os.unlink(temp_file)
 
 
 class TestNsightReader:
@@ -84,23 +106,45 @@ class TestNsightReader:
     
     def test_nsight_reader_load(self):
         """Test loading trace"""
-        reader = NsightReader("/test/report.nsys-rep")
-        trace = reader.load()
+        import tempfile
+        import os
         
-        assert trace is not None
-        assert isinstance(trace, Trace)
-        assert reader.getTrace() == trace
+        # Create a temporary JSON file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write('{"traceEvents": [{"name": "kernel", "ph": "B", "pid": 0, "tid": 0, "ts": 1000000}]}')
+            temp_file = f.name
+        
+        try:
+            reader = NsightReader(temp_file)
+            trace = reader.load()
+            
+            assert trace is not None
+            assert isinstance(trace, Trace)
+            assert reader.getTrace() == trace
+        finally:
+            os.unlink(temp_file)
     
     def test_nsight_reader_run(self):
         """Test running NsightReader"""
-        reader = NsightReader("/test/report.nsys-rep")
-        reader.run()
+        import tempfile
+        import os
         
-        outputs = reader.get_outputs().get_data()
-        assert len(outputs) == 1
+        # Create a temporary JSON file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.json', delete=False) as f:
+            f.write('{"traceEvents": [{"name": "kernel", "ph": "B", "pid": 0, "tid": 0, "ts": 1000000}]}')
+            temp_file = f.name
         
-        output_trace = list(outputs)[0]
-        assert isinstance(output_trace, Trace)
+        try:
+            reader = NsightReader(temp_file)
+            reader.run()
+            
+            outputs = reader.get_outputs().get_data()
+            assert len(outputs) == 1
+            
+            output_trace = list(outputs)[0]
+            assert isinstance(output_trace, Trace)
+        finally:
+            os.unlink(temp_file)
 
 
 class TestHpctoolkitReader:
@@ -130,23 +174,47 @@ class TestHpctoolkitReader:
     
     def test_hpctoolkit_reader_load(self):
         """Test loading trace"""
-        reader = HpctoolkitReader("/test/hpctoolkit-db")
-        trace = reader.load()
+        import tempfile
+        import os
         
-        assert trace is not None
-        assert isinstance(trace, Trace)
-        assert reader.getTrace() == trace
+        # Create a temporary CSV file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("function,file,line,exclusive_time,inclusive_time\n")
+            f.write("main,main.c,10,0.5,1.0\n")
+            temp_file = f.name
+        
+        try:
+            reader = HpctoolkitReader(temp_file)
+            trace = reader.load()
+            
+            assert trace is not None
+            assert isinstance(trace, Trace)
+            assert reader.getTrace() == trace
+        finally:
+            os.unlink(temp_file)
     
     def test_hpctoolkit_reader_run(self):
         """Test running HpctoolkitReader"""
-        reader = HpctoolkitReader("/test/hpctoolkit-db")
-        reader.run()
+        import tempfile
+        import os
         
-        outputs = reader.get_outputs().get_data()
-        assert len(outputs) == 1
+        # Create a temporary CSV file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.csv', delete=False) as f:
+            f.write("function,file,line,exclusive_time,inclusive_time\n")
+            f.write("main,main.c,10,0.5,1.0\n")
+            temp_file = f.name
         
-        output_trace = list(outputs)[0]
-        assert isinstance(output_trace, Trace)
+        try:
+            reader = HpctoolkitReader(temp_file)
+            reader.run()
+            
+            outputs = reader.get_outputs().get_data()
+            assert len(outputs) == 1
+            
+            output_trace = list(outputs)[0]
+            assert isinstance(output_trace, Trace)
+        finally:
+            os.unlink(temp_file)
 
 
 class TestCTFReader:
@@ -176,23 +244,47 @@ class TestCTFReader:
     
     def test_ctf_reader_load(self):
         """Test loading trace"""
-        reader = CTFReader("/test/ctf_trace")
-        trace = reader.load()
+        import tempfile
+        import os
         
-        assert trace is not None
-        assert isinstance(trace, Trace)
-        assert reader.getTrace() == trace
+        # Create a temporary text file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("[1.5] event_enter: name=main\n")
+            f.write("[2.5] event_leave: name=main\n")
+            temp_file = f.name
+        
+        try:
+            reader = CTFReader(temp_file)
+            trace = reader.load()
+            
+            assert trace is not None
+            assert isinstance(trace, Trace)
+            assert reader.getTrace() == trace
+        finally:
+            os.unlink(temp_file)
     
     def test_ctf_reader_run(self):
         """Test running CTFReader"""
-        reader = CTFReader("/test/ctf_trace")
-        reader.run()
+        import tempfile
+        import os
         
-        outputs = reader.get_outputs().get_data()
-        assert len(outputs) == 1
+        # Create a temporary text file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("[1.5] event_enter: name=main\n")
+            f.write("[2.5] event_leave: name=main\n")
+            temp_file = f.name
         
-        output_trace = list(outputs)[0]
-        assert isinstance(output_trace, Trace)
+        try:
+            reader = CTFReader(temp_file)
+            reader.run()
+            
+            outputs = reader.get_outputs().get_data()
+            assert len(outputs) == 1
+            
+            output_trace = list(outputs)[0]
+            assert isinstance(output_trace, Trace)
+        finally:
+            os.unlink(temp_file)
 
 
 class TestScalatraceReader:
@@ -222,20 +314,44 @@ class TestScalatraceReader:
     
     def test_scalatrace_reader_load(self):
         """Test loading trace"""
-        reader = ScalatraceReader("/test/scalatrace.sct")
-        trace = reader.load()
+        import tempfile
+        import os
         
-        assert trace is not None
-        assert isinstance(trace, Trace)
-        assert reader.getTrace() == trace
+        # Create a temporary text file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("SEND,1,MPI_Send,0,0,1.0,0\n")
+            f.write("RECV,2,MPI_Recv,1,0,1.5,1\n")
+            temp_file = f.name
+        
+        try:
+            reader = ScalatraceReader(temp_file)
+            trace = reader.load()
+            
+            assert trace is not None
+            assert isinstance(trace, Trace)
+            assert reader.getTrace() == trace
+        finally:
+            os.unlink(temp_file)
     
     def test_scalatrace_reader_run(self):
         """Test running ScalatraceReader"""
-        reader = ScalatraceReader("/test/scalatrace.sct")
-        reader.run()
+        import tempfile
+        import os
         
-        outputs = reader.get_outputs().get_data()
-        assert len(outputs) == 1
+        # Create a temporary text file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("SEND,1,MPI_Send,0,0,1.0,0\n")
+            f.write("RECV,2,MPI_Recv,1,0,1.5,1\n")
+            temp_file = f.name
         
-        output_trace = list(outputs)[0]
-        assert isinstance(output_trace, Trace)
+        try:
+            reader = ScalatraceReader(temp_file)
+            reader.run()
+            
+            outputs = reader.get_outputs().get_data()
+            assert len(outputs) == 1
+            
+            output_trace = list(outputs)[0]
+            assert isinstance(output_trace, Trace)
+        finally:
+            os.unlink(temp_file)

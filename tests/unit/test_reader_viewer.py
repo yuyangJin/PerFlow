@@ -35,26 +35,50 @@ class TestOTF2Reader:
         assert reader.getFilePath() == "/test/trace.otf2"
     
     def test_otf2reader_load(self):
-        """Test loading trace (placeholder implementation)"""
-        reader = OTF2Reader("/test/trace.otf2")
-        trace = reader.load()
+        """Test loading trace"""
+        import tempfile
+        import os
         
-        assert trace is not None
-        assert isinstance(trace, Trace)
-        assert reader.getTrace() == trace
+        # Create a temporary text file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("ENTER,1,main,0,0,0.0,0\n")
+            f.write("LEAVE,2,main,0,0,1.0,0\n")
+            temp_file = f.name
+        
+        try:
+            reader = OTF2Reader(temp_file)
+            trace = reader.load()
+            
+            assert trace is not None
+            assert isinstance(trace, Trace)
+            assert reader.getTrace() == trace
+        finally:
+            os.unlink(temp_file)
     
     def test_otf2reader_run(self):
         """Test running OTF2Reader"""
-        reader = OTF2Reader("/test/trace.otf2")
-        reader.run()
+        import tempfile
+        import os
         
-        # Should have trace in outputs
-        outputs = reader.get_outputs().get_data()
-        assert len(outputs) == 1
+        # Create a temporary text file
+        with tempfile.NamedTemporaryFile(mode='w', suffix='.txt', delete=False) as f:
+            f.write("ENTER,1,main,0,0,0.0,0\n")
+            f.write("LEAVE,2,main,0,0,1.0,0\n")
+            temp_file = f.name
         
-        # Output should be a Trace
-        output_trace = list(outputs)[0]
-        assert isinstance(output_trace, Trace)
+        try:
+            reader = OTF2Reader(temp_file)
+            reader.run()
+            
+            # Should have trace in outputs
+            outputs = reader.get_outputs().get_data()
+            assert len(outputs) == 1
+            
+            # Output should be a Trace
+            output_trace = list(outputs)[0]
+            assert isinstance(output_trace, Trace)
+        finally:
+            os.unlink(temp_file)
 
 
 class TestTimelineViewer:
