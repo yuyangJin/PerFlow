@@ -73,12 +73,15 @@ python tests/examples/example_multiple_trace_readers.py
 
 ## Test Coverage
 
-### Unit Tests (122 tests)
+### Unit Tests (124 tests)
 - **Event Classes** (6 tests): Event, EventType
 - **Trace Classes** (11 tests): Trace, TraceInfo
 - **MPI Events** (15 tests): MpiEvent, MpiP2PEvent, MpiSendEvent, MpiRecvEvent
 - **TiledTrace** (8 tests): Tile management and operations
-- **Flow Framework** (26 tests): FlowData, FlowNode, FlowGraph
+- **Flow Framework** (22 tests): FlowData, FlowNode, FlowGraph
+  - FlowData: Creation, add/remove, clear, set behavior
+  - FlowNode: Inputs/outputs, abstract methods
+  - FlowGraph: Node/edge management, **topological sort execution**, **cycle detection**
 - **TraceReplayer** (15 tests): Replay, callbacks, late sender analysis
 - **Readers/Viewers** (41 tests): OTF2Reader, VtuneReader, NsightReader, HpctoolkitReader, CTFReader, ScalatraceReader, TimelineViewer
 

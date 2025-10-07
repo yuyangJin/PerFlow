@@ -217,20 +217,57 @@ class FlowGraph:
         """
         Execute the workflow.
         
-        Runs all nodes in the graph in topological order, ensuring
-        that each node runs after all its dependencies have completed.
+        Runs all nodes in the graph in topological order using Kahn's algorithm,
+        ensuring that each node runs after all its dependencies have completed.
+        
+        Raises:
+            RuntimeError: If the graph contains a cycle
         """
-        # Simple implementation: run nodes in the order they were added
-        # A more sophisticated implementation would do topological sort
+        # Build in-degree map (count of incoming edges for each node)
+        in_degree: Dict[FlowNode, int] = {node: 0 for node in self.m_nodes}
+        
+        # Calculate in-degrees by examining all edges
         for node in self.m_nodes:
-            node.run()
+            for successor in self.m_edges[node]:
+                in_degree[successor] += 1
+        
+        # Find all nodes with no incoming edges (starting nodes)
+        queue: List[FlowNode] = []
+        for node in self.m_nodes:
+            if in_degree[node] == 0:
+                queue.append(node)
+        
+        # Process nodes in topological order
+        processed_nodes: List[FlowNode] = []
+        
+        while queue:
+            # Take the next node with no dependencies
+            current_node = queue.pop(0)
+            processed_nodes.append(current_node)
+            
+            # Execute the node
+            current_node.run()
             
             # Pass outputs to successor nodes
-            successors = self.get_successors(node)
+            successors = self.get_successors(current_node)
             for successor in successors:
-                # Merge outputs from this node into inputs of successor
-                for data in node.get_outputs().get_data():
+                # Merge outputs from current node into inputs of successor
+                for data in current_node.get_outputs().get_data():
                     successor.get_inputs().add_data(data)
+                
+                # Reduce in-degree of successor
+                in_degree[successor] -= 1
+                
+                # If successor has no more dependencies, add to queue
+                if in_degree[successor] == 0:
+                    queue.append(successor)
+        
+        # Check if all nodes were processed (detect cycles)
+        if len(processed_nodes) != len(self.m_nodes):
+            raise RuntimeError(
+                f"Graph contains a cycle. Processed {len(processed_nodes)} "
+                f"nodes out of {len(self.m_nodes)} total nodes."
+            )
     
     def clear(self) -> None:
         """Clear all nodes and edges from the graph."""

@@ -275,3 +275,68 @@ class TestFlowGraph:
         assert processor1.run_called
         assert processor2.run_called
         assert sink.run_called
+    
+    def test_flowgraph_cycle_detection(self):
+        """Test that cycles are detected and raise an error"""
+        graph = FlowGraph()
+        
+        # Create nodes
+        node1 = ConcreteFlowNode()
+        node2 = ConcreteFlowNode()
+        node3 = ConcreteFlowNode()
+        
+        # Create a cycle: node1 -> node2 -> node3 -> node1
+        graph.add_edge(node1, node2)
+        graph.add_edge(node2, node3)
+        graph.add_edge(node3, node1)
+        
+        # Running should raise a RuntimeError
+        with pytest.raises(RuntimeError, match="Graph contains a cycle"):
+            graph.run()
+    
+    def test_flowgraph_topological_order(self):
+        """Test that nodes execute in topological order"""
+        graph = FlowGraph()
+        
+        execution_order = []
+        
+        class OrderTrackingNode(FlowNode):
+            """Node that tracks execution order"""
+            
+            def __init__(self, name: str, order_list: list):
+                super().__init__()
+                self.name = name
+                self.order_list = order_list
+            
+            def run(self):
+                self.order_list.append(self.name)
+                # Copy inputs to outputs
+                for data in self.m_inputs.get_data():
+                    self.m_outputs.add_data(data)
+        
+        # Create a diamond-shaped graph:
+        #     A
+        #    / \
+        #   B   C
+        #    \ /
+        #     D
+        node_a = OrderTrackingNode("A", execution_order)
+        node_b = OrderTrackingNode("B", execution_order)
+        node_c = OrderTrackingNode("C", execution_order)
+        node_d = OrderTrackingNode("D", execution_order)
+        
+        graph.add_edge(node_a, node_b)
+        graph.add_edge(node_a, node_c)
+        graph.add_edge(node_b, node_d)
+        graph.add_edge(node_c, node_d)
+        
+        # Run the graph
+        graph.run()
+        
+        # Verify execution order: A must come before B and C, B and C must come before D
+        assert execution_order[0] == "A"
+        assert execution_order[-1] == "D"
+        assert execution_order.index("B") > execution_order.index("A")
+        assert execution_order.index("C") > execution_order.index("A")
+        assert execution_order.index("D") > execution_order.index("B")
+        assert execution_order.index("D") > execution_order.index("C")
