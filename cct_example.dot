@@ -1,0 +1,19 @@
+digraph CallingContextTree {
+  rankdir=TB;
+  node [shape=box, style=rounded];
+  
+  node0 [label="<root>\nSamples: 0\n", fillcolor=lightblue, style="rounded,filled"];
+  node1 [label="main\nSamples: 0\n", fillcolor=lightblue, style="rounded,filled"];
+  node2 [label="compute\nSamples: 0\n", fillcolor=lightblue, style="rounded,filled"];
+  node3 [label="matrix_multiply\nSamples: 50\nCycles: 50,000", fillcolor=red, style="rounded,filled"];
+  node4 [label="vector_add\nSamples: 30\nCycles: 15,000", fillcolor=orange, style="rounded,filled"];
+  node5 [label="io_read\nSamples: 20\nCycles: 40,000", fillcolor=yellow, style="rounded,filled"];
+  node6 [label="helper\nSamples: 15\nCycles: 4,500", fillcolor=yellow, style="rounded,filled"];
+  
+  node0 -> node1;
+  node1 -> node2;
+  node1 -> node5;
+  node2 -> node3;
+  node2 -> node4;
+  node2 -> node6;
+}
