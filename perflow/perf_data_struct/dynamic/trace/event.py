@@ -21,6 +21,8 @@ class EventType(Enum):
     COLLECTIVE = 5
     BARRIER = 6
     COMPUTE = 7
+    LOOP = 8
+    BRANCH = 9
 
 
 '''

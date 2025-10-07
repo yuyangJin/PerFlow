@@ -18,12 +18,15 @@ class TestEventType:
         assert EventType.COLLECTIVE
         assert EventType.BARRIER
         assert EventType.COMPUTE
+        assert EventType.LOOP
+        assert EventType.BRANCH
     
     def test_event_type_values(self):
         """Test event type values are unique"""
         types = [EventType.UNKNOWN, EventType.ENTER, EventType.LEAVE,
                  EventType.SEND, EventType.RECV, EventType.COLLECTIVE,
-                 EventType.BARRIER, EventType.COMPUTE]
+                 EventType.BARRIER, EventType.COMPUTE, EventType.LOOP,
+                 EventType.BRANCH]
         values = [t.value for t in types]
         assert len(values) == len(set(values))
 
