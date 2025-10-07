@@ -3,6 +3,8 @@ module critical path finding
 '''
 
 from typing import Dict, List, Optional, Set, Tuple, Any
+import sys
+import psutil
 from .low_level.trace_replayer import TraceReplayer, ReplayDirection
 from ...perf_data_struct.dynamic.trace.trace import Trace
 from ...perf_data_struct.dynamic.trace.event import Event, EventType
@@ -45,14 +47,17 @@ class CriticalPathFinding(TraceReplayer):
         m_slack_times: Dictionary of slack times (latest - earliest)
         m_predecessors: Dictionary tracking predecessor events
         m_successors: Dictionary tracking successor events
+        m_enable_memory_tracking: Flag to enable/disable memory consumption tracking
+        m_memory_stats: Dictionary storing memory consumption statistics
     """
     
-    def __init__(self, trace: Optional[Trace] = None) -> None:
+    def __init__(self, trace: Optional[Trace] = None, enable_memory_tracking: bool = False) -> None:
         """
         Initialize a CriticalPathFinding analyzer.
         
         Args:
             trace: Optional trace to analyze
+            enable_memory_tracking: If True, track memory consumption during analysis
         """
         super().__init__(trace)
         self.m_event_costs: Dict[int, float] = {}
@@ -76,6 +81,10 @@ class CriticalPathFinding(TraceReplayer):
         
         # Track process-local previous events for dependency construction
         self.m_process_last_event: Dict[int, Event] = {}
+        
+        # Memory tracking
+        self.m_enable_memory_tracking: bool = enable_memory_tracking
+        self.m_memory_stats: Dict[str, Any] = {}
         
         # Register callback for forward pass
         self.registerCallback("compute_earliest_times", 
@@ -431,6 +440,79 @@ class CriticalPathFinding(TraceReplayer):
         self.m_predecessors.clear()
         self.m_successors.clear()
         self.m_process_last_event.clear()
+        self.m_memory_stats.clear()
+    
+    def _measure_memory_usage(self) -> float:
+        """
+        Measure current memory usage in bytes.
+        
+        Returns:
+            Current memory usage in bytes (RSS - Resident Set Size)
+        """
+        process = psutil.Process()
+        return process.memory_info().rss
+    
+    def _measure_trace_memory(self, trace: Trace) -> int:
+        """
+        Measure the memory consumption of a trace object.
+        
+        This estimates the memory size by measuring the trace object itself
+        and all its events.
+        
+        Args:
+            trace: Trace object to measure
+            
+        Returns:
+            Estimated memory size in bytes
+        """
+        total_size = sys.getsizeof(trace)
+        
+        # Add memory for all events
+        events = trace.getEvents()
+        for event in events:
+            total_size += sys.getsizeof(event)
+            # Add size of event attributes (rough estimation)
+            try:
+                total_size += sys.getsizeof(event.__dict__)
+            except (AttributeError, TypeError):
+                pass
+        
+        return total_size
+    
+    def setEnableMemoryTracking(self, enable: bool) -> None:
+        """
+        Enable or disable memory tracking.
+        
+        Args:
+            enable: True to enable memory tracking, False to disable
+        """
+        self.m_enable_memory_tracking = enable
+    
+    def isMemoryTrackingEnabled(self) -> bool:
+        """
+        Check if memory tracking is enabled.
+        
+        Returns:
+            True if memory tracking is enabled
+        """
+        return self.m_enable_memory_tracking
+    
+    def getMemoryStatistics(self) -> Dict[str, Any]:
+        """
+        Get memory consumption statistics.
+        
+        Returns:
+            Dictionary containing memory statistics:
+            - trace_memory_bytes: Memory consumed by input trace
+            - forward_replay_start_memory_bytes: Memory at start of forward replay
+            - forward_replay_end_memory_bytes: Memory at end of forward replay
+            - forward_replay_delta_bytes: Memory change during forward replay
+            - backward_replay_start_memory_bytes: Memory at start of backward replay
+            - backward_replay_end_memory_bytes: Memory at end of backward replay
+            - backward_replay_delta_bytes: Memory change during backward replay
+            - peak_memory_bytes: Peak memory usage during analysis
+        """
+        return self.m_memory_stats.copy()
     
     def run(self) -> None:
         """
@@ -440,6 +522,7 @@ class CriticalPathFinding(TraceReplayer):
         1. Forward pass to compute earliest start/finish times
         2. Backward pass to compute latest start/finish times
         3. Slack computation and critical path identification
+        4. Optional memory consumption tracking
         
         Results are stored in m_critical_path and related attributes.
         """
@@ -451,15 +534,52 @@ class CriticalPathFinding(TraceReplayer):
             if isinstance(data, Trace):
                 self.setTrace(data)
                 
+                # Track memory if enabled
+                if self.m_enable_memory_tracking:
+                    # Measure input trace memory
+                    self.m_memory_stats['trace_memory_bytes'] = self._measure_trace_memory(data)
+                    
+                    # Measure memory before forward replay
+                    self.m_memory_stats['forward_replay_start_memory_bytes'] = self._measure_memory_usage()
+                
                 # Forward pass: compute earliest times and build dependency graph
                 self.forwardReplay()
+                
+                # Track memory after forward replay
+                if self.m_enable_memory_tracking:
+                    self.m_memory_stats['forward_replay_end_memory_bytes'] = self._measure_memory_usage()
+                    self.m_memory_stats['forward_replay_delta_bytes'] = (
+                        self.m_memory_stats['forward_replay_end_memory_bytes'] - 
+                        self.m_memory_stats['forward_replay_start_memory_bytes']
+                    )
                 
                 # Set critical path length (max earliest finish time)
                 if self.m_earliest_finish_times:
                     self.m_critical_path_length = max(self.m_earliest_finish_times.values())
                 
+                # Track memory before backward replay
+                if self.m_enable_memory_tracking:
+                    self.m_memory_stats['backward_replay_start_memory_bytes'] = self._measure_memory_usage()
+                
                 # Backward pass: compute latest times and slack
                 self.backwardReplay()
+                
+                # Track memory after backward replay
+                if self.m_enable_memory_tracking:
+                    self.m_memory_stats['backward_replay_end_memory_bytes'] = self._measure_memory_usage()
+                    self.m_memory_stats['backward_replay_delta_bytes'] = (
+                        self.m_memory_stats['backward_replay_end_memory_bytes'] - 
+                        self.m_memory_stats['backward_replay_start_memory_bytes']
+                    )
+                    
+                    # Compute peak memory
+                    memory_values = [
+                        self.m_memory_stats.get('forward_replay_start_memory_bytes', 0),
+                        self.m_memory_stats.get('forward_replay_end_memory_bytes', 0),
+                        self.m_memory_stats.get('backward_replay_start_memory_bytes', 0),
+                        self.m_memory_stats.get('backward_replay_end_memory_bytes', 0)
+                    ]
+                    self.m_memory_stats['peak_memory_bytes'] = max(memory_values)
                 
                 # Identify critical path (events with zero slack)
                 self._identify_critical_path()

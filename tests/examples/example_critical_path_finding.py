@@ -321,6 +321,24 @@ def print_critical_path_summary(analyzer):
         comm_pct = (stats['communication_time'] / stats['total_length']) * 100
         print(f"  Computation %: {comp_pct:.2f}%")
         print(f"  Communication %: {comm_pct:.2f}%")
+    
+    # Print memory statistics if available
+    if analyzer.isMemoryTrackingEnabled():
+        memory_stats = analyzer.getMemoryStatistics()
+        if memory_stats:
+            print(f"\nMemory Consumption Statistics:")
+            if 'trace_memory_bytes' in memory_stats:
+                trace_mb = memory_stats['trace_memory_bytes'] / (1024 * 1024)
+                print(f"  Input Trace Memory: {trace_mb:.2f} MB")
+            if 'forward_replay_delta_bytes' in memory_stats:
+                fwd_mb = memory_stats['forward_replay_delta_bytes'] / (1024 * 1024)
+                print(f"  Forward Replay Memory Delta: {fwd_mb:.2f} MB")
+            if 'backward_replay_delta_bytes' in memory_stats:
+                bwd_mb = memory_stats['backward_replay_delta_bytes'] / (1024 * 1024)
+                print(f"  Backward Replay Memory Delta: {bwd_mb:.2f} MB")
+            if 'peak_memory_bytes' in memory_stats:
+                peak_mb = memory_stats['peak_memory_bytes'] / (1024 * 1024)
+                print(f"  Peak Memory Usage: {peak_mb:.2f} MB")
 
 
 def print_detailed_critical_path(analyzer):
@@ -428,6 +446,84 @@ def run_workflow_example(trace):
     print(f"Number of events on critical path: {len(critical_path)}")
 
 
+def run_memory_tracking_example(trace):
+    """
+    Demonstrate memory tracking functionality in critical path analysis.
+    
+    Args:
+        trace: Trace object to analyze
+    """
+    print("\n" + "=" * 80)
+    print("MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    
+    print("\nThis example demonstrates memory consumption tracking during")
+    print("critical path analysis.")
+    
+    # Create analyzer with memory tracking enabled
+    print("\nStep 1: Creating analyzer with memory tracking enabled...")
+    analyzer = CriticalPathFinding(enable_memory_tracking=True)
+    analyzer.get_inputs().add_data(trace)
+    
+    # Run analysis
+    print("Step 2: Running critical path analysis with memory tracking...")
+    analyzer.run()
+    
+    # Get results
+    critical_path = analyzer.getCriticalPath()
+    path_length = analyzer.getCriticalPathLength()
+    memory_stats = analyzer.getMemoryStatistics()
+    
+    print("\nStep 3: Analysis Results:")
+    print(f"  Critical path length: {path_length:.6f} seconds")
+    print(f"  Number of events on critical path: {len(critical_path)}")
+    
+    print("\nStep 4: Memory Consumption Results:")
+    print("-" * 80)
+    
+    if 'trace_memory_bytes' in memory_stats:
+        trace_kb = memory_stats['trace_memory_bytes'] / 1024
+        trace_mb = memory_stats['trace_memory_bytes'] / (1024 * 1024)
+        print(f"  Input Trace Memory: {trace_kb:.2f} KB ({trace_mb:.4f} MB)")
+    
+    if 'forward_replay_start_memory_bytes' in memory_stats:
+        fwd_start_mb = memory_stats['forward_replay_start_memory_bytes'] / (1024 * 1024)
+        print(f"  Forward Replay Start Memory: {fwd_start_mb:.2f} MB")
+    
+    if 'forward_replay_end_memory_bytes' in memory_stats:
+        fwd_end_mb = memory_stats['forward_replay_end_memory_bytes'] / (1024 * 1024)
+        print(f"  Forward Replay End Memory: {fwd_end_mb:.2f} MB")
+    
+    if 'forward_replay_delta_bytes' in memory_stats:
+        fwd_delta_kb = memory_stats['forward_replay_delta_bytes'] / 1024
+        fwd_delta_mb = memory_stats['forward_replay_delta_bytes'] / (1024 * 1024)
+        print(f"  Forward Replay Memory Delta: {fwd_delta_kb:.2f} KB ({fwd_delta_mb:.4f} MB)")
+    
+    if 'backward_replay_start_memory_bytes' in memory_stats:
+        bwd_start_mb = memory_stats['backward_replay_start_memory_bytes'] / (1024 * 1024)
+        print(f"  Backward Replay Start Memory: {bwd_start_mb:.2f} MB")
+    
+    if 'backward_replay_end_memory_bytes' in memory_stats:
+        bwd_end_mb = memory_stats['backward_replay_end_memory_bytes'] / (1024 * 1024)
+        print(f"  Backward Replay End Memory: {bwd_end_mb:.2f} MB")
+    
+    if 'backward_replay_delta_bytes' in memory_stats:
+        bwd_delta_kb = memory_stats['backward_replay_delta_bytes'] / 1024
+        bwd_delta_mb = memory_stats['backward_replay_delta_bytes'] / (1024 * 1024)
+        print(f"  Backward Replay Memory Delta: {bwd_delta_kb:.2f} KB ({bwd_delta_mb:.4f} MB)")
+    
+    if 'peak_memory_bytes' in memory_stats:
+        peak_mb = memory_stats['peak_memory_bytes'] / (1024 * 1024)
+        print(f"  Peak Memory Usage: {peak_mb:.2f} MB")
+    
+    print("\nKey Insights:")
+    print("  - Memory tracking can be enabled/disabled as needed")
+    print("  - Tracks memory consumption at key points in the analysis")
+    print("  - Helps identify memory bottlenecks in large-scale analysis")
+    print("  - Can be used to optimize memory usage in performance analysis")
+
+
+
 def main():
     """
     Main function demonstrating critical path finding.
@@ -477,6 +573,12 @@ def main():
     print("=" * 80)
     run_workflow_example(complex_trace)
     
+    # Example 4: Memory tracking demonstration
+    print("\n\n" + "=" * 80)
+    print("EXAMPLE 4: MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    run_memory_tracking_example(complex_trace)
+    
     print("\n" + "=" * 80)
     print("ALL EXAMPLES COMPLETE!")
     print("=" * 80)
@@ -485,6 +587,7 @@ def main():
     print("  - Events on the critical path are performance bottlenecks")
     print("  - Optimizing non-critical events won't improve overall performance")
     print("  - Focus optimization efforts on critical path events")
+    print("  - Memory tracking helps identify resource consumption patterns")
     print()
 
 
