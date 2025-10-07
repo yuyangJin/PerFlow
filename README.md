@@ -12,7 +12,7 @@ A programmable and fast performance analysis for parallel programs
   - Late sender detection and communication pattern analysis
   - Communication pattern analyzer for identifying patterns (all-to-all, nearest neighbor, hub, etc.)
   
-- **Profile Analysis**: Profiling data analysis infrastructure (S4 2025 Milestone 1)
+- **Profile Analysis**: Profiling data analysis infrastructure
   - Profile data structures (PerfData, ProfileInfo, SampleData)
   - Calling Context Tree (CCT) for hierarchical call path analysis
   - Built-in visualization: tree view and ring/sunburst charts
@@ -21,24 +21,6 @@ A programmable and fast performance analysis for parallel programs
   - Cache behavior analyzer for memory performance
   - Support for multiple performance metrics (cycles, instructions, cache misses, etc.)
   - Call stack analysis
-
-- **Static Program Structure Analysis**: (S4 2025 Milestone 2)
-  - Program Structure Graph (PSG) for representing complete code hierarchy
-  - Communication Structure Tree (CST) - pruned PSG focusing on MPI operations
-  - CST preserves call/loop/branch structure with MPI nodes as leaves
-  - Support for functions, loops, basic blocks, and call sites
-  - Call graph extraction and loop nesting analysis
-
-- **Analysis Passes**: (S4 2025 Milestone 3)
-  - Hotspot detection
-  - Load imbalance analysis
-  - Cache behavior analysis
-  - Communication pattern detection
-
-- **Flow Framework**: Dataflow-based workflow management
-  - Topological sort execution
-  - Node and edge management
-  - Cycle detection
 
 ## Install
 ```bash
@@ -97,39 +79,15 @@ for path, cycles in hot_paths:
     print(f"{' -> '.join(path)}: {cycles} cycles")
 ```
 
-### Communication Structure Tree (CST) Example
-```python
-from perflow.perf_data_struct.static import ProgramStructureGraph
-from perflow.perf_data_struct.static.comm_structure_tree import CommStructureTree, CommType
-
-# Build Program Structure Graph
-psg = ProgramStructureGraph()
-func = psg.addFunctionNode(1, "main", "main.c", 10)
-loop = psg.addLoopNode(2, "compute_loop", parent_id=1, loop_type="for")
-mpi_send = psg.addCallSite(3, caller_id=2, callee_name="MPI_Send")
-
-# Build Communication Structure Tree by pruning PSG
-mpi_nodes = {3}  # MPI_Send is an MPI operation
-comm_types = {3: CommType.POINT_TO_POINT}
-cst = CommStructureTree()
-cst.buildFromPSG(psg, mpi_nodes, comm_types)
-
-# Analyze communication structure
-print(f"MPI nodes: {len(cst.getMPINodes())}")
-print(f"Max nesting depth: {cst.getMaxNestingDepth()}")
-patterns = cst.getCommunicationPattern()
-print(f"Communication patterns: {patterns}")
-```
 
 ## Documentation
 
 - [Profile Analysis Guide](docs/profile_analysis.md)
-- [CST Implementation Guide](docs/cst_implementation_guide.md)
 - [Contributing Guide](docs/contributing.md)
 - [Test Documentation](tests/README.md)
 
 ## Testing
 
-- **283 tests** (259 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
+- **283 tests** (259 unit + 25 integration) - 3 pre-existing failures
 - **7 comprehensive examples** (including CCT/PSG/CST visualization and analysis)
 - See [tests/README.md](tests/README.md) for details
