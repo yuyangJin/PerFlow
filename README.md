@@ -10,12 +10,33 @@ A programmable and fast performance analysis for parallel programs
   - Multiple trace format readers (OTF2, VTune, Nsight, HPCToolkit, CTF, Scalatrace)
   - Trace replay with forward/backward analysis
   - Late sender detection and communication pattern analysis
+  - Communication pattern analyzer for identifying patterns (all-to-all, nearest neighbor, hub, etc.)
   
-- **Profile Analysis**: Profiling data analysis infrastructure (NEW in S4 2025 Milestone 1)
+- **Profile Analysis**: Profiling data analysis infrastructure (S4 2025 Milestone 1)
   - Profile data structures (PerfData, ProfileInfo, SampleData)
   - Hotspot detection and performance analysis
+  - Load imbalance analyzer for parallel efficiency
+  - Cache behavior analyzer for memory performance
   - Support for multiple performance metrics (cycles, instructions, cache misses, etc.)
   - Call stack analysis
+
+- **Static Program Structure Analysis**: (S4 2025 Milestone 2)
+  - Program Structure Graph (PSG) for representing code hierarchy
+  - Communication Structure Tree (CST) for communication patterns
+  - Support for functions, loops, basic blocks, and call sites
+  - Call graph extraction and loop nesting analysis
+
+- **Data Embedding**: (S4 2025 Milestone 3)
+  - Function embedding based on structural and performance characteristics
+  - Trace embedding for event sequence analysis
+  - Profile embedding for performance metric patterns
+  - Configurable embedding dimensionality
+
+- **Analysis Passes**: (S4 2025 Milestone 4)
+  - Hotspot detection
+  - Load imbalance analysis
+  - Cache behavior analysis
+  - Communication pattern detection
 
 - **Flow Framework**: Dataflow-based workflow management
   - Topological sort execution
@@ -73,6 +94,6 @@ for func_name, metrics in top_hotspots:
 
 ## Testing
 
-- **243 tests** (218 unit + 25 integration)
+- **258 tests** (237 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
 - **5 comprehensive examples**
 - See [tests/README.md](tests/README.md) for details
