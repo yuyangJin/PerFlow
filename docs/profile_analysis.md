@@ -7,6 +7,7 @@ PerFlow 2.0 provides comprehensive support for analyzing profiling data from par
 The profile analysis module provides:
 
 - **Profile Data Structures**: Data structures for representing profiling samples and metadata
+- **Calling Context Tree (CCT)**: Hierarchical representation of calling contexts for detailed analysis
 - **Profile Analyzers**: Base infrastructure for implementing profile analysis passes
 - **Hotspot Analysis**: Built-in analyzer for identifying performance hotspots
 - **Integration with Flow Framework**: Seamless integration with PerFlow's dataflow framework
@@ -299,3 +300,113 @@ The profile analysis infrastructure is designed to be extensible. Future additio
 - GPU profiling support
 - Cross-profile comparison utilities
 - Automated optimization recommendations
+
+## Calling Context Tree (CCT)
+
+### Overview
+
+The `CallingContextTree` represents the hierarchical structure of calling contexts in profiling data. Each node in the CCT represents a unique calling context (a function and the call path leading to it). This enables detailed analysis of performance in different calling contexts.
+
+### Building a CCT
+
+```python
+from perflow.perf_data_struct.dynamic.profile.calling_context_tree import CallingContextTree
+from perflow.perf_data_struct.dynamic.profile.perf_data import PerfData
+
+# Create CCT
+cct = CallingContextTree()
+
+# Build from profiling data
+cct.buildFromProfile(profile)
+
+print(f"CCT has {cct.getNodeCount()} nodes")
+print(f"Maximum calling depth: {cct.getContextDepth()}")
+```
+
+### Exclusive vs Inclusive Metrics
+
+The CCT supports both exclusive and inclusive metrics:
+
+- **Exclusive metrics**: Metrics attributed only to the specific context (samples collected at that exact call path)
+- **Inclusive metrics**: Metrics including all descendant contexts (sum of all samples in subtree)
+
+```python
+# Get a node ID from a calling context
+context = ("main", "compute", "matrix_multiply")
+node_id = cct.m_context_nodes[context]
+
+# Get exclusive metrics (only this exact context)
+exclusive = cct.getExclusiveMetrics(node_id)
+print(f"Exclusive cycles: {exclusive['cycles']}")
+
+# Get inclusive metrics (this context + all descendants)
+inclusive = cct.getInclusiveMetrics(node_id)
+print(f"Inclusive cycles: {inclusive['cycles']}")
+```
+
+### Hot Path Analysis
+
+Identify the hottest calling paths in your application:
+
+```python
+# Get top 10 hottest paths by cycles
+hot_paths = cct.getHotPaths("cycles", top_n=10)
+
+for path, cycles in hot_paths:
+    path_str = " -> ".join(path)
+    print(f"{path_str}: {cycles:,.0f} cycles")
+```
+
+### Function Statistics
+
+Get aggregated statistics for a function across all calling contexts:
+
+```python
+# Get stats for a function across all contexts
+stats = cct.getFunctionStats("matrix_multiply")
+
+print(f"Total samples: {stats['total_samples']}")
+print(f"Appears in {stats['num_contexts']} different contexts")
+print(f"Total cycles: {stats['total_metrics']['cycles']:,.0f}")
+
+# List all contexts
+for context, sample_count in stats['contexts']:
+    print(f"  {' -> '.join(context)}: {sample_count} samples")
+```
+
+### Visualization
+
+The CCT can be visualized using text or DOT format:
+
+```python
+# Text visualization (for debugging)
+def print_tree(node_id, indent=0):
+    node = cct.getNode(node_id)
+    metrics = cct.getNodeMetrics(node_id)
+    print("  " * indent + f"{node.getName()}: {metrics.get('cycles', 0)} cycles")
+    for child_id in cct.getChildren(node_id):
+        print_tree(child_id, indent + 1)
+
+# DOT format for Graphviz
+# See tests/examples/example_cct_psg_visualization.py for complete example
+```
+
+### API Reference - CallingContextTree
+
+- `buildFromProfile(perf_data)`: Build CCT from profiling data
+- `getNodeMetrics(node_id)`: Get exclusive metrics for a node
+- `getNodeSampleCount(node_id)`: Get sample count for a node
+- `getInclusiveMetrics(node_id)`: Get inclusive metrics (including descendants)
+- `getExclusiveMetrics(node_id)`: Get exclusive metrics (excluding descendants)
+- `getHotPaths(metric, top_n)`: Get hottest calling paths
+- `getContextDepth()`: Get maximum depth of calling contexts
+- `getFunctionStats(function_name)`: Get statistics for a function across all contexts
+- `clear()`: Clear the CCT
+
+## Examples
+
+Complete examples are available in the `tests/examples/` directory:
+
+- **example_hotspot_analysis.py**: Comprehensive hotspot analysis workflow
+- **example_cct_psg_visualization.py**: CCT and PSG visualization with text and DOT formats
+

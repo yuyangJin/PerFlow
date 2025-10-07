@@ -14,6 +14,7 @@ A programmable and fast performance analysis for parallel programs
   
 - **Profile Analysis**: Profiling data analysis infrastructure (S4 2025 Milestone 1)
   - Profile data structures (PerfData, ProfileInfo, SampleData)
+  - Calling Context Tree (CCT) for hierarchical call path analysis
   - Hotspot detection and performance analysis
   - Load imbalance analyzer for parallel efficiency
   - Cache behavior analyzer for memory performance
@@ -74,16 +75,24 @@ print(f"Found {len(late_sends)} late senders")
 ```python
 from perflow.task.profile_analysis.hotspot_analyzer import HotspotAnalyzer
 from perflow.perf_data_struct.dynamic.profile.perf_data import PerfData
+from perflow.perf_data_struct.dynamic.profile.calling_context_tree import CallingContextTree
 
 profile = PerfData()
 # ... add samples to profile ...
 
+# Hotspot analysis
 analyzer = HotspotAnalyzer(profile)
 analyzer.analyze()
-
 top_hotspots = analyzer.getTopHotspots("total_cycles", top_n=5)
 for func_name, metrics in top_hotspots:
     print(f"{func_name}: {metrics['total_cycles']} cycles")
+
+# Calling context tree analysis
+cct = CallingContextTree()
+cct.buildFromProfile(profile)
+hot_paths = cct.getHotPaths("cycles", top_n=5)
+for path, cycles in hot_paths:
+    print(f"{' -> '.join(path)}: {cycles} cycles")
 ```
 
 ## Documentation
@@ -94,6 +103,6 @@ for func_name, metrics in top_hotspots:
 
 ## Testing
 
-- **258 tests** (237 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
-- **5 comprehensive examples**
+- **277 tests** (253 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
+- **6 comprehensive examples** (including CCT/PSG visualization)
 - See [tests/README.md](tests/README.md) for details
