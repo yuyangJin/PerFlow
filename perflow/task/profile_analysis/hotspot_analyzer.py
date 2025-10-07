@@ -197,11 +197,17 @@ class HotspotAnalyzer(ProfileAnalyzer):
                 self.setProfile(data)
                 self.analyze()
                 
-                # Add analysis results to outputs
+                # Add analysis results to outputs as tuple (hashable)
+                # Convert dict values to tuples for hashability
+                hotspots_tuple = tuple(
+                    (func_name, tuple(metrics.items()))
+                    for func_name, metrics in self.m_hotspots.items()
+                )
+                
                 output = (
                     "HotspotAnalysis",
                     data,
-                    dict(self.m_hotspots),  # Copy of hotspots
+                    hotspots_tuple,
                     self.getTotalSamples()
                 )
                 self.m_outputs.add_data(output)
