@@ -1,6 +1,4 @@
-"""
 Communication Structure Tree (CST) - Implementation Guide
-
 ## Overview
 
 The Communication Structure Tree (CST) is a **pruned version** of a Program Structure 
