@@ -23,8 +23,9 @@ A programmable and fast performance analysis for parallel programs
   - Call stack analysis
 
 - **Static Program Structure Analysis**: (S4 2025 Milestone 2)
-  - Program Structure Graph (PSG) for representing code hierarchy
-  - Communication Structure Tree (CST) for communication patterns
+  - Program Structure Graph (PSG) for representing complete code hierarchy
+  - Communication Structure Tree (CST) - pruned PSG focusing on MPI operations
+  - CST preserves call/loop/branch structure with MPI nodes as leaves
   - Support for functions, loops, basic blocks, and call sites
   - Call graph extraction and loop nesting analysis
 
@@ -102,14 +103,39 @@ for path, cycles in hot_paths:
     print(f"{' -> '.join(path)}: {cycles} cycles")
 ```
 
+### Communication Structure Tree (CST) Example
+```python
+from perflow.perf_data_struct.static import ProgramStructureGraph
+from perflow.perf_data_struct.static.comm_structure_tree import CommStructureTree, CommType
+
+# Build Program Structure Graph
+psg = ProgramStructureGraph()
+func = psg.addFunctionNode(1, "main", "main.c", 10)
+loop = psg.addLoopNode(2, "compute_loop", parent_id=1, loop_type="for")
+mpi_send = psg.addCallSite(3, caller_id=2, callee_name="MPI_Send")
+
+# Build Communication Structure Tree by pruning PSG
+mpi_nodes = {3}  # MPI_Send is an MPI operation
+comm_types = {3: CommType.POINT_TO_POINT}
+cst = CommStructureTree()
+cst.buildFromPSG(psg, mpi_nodes, comm_types)
+
+# Analyze communication structure
+print(f"MPI nodes: {len(cst.getMPINodes())}")
+print(f"Max nesting depth: {cst.getMaxNestingDepth()}")
+patterns = cst.getCommunicationPattern()
+print(f"Communication patterns: {patterns}")
+```
+
 ## Documentation
 
 - [Profile Analysis Guide](docs/profile_analysis.md)
+- [CST Implementation Guide](docs/cst_implementation_guide.md)
 - [Contributing Guide](docs/contributing.md)
 - [Test Documentation](tests/README.md)
 
 ## Testing
 
-- **277 tests** (253 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
-- **6 comprehensive examples** (including CCT/PSG visualization)
+- **294 tests** (270 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
+- **7 comprehensive examples** (including CCT/PSG/CST visualization and analysis)
 - See [tests/README.md](tests/README.md) for details
