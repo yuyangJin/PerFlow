@@ -2,7 +2,7 @@
 Integration test: Trace replay and analysis
 """
 import pytest
-from perflow.task.trace_analysis.low_level.trace_replayer import TraceReplayer
+from perflow.task.trace_analysis.low_level.trace_replayer import TraceReplayer, ReplayDirection
 from perflow.task.trace_analysis.late_sender import LateSender
 from perflow.perf_data_struct.dynamic.trace.trace import Trace, TraceInfo
 from perflow.perf_data_struct.dynamic.trace.event import Event, EventType
@@ -35,7 +35,7 @@ class TestTraceReplayIntegration:
         # Replay and collect events
         replayer = TraceReplayer(trace)
         replayed = []
-        replayer.registerCallback("collector", lambda e: replayed.append(e.getName()))
+        replayer.registerCallback("collector", lambda e: replayed.append(e.getName()), ReplayDirection.FWD)
         replayer.forwardReplay()
         
         # Verify all events were replayed
@@ -59,7 +59,7 @@ class TestTraceReplayIntegration:
             if event.getType() == EventType.COMPUTE:
                 compute_count[0] += 1
         
-        replayer.registerCallback("compute_counter", count_compute)
+        replayer.registerCallback("compute_counter", count_compute, ReplayDirection.FWD)
         replayer.forwardReplay()
         
         assert compute_count[0] == 3
@@ -76,7 +76,7 @@ class TestTraceReplayIntegration:
         
         # Collect in reverse order
         replayed_indices = []
-        replayer.registerCallback("collector", lambda e: replayed_indices.append(e.getIdx()))
+        replayer.registerCallback("collector", lambda e: replayed_indices.append(e.getIdx()), ReplayDirection.BWD)
         replayer.backwardReplay()
         
         # Should be in reverse order
