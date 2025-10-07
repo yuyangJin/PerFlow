@@ -2,7 +2,7 @@
 module critical path finding
 '''
 
-from typing import Dict, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple, Any
 from .low_level.trace_replayer import TraceReplayer, ReplayDirection
 from ...perf_data_struct.dynamic.trace.trace import Trace
 from ...perf_data_struct.dynamic.trace.event import Event, EventType
@@ -230,7 +230,7 @@ class CriticalPathFinding(TraceReplayer):
         
         return critical_events_with_cost[:top_n]
     
-    def getCriticalPathStatistics(self) -> Dict[str, any]:
+    def getCriticalPathStatistics(self) -> Dict[str, Any]:
         """
         Get comprehensive statistics about the critical path.
         
