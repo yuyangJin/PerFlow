@@ -29,13 +29,7 @@ A programmable and fast performance analysis for parallel programs
   - Support for functions, loops, basic blocks, and call sites
   - Call graph extraction and loop nesting analysis
 
-- **Data Embedding**: (S4 2025 Milestone 3)
-  - Function embedding based on structural and performance characteristics
-  - Trace embedding for event sequence analysis
-  - Profile embedding for performance metric patterns
-  - Configurable embedding dimensionality
-
-- **Analysis Passes**: (S4 2025 Milestone 4)
+- **Analysis Passes**: (S4 2025 Milestone 3)
   - Hotspot detection
   - Load imbalance analysis
   - Cache behavior analysis
@@ -136,6 +130,6 @@ print(f"Communication patterns: {patterns}")
 
 ## Testing
 
-- **294 tests** (270 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
+- **283 tests** (259 unit + 25 integration) - 3 pre-existing failures unrelated to S4 2025 work
 - **7 comprehensive examples** (including CCT/PSG/CST visualization and analysis)
 - See [tests/README.md](tests/README.md) for details

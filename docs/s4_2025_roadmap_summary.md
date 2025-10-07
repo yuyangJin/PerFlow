@@ -8,8 +8,7 @@ All milestones have been successfully implemented, tested, and documented:
 
 1. ✅ **Milestone 1**: Profiling Data Virtualization
 2. ✅ **Milestone 2**: Static Program Structure Analysis  
-3. ✅ **Milestone 3**: Data Embedding
-4. ✅ **Milestone 4**: Analysis Passes
+3. ✅ **Milestone 3**: Analysis Passes
 
 ---
 
@@ -78,45 +77,7 @@ All milestones have been successfully implemented, tested, and documented:
 
 ---
 
-## Milestone 3: Data Embedding
-
-### Implementation
-
-**Base Embedding** (`perflow/task/embedding/data_embedding.py`):
-- `DataEmbedding`: Abstract base class for embedding techniques
-- Configurable embedding dimensionality
-- Storage and retrieval of embedding vectors
-
-**Specialized Embeddings:**
-- `FunctionEmbedding`: Embeds functions based on structural characteristics
-  - Instruction counts, loop counts, call patterns
-  - Cyclomatic complexity
-  - Performance metrics (cycles, cache misses)
-  
-- `TraceEmbedding`: Embeds execution traces
-  - Event sequence patterns
-  - Event type histograms
-  - Timing statistics
-  
-- `ProfileEmbedding`: Embeds profiling data
-  - Aggregated performance metrics
-  - Hotspot distributions
-  - IPC and cache miss rates
-
-### Technology
-- NumPy-based vector representations
-- Feature normalization and padding
-- Support for arbitrary dimensionality
-
-### Key Features
-- Unified embedding interface for all performance data types
-- Configurable feature extraction
-- Support for machine learning pipelines
-- Integration with data analysis workflows
-
----
-
-## Milestone 4: Analysis Passes
+## Milestone 3: Analysis Passes
 
 ### Implementation
 
@@ -156,10 +117,10 @@ All milestones have been successfully implemented, tested, and documented:
 
 ### Code Statistics
 - **12 new implementation files** (including CST)
-- **~5,300 lines of code** (implementation + tests + documentation)
-- **148 new tests** (137 original + 11 CST)
-- **294 total tests** (270 unit + 25 integration)
-- **291/294 passing** (98.9% pass rate)
+- **~4,500 lines of code** (implementation + tests + documentation)
+- **137 new tests** (126 original + 11 CST)
+- **283 total tests** (259 unit + 25 integration)
+- **280/283 passing** (98.9% pass rate)
 
 ### Code Quality
 - Follows Google Python style guide
@@ -208,21 +169,6 @@ print(f"MPI nodes: {len(cst.getMPINodes())}")
 print(f"Max nesting depth: {cst.getMaxNestingDepth()}")
 ```
 
-### Data Embedding
-```python
-from perflow.task.embedding import FunctionEmbedding
-
-embedding = FunctionEmbedding(embedding_dim=128)
-
-features = {
-    "instruction_count": 1000,
-    "loop_count": 2,
-    "call_count": 5
-}
-
-vector = embedding.embedFromFeatures("my_function", features)
-```
-
 ### Analysis Passes
 ```python
 from perflow.task.profile_analysis import LoadImbalanceAnalyzer
@@ -241,7 +187,7 @@ load_ratio = analyzer.getLoadRatio()
 
 The S4 2025 implementation provides a solid foundation for:
 
-1. **Advanced Pattern Detection**: Machine learning-based pattern recognition using embeddings
+1. **Advanced Pattern Detection**: Machine learning-based pattern recognition
 2. **Cross-Analysis**: Combining trace, profile, and structure analysis
 3. **Optimization Recommendations**: Automated performance tuning suggestions
 4. **Visualization**: Interactive visualization of program structures and patterns
@@ -251,11 +197,10 @@ The S4 2025 implementation provides a solid foundation for:
 
 ## Conclusion
 
-All 4 milestones from the S4 2025 Roadmap have been successfully completed:
+All 3 milestones from the S4 2025 Roadmap have been successfully completed:
 
 - ✅ Profiling data virtualization infrastructure
 - ✅ Static program structure analysis
-- ✅ Data embedding techniques
 - ✅ Analysis passes for common performance issues
 
 The implementation provides a comprehensive, extensible framework for performance analysis of parallel applications, ready for production use and further enhancement.
