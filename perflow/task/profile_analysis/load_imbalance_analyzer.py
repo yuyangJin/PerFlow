@@ -5,7 +5,7 @@ module load imbalance analysis
 from typing import Dict, List, Optional
 from ..profile_analysis.profile_analyzer import ProfileAnalyzer
 from ...perf_data_struct.dynamic.profile.perf_data import PerfData
-from...perf_data_struct.dynamic.profile.sample_data import SampleData
+from ...perf_data_struct.dynamic.profile.sample_data import SampleData
 
 
 '''
