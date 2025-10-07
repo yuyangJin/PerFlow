@@ -274,8 +274,19 @@ def analyze_critical_path(trace):
         CriticalPathFinding analyzer with results
     """
     analyzer = CriticalPathFinding(trace)
+    
+    # Forward pass: compute earliest times
     analyzer.forwardReplay()
-    analyzer._reconstruct_critical_path()
+    
+    # Set critical path length
+    if analyzer.m_earliest_finish_times:
+        analyzer.m_critical_path_length = max(analyzer.m_earliest_finish_times.values())
+    
+    # Backward pass: compute latest times and slack
+    analyzer.backwardReplay()
+    
+    # Identify critical path
+    analyzer._identify_critical_path()
     
     return analyzer
 
@@ -335,14 +346,22 @@ def print_detailed_critical_path(analyzer):
         pid = event.getPid()
         timestamp = event.getTimestamp()
         
-        finish_time = analyzer.getEventEarliestFinishTime(event_idx)
+        earliest_start = analyzer.getEventEarliestStartTime(event_idx)
+        earliest_finish = analyzer.getEventEarliestFinishTime(event_idx)
+        latest_start = analyzer.getEventLatestStartTime(event_idx)
+        latest_finish = analyzer.getEventLatestFinishTime(event_idx)
+        slack = analyzer.getEventSlackTime(event_idx)
         
         print(f"\n  Event {i}:")
         print(f"    Name: {event_name}")
         print(f"    Type: {event_type.name if event_type else 'UNKNOWN'}")
         print(f"    Process: {pid}")
         print(f"    Timestamp: {timestamp:.6f}" if timestamp else "    Timestamp: N/A")
-        print(f"    Earliest Finish: {finish_time:.6f}" if finish_time else "    Earliest Finish: N/A")
+        print(f"    Earliest Start: {earliest_start:.6f}" if earliest_start is not None else "    Earliest Start: N/A")
+        print(f"    Earliest Finish: {earliest_finish:.6f}" if earliest_finish is not None else "    Earliest Finish: N/A")
+        print(f"    Latest Start: {latest_start:.6f}" if latest_start is not None else "    Latest Start: N/A")
+        print(f"    Latest Finish: {latest_finish:.6f}" if latest_finish is not None else "    Latest Finish: N/A")
+        print(f"    Slack: {slack:.6f}" if slack is not None else "    Slack: N/A")
         
         # Print communication details if applicable
         if isinstance(event, MpiSendEvent):

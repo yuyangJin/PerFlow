@@ -24,17 +24,27 @@ class CriticalPathFinding(TraceReplayer):
     chain of dependent events from start to finish. The critical path represents
     the minimum possible execution time and helps identify performance bottlenecks.
     
+    The algorithm uses the Critical Path Method (CPM) with two passes:
+    1. Forward pass: Compute earliest start/finish times for all events
+    2. Backward pass: Compute latest start/finish times for all events
+    3. Critical path: Events with zero slack (earliest == latest)
+    
     The algorithm considers:
     - Sequential dependencies within a process (one event follows another)
     - Communication dependencies (send-receive pairs)
     - Computation time of each event
     
     Attributes:
-        m_event_times: Dictionary mapping event IDs to their start times
         m_event_costs: Dictionary mapping event IDs to their execution costs
         m_critical_path: List of events on the critical path
         m_critical_path_length: Total length (time) of the critical path
-        m_predecessors: Dictionary tracking predecessor events for path reconstruction
+        m_earliest_start_times: Dictionary of earliest start times
+        m_earliest_finish_times: Dictionary of earliest finish times
+        m_latest_start_times: Dictionary of latest start times
+        m_latest_finish_times: Dictionary of latest finish times
+        m_slack_times: Dictionary of slack times (latest - earliest)
+        m_predecessors: Dictionary tracking predecessor events
+        m_successors: Dictionary tracking successor events
     """
     
     def __init__(self, trace: Optional[Trace] = None) -> None:
@@ -45,27 +55,44 @@ class CriticalPathFinding(TraceReplayer):
             trace: Optional trace to analyze
         """
         super().__init__(trace)
-        self.m_event_times: Dict[int, float] = {}
         self.m_event_costs: Dict[int, float] = {}
         self.m_critical_path: List[Event] = []
         self.m_critical_path_length: float = 0.0
-        self.m_predecessors: Dict[int, Optional[int]] = {}
+        
+        # Forward pass results
+        self.m_earliest_start_times: Dict[int, float] = {}
         self.m_earliest_finish_times: Dict[int, float] = {}
         
-        # Track process-local previous events
+        # Backward pass results
+        self.m_latest_start_times: Dict[int, float] = {}
+        self.m_latest_finish_times: Dict[int, float] = {}
+        
+        # Slack times
+        self.m_slack_times: Dict[int, float] = {}
+        
+        # Dependency tracking
+        self.m_predecessors: Dict[int, List[int]] = {}
+        self.m_successors: Dict[int, List[int]] = {}
+        
+        # Track process-local previous events for dependency construction
         self.m_process_last_event: Dict[int, Event] = {}
         
-        # Register callback for critical path computation
-        self.registerCallback("compute_critical_path", 
+        # Register callback for forward pass
+        self.registerCallback("compute_earliest_times", 
                             self._compute_earliest_times, 
                             ReplayDirection.FWD)
+        
+        # Register callback for backward pass
+        self.registerCallback("compute_latest_times",
+                            self._compute_latest_times,
+                            ReplayDirection.BWD)
     
     def _compute_earliest_times(self, event: Event) -> None:
         """
-        Compute earliest finish time for each event during forward replay.
+        Compute earliest start and finish times for each event during forward replay.
         
-        This implements a dynamic programming approach where each event's
-        earliest finish time is computed based on its dependencies.
+        This implements the forward pass of CPM where each event's earliest
+        start time is the maximum of all its predecessors' earliest finish times.
         
         Args:
             event: Event being processed during replay
@@ -84,9 +111,16 @@ class CriticalPathFinding(TraceReplayer):
         event_cost = 0.1
         self.m_event_costs[event_idx] = event_cost
         
-        # Initialize earliest finish time
+        # Initialize predecessor list
+        if event_idx not in self.m_predecessors:
+            self.m_predecessors[event_idx] = []
+        
+        # Initialize successor list
+        if event_idx not in self.m_successors:
+            self.m_successors[event_idx] = []
+        
+        # Initialize earliest start time
         earliest_start = 0.0
-        predecessor = None
         
         # Check process-local dependency (sequential execution)
         pid = event.getPid()
@@ -94,10 +128,15 @@ class CriticalPathFinding(TraceReplayer):
             prev_event = self.m_process_last_event[pid]
             prev_idx = prev_event.getIdx()
             if prev_idx is not None and prev_idx in self.m_earliest_finish_times:
+                # Add dependency edge
+                self.m_predecessors[event_idx].append(prev_idx)
+                if prev_idx not in self.m_successors:
+                    self.m_successors[prev_idx] = []
+                self.m_successors[prev_idx].append(event_idx)
+                
+                # Update earliest start time
                 local_dep_time = self.m_earliest_finish_times[prev_idx]
-                if local_dep_time > earliest_start:
-                    earliest_start = local_dep_time
-                    predecessor = prev_idx
+                earliest_start = max(earliest_start, local_dep_time)
         
         # Check communication dependency (for receive events)
         if isinstance(event, MpiRecvEvent):
@@ -105,52 +144,107 @@ class CriticalPathFinding(TraceReplayer):
             if send_event is not None:
                 send_idx = send_event.getIdx()
                 if send_idx is not None and send_idx in self.m_earliest_finish_times:
+                    # Add dependency edge
+                    self.m_predecessors[event_idx].append(send_idx)
+                    if send_idx not in self.m_successors:
+                        self.m_successors[send_idx] = []
+                    self.m_successors[send_idx].append(event_idx)
+                    
+                    # Update earliest start time
                     comm_dep_time = self.m_earliest_finish_times[send_idx]
-                    if comm_dep_time > earliest_start:
-                        earliest_start = comm_dep_time
-                        predecessor = send_idx
+                    earliest_start = max(earliest_start, comm_dep_time)
         
-        # Compute earliest finish time for this event
-        earliest_finish = earliest_start + event_cost
-        self.m_earliest_finish_times[event_idx] = earliest_finish
-        self.m_predecessors[event_idx] = predecessor
+        # Compute earliest start and finish times for this event
+        self.m_earliest_start_times[event_idx] = earliest_start
+        self.m_earliest_finish_times[event_idx] = earliest_start + event_cost
         
         # Update process-local last event
         if pid is not None:
             self.m_process_last_event[pid] = event
     
-    def _reconstruct_critical_path(self) -> None:
+    def _compute_latest_times(self, event: Event) -> None:
         """
-        Reconstruct the critical path by backtracking from the last event.
+        Compute latest start and finish times for each event during backward replay.
         
-        This method finds the event with the latest finish time and traces
-        back through predecessors to build the critical path.
+        This implements the backward pass of CPM where each event's latest
+        finish time is the minimum of all its successors' latest start times.
+        
+        Args:
+            event: Event being processed during backward replay
         """
-        if not self.m_earliest_finish_times:
+        event_idx = event.getIdx()
+        if event_idx is None:
             return
         
-        # Find the event with the maximum earliest finish time
-        last_event_idx = max(self.m_earliest_finish_times.items(), 
-                            key=lambda x: x[1])[0]
-        self.m_critical_path_length = self.m_earliest_finish_times[last_event_idx]
+        # Get event cost
+        event_cost = self.m_event_costs.get(event_idx, 0.1)
         
-        # Backtrack to build the critical path
-        path_indices = []
-        current_idx: Optional[int] = last_event_idx
+        # If this event has no successors, its latest finish time equals
+        # the maximum earliest finish time (end of critical path)
+        if event_idx not in self.m_successors or not self.m_successors[event_idx]:
+            # This is a terminal event
+            self.m_latest_finish_times[event_idx] = self.m_critical_path_length
+        else:
+            # Latest finish time is the minimum of all successors' latest start times
+            latest_finish = float('inf')
+            for succ_idx in self.m_successors[event_idx]:
+                if succ_idx in self.m_latest_start_times:
+                    latest_finish = min(latest_finish, self.m_latest_start_times[succ_idx])
+            
+            if latest_finish == float('inf'):
+                # If no valid successor latest start time found, use critical path length
+                latest_finish = self.m_critical_path_length
+            
+            self.m_latest_finish_times[event_idx] = latest_finish
         
-        while current_idx is not None:
-            path_indices.append(current_idx)
-            current_idx = self.m_predecessors.get(current_idx)
+        # Latest start time = latest finish time - event cost
+        self.m_latest_start_times[event_idx] = self.m_latest_finish_times[event_idx] - event_cost
         
-        # Reverse to get path from start to end
-        path_indices.reverse()
+        # Compute slack time (total float)
+        earliest_start = self.m_earliest_start_times.get(event_idx, 0.0)
+        latest_start = self.m_latest_start_times[event_idx]
+        self.m_slack_times[event_idx] = latest_start - earliest_start
+    
+    def _identify_critical_path(self) -> None:
+        """
+        Identify the critical path based on zero slack times.
         
-        # Convert indices to events
+        Events with zero (or near-zero) slack are on the critical path.
+        This method finds all such events and orders them chronologically.
+        """
+        if not self.m_slack_times:
+            return
+        
+        # Find events with zero slack (allowing small floating point tolerance)
+        tolerance = 1e-9
+        critical_event_indices = [
+            idx for idx, slack in self.m_slack_times.items()
+            if abs(slack) < tolerance
+        ]
+        
+        if not critical_event_indices:
+            return
+        
+        # The critical path length is the maximum earliest finish time
+        if self.m_earliest_finish_times:
+            self.m_critical_path_length = max(self.m_earliest_finish_times.values())
+        
+        # Convert indices to events and sort by earliest start time
         if self.m_trace:
             idx_to_event = {e.getIdx(): e for e in self.m_trace.getEvents() 
                           if e.getIdx() is not None}
-            self.m_critical_path = [idx_to_event[idx] for idx in path_indices 
-                                  if idx in idx_to_event]
+            
+            critical_events = [
+                idx_to_event[idx] for idx in critical_event_indices
+                if idx in idx_to_event
+            ]
+            
+            # Sort events by their earliest start time
+            critical_events.sort(
+                key=lambda e: self.m_earliest_start_times.get(e.getIdx() or 0, 0.0)
+            )
+            
+            self.m_critical_path = critical_events
     
     def getCriticalPath(self) -> List[Event]:
         """
@@ -170,6 +264,18 @@ class CriticalPathFinding(TraceReplayer):
         """
         return self.m_critical_path_length
     
+    def getEventEarliestStartTime(self, event_idx: int) -> Optional[float]:
+        """
+        Get the earliest start time for a specific event.
+        
+        Args:
+            event_idx: Event index
+            
+        Returns:
+            Earliest start time, or None if not computed
+        """
+        return self.m_earliest_start_times.get(event_idx)
+    
     def getEventEarliestFinishTime(self, event_idx: int) -> Optional[float]:
         """
         Get the earliest finish time for a specific event.
@@ -181,6 +287,46 @@ class CriticalPathFinding(TraceReplayer):
             Earliest finish time, or None if not computed
         """
         return self.m_earliest_finish_times.get(event_idx)
+    
+    def getEventLatestStartTime(self, event_idx: int) -> Optional[float]:
+        """
+        Get the latest start time for a specific event.
+        
+        Args:
+            event_idx: Event index
+            
+        Returns:
+            Latest start time, or None if not computed
+        """
+        return self.m_latest_start_times.get(event_idx)
+    
+    def getEventLatestFinishTime(self, event_idx: int) -> Optional[float]:
+        """
+        Get the latest finish time for a specific event.
+        
+        Args:
+            event_idx: Event index
+            
+        Returns:
+            Latest finish time, or None if not computed
+        """
+        return self.m_latest_finish_times.get(event_idx)
+    
+    def getEventSlackTime(self, event_idx: int) -> Optional[float]:
+        """
+        Get the slack time (total float) for a specific event.
+        
+        Slack time is the amount of time an event can be delayed without
+        affecting the total project duration. Events with zero slack are
+        on the critical path.
+        
+        Args:
+            event_idx: Event index
+            
+        Returns:
+            Slack time, or None if not computed
+        """
+        return self.m_slack_times.get(event_idx)
     
     def isCriticalEvent(self, event: Event) -> bool:
         """
@@ -274,20 +420,28 @@ class CriticalPathFinding(TraceReplayer):
     
     def clear(self) -> None:
         """Clear all analysis results."""
-        self.m_event_times.clear()
         self.m_event_costs.clear()
         self.m_critical_path.clear()
         self.m_critical_path_length = 0.0
-        self.m_predecessors.clear()
+        self.m_earliest_start_times.clear()
         self.m_earliest_finish_times.clear()
+        self.m_latest_start_times.clear()
+        self.m_latest_finish_times.clear()
+        self.m_slack_times.clear()
+        self.m_predecessors.clear()
+        self.m_successors.clear()
         self.m_process_last_event.clear()
     
     def run(self) -> None:
         """
-        Execute critical path finding analysis.
+        Execute critical path finding analysis using the Critical Path Method.
         
-        Processes input traces and identifies the critical path.
-        Results are stored in m_critical_path and m_critical_path_length.
+        This performs:
+        1. Forward pass to compute earliest start/finish times
+        2. Backward pass to compute latest start/finish times
+        3. Slack computation and critical path identification
+        
+        Results are stored in m_critical_path and related attributes.
         """
         # Clear previous results
         self.clear()
@@ -297,11 +451,18 @@ class CriticalPathFinding(TraceReplayer):
             if isinstance(data, Trace):
                 self.setTrace(data)
                 
-                # Compute earliest finish times
+                # Forward pass: compute earliest times and build dependency graph
                 self.forwardReplay()
                 
-                # Reconstruct the critical path
-                self._reconstruct_critical_path()
+                # Set critical path length (max earliest finish time)
+                if self.m_earliest_finish_times:
+                    self.m_critical_path_length = max(self.m_earliest_finish_times.values())
+                
+                # Backward pass: compute latest times and slack
+                self.backwardReplay()
+                
+                # Identify critical path (events with zero slack)
+                self._identify_critical_path()
                 
                 # Add analysis results to outputs
                 stats = self.getCriticalPathStatistics()
