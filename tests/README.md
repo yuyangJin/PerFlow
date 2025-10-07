@@ -15,17 +15,22 @@ tests/
 │   ├── test_trace_replayer.py     # TraceReplayer and LateSender tests (19 tests)
 │   ├── test_otf2_reader.py        # OTF2Reader tests (6 tests)
 │   ├── test_timeline_viewer.py    # TimelineViewer tests (11 tests)
-│   └── test_readers.py            # Multi-format trace readers tests (30 tests)
+│   ├── test_readers.py            # Multi-format trace readers tests (30 tests)
+│   ├── test_sample_data.py        # SampleData tests (21 tests)
+│   ├── test_perf_data.py          # PerfData and ProfileInfo tests (36 tests)
+│   └── test_profile_analyzer.py   # ProfileAnalyzer and HotspotAnalyzer tests (26 tests)
 │
 ├── integration/           # Integration tests
 │   ├── test_trace_visualization.py  # Trace reading and visualization (5 tests)
-│   └── test_trace_replay.py         # Trace replay and analysis (7 tests)
+│   ├── test_trace_replay.py         # Trace replay and analysis (7 tests)
+│   └── test_profile_analysis.py     # Profile analysis workflow (13 tests)
 │
 └── examples/              # End-to-end examples
     ├── example_late_sender_analysis.py      # Late sender detection
     ├── example_comm_pattern_analysis.py     # Communication patterns
     ├── example_load_imbalance_analysis.py   # Load imbalance detection
-    └── example_multiple_trace_readers.py    # Multiple trace format readers
+    ├── example_multiple_trace_readers.py    # Multiple trace format readers
+    └── example_hotspot_analysis.py          # Profile hotspot analysis
 ```
 
 ## Running Tests
@@ -71,11 +76,14 @@ python tests/examples/example_load_imbalance_analysis.py
 
 # Multiple trace readers
 python tests/examples/example_multiple_trace_readers.py
+
+# Hotspot analysis
+python tests/examples/example_hotspot_analysis.py
 ```
 
 ## Test Coverage
 
-### Unit Tests (135 tests)
+### Unit Tests (218 tests)
 - **Event Classes** (6 tests): Event, EventType (including LOOP and BRANCH types)
 - **Trace Classes** (18 tests): Trace, TraceInfo with enhanced metadata
   - TraceInfo: EP/RP metadata, mapping, format, timing, application name
@@ -96,30 +104,42 @@ python tests/examples/example_multiple_trace_readers.py
   - **CTFReader** (6 tests): Metadata and text export parsing
   - **ScalatraceReader** (6 tests): Text CSV and binary format parsing
   - **TimelineViewer** (11 tests): Text, HTML, and JSON visualization formats
+- **Profile Data** (83 tests): 
+  - **SampleData** (21 tests): Profiling sample data with metrics and call stacks
+  - **PerfData and ProfileInfo** (36 tests): Profile data management and metadata
+  - **ProfileAnalyzer and HotspotAnalyzer** (26 tests): Profile analysis and hotspot detection
 
-### Integration Tests (12 tests)
+### Integration Tests (25 tests)
 - **Trace Visualization** (5 tests): Reading and visualizing traces in multiple formats
 - **Trace Replay** (7 tests): Forward/backward replay with analysis callbacks
-- **Late Sender Detection**: Identifying communication delays across processes
-- **Workflow Pipelines**: End-to-end analysis workflows with topological execution
+  - Late Sender Detection: Identifying communication delays across processes
+  - Workflow Pipelines: End-to-end analysis workflows with topological execution
+- **Profile Analysis** (13 tests): Complete profile analysis workflows
+  - Basic workflow: ProfileAnalyzer with callbacks
+  - Hotspot detection: HotspotAnalyzer with threshold filtering
+  - Multi-profile analysis: Analyzing multiple profiles
+  - Edge cases: Empty profiles, single samples, missing data
 
-### End-to-End Examples (4 examples)
+### End-to-End Examples (5 examples)
 - **Late Sender Analysis**: Complete workflow for detecting late senders
 - **Communication Pattern Analysis**: Analyzing message patterns and topology
 - **Load Imbalance Analysis**: Detecting and quantifying load imbalance
 - **Multiple Trace Readers**: Using different trace format readers
+- **Hotspot Analysis**: Identifying performance hotspots from profiling data
 
 ## Test Highlights
 
 ### Comprehensive Coverage
-- All 20 implemented classes have dedicated unit tests
-- **135 unit tests** covering all functionality including:
+- All 23 implemented classes have dedicated unit tests
+- **218 unit tests** covering all functionality including:
   - Enhanced TraceInfo with large-scale parallel metadata
   - Separate forward/backward callbacks in TraceReplayer
   - Topological sort execution in FlowGraph
   - Full parsing implementation for 6 trace format readers
-- **12 integration tests** verify cross-component functionality
-- **4 examples** demonstrate real-world usage scenarios
+  - Complete profile data structures (PerfData, ProfileInfo, SampleData)
+  - Profile analysis infrastructure (ProfileAnalyzer, HotspotAnalyzer)
+- **25 integration tests** verify cross-component functionality
+- **5 examples** demonstrate real-world usage scenarios
 
 ### Well-Documented
 - Each test has descriptive docstrings
