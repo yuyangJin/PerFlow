@@ -7,17 +7,19 @@ This directory contains comprehensive tests for the PerFlow 2.0 framework.
 ```
 tests/
 ├── unit/                  # Unit tests for individual classes
-│   ├── test_event.py              # Event and EventType tests
-│   ├── test_trace.py              # Trace and TraceInfo tests
-│   ├── test_mpi_event.py          # MPI event hierarchy tests
-│   ├── test_tiledtrace.py         # TiledTrace tests
-│   ├── test_flow.py               # Flow framework tests
-│   ├── test_trace_replayer.py     # TraceReplayer and LateSender tests
-│   └── test_reader_viewer.py      # OTF2Reader and TimelineViewer tests
+│   ├── test_event.py              # Event and EventType tests (6 tests)
+│   ├── test_trace.py              # Trace and TraceInfo tests (18 tests)
+│   ├── test_mpi_event.py          # MPI event hierarchy tests (15 tests)
+│   ├── test_tiledtrace.py         # TiledTrace tests (8 tests)
+│   ├── test_flow.py               # Flow framework tests (22 tests)
+│   ├── test_trace_replayer.py     # TraceReplayer and LateSender tests (19 tests)
+│   ├── test_otf2_reader.py        # OTF2Reader tests (6 tests)
+│   ├── test_timeline_viewer.py    # TimelineViewer tests (11 tests)
+│   └── test_readers.py            # Multi-format trace readers tests (30 tests)
 │
 ├── integration/           # Integration tests
-│   ├── test_trace_visualization.py  # Trace reading and visualization
-│   └── test_trace_replay.py         # Trace replay and analysis
+│   ├── test_trace_visualization.py  # Trace reading and visualization (5 tests)
+│   └── test_trace_replay.py         # Trace replay and analysis (7 tests)
 │
 └── examples/              # End-to-end examples
     ├── example_late_sender_analysis.py      # Late sender detection
@@ -73,23 +75,33 @@ python tests/examples/example_multiple_trace_readers.py
 
 ## Test Coverage
 
-### Unit Tests (124 tests)
-- **Event Classes** (6 tests): Event, EventType
-- **Trace Classes** (11 tests): Trace, TraceInfo
+### Unit Tests (135 tests)
+- **Event Classes** (6 tests): Event, EventType (including LOOP and BRANCH types)
+- **Trace Classes** (18 tests): Trace, TraceInfo with enhanced metadata
+  - TraceInfo: EP/RP metadata, mapping, format, timing, application name
+  - Trace: Event collection and management
 - **MPI Events** (15 tests): MpiEvent, MpiP2PEvent, MpiSendEvent, MpiRecvEvent
+  - Auto-setting event types in MpiSendEvent and MpiRecvEvent
 - **TiledTrace** (8 tests): Tile management and operations
 - **Flow Framework** (22 tests): FlowData, FlowNode, FlowGraph
   - FlowData: Creation, add/remove, clear, set behavior
   - FlowNode: Inputs/outputs, abstract methods
   - FlowGraph: Node/edge management, **topological sort execution**, **cycle detection**
-- **TraceReplayer** (15 tests): Replay, callbacks, late sender analysis
-- **Readers/Viewers** (41 tests): OTF2Reader, VtuneReader, NsightReader, HpctoolkitReader, CTFReader, ScalatraceReader, TimelineViewer
+- **TraceReplayer** (19 tests): Replay, **separate forward/backward callbacks**, late sender analysis
+- **Trace Readers** (47 tests): 
+  - **OTF2Reader** (6 tests): Text-based trace parsing with CSV format
+  - **VtuneReader** (6 tests): JSON and CSV parsing for VTune exports
+  - **NsightReader** (6 tests): JSON, CSV, and SQLite database parsing
+  - **HpctoolkitReader** (6 tests): XML and CSV parsing
+  - **CTFReader** (6 tests): Metadata and text export parsing
+  - **ScalatraceReader** (6 tests): Text CSV and binary format parsing
+  - **TimelineViewer** (11 tests): Text, HTML, and JSON visualization formats
 
 ### Integration Tests (12 tests)
-- **Trace Visualization**: Reading and visualizing traces in multiple formats
-- **Trace Replay**: Forward/backward replay with analysis callbacks
-- **Late Sender Detection**: Identifying communication delays
-- **Workflow Pipelines**: End-to-end analysis workflows
+- **Trace Visualization** (5 tests): Reading and visualizing traces in multiple formats
+- **Trace Replay** (7 tests): Forward/backward replay with analysis callbacks
+- **Late Sender Detection**: Identifying communication delays across processes
+- **Workflow Pipelines**: End-to-end analysis workflows with topological execution
 
 ### End-to-End Examples (4 examples)
 - **Late Sender Analysis**: Complete workflow for detecting late senders
@@ -100,9 +112,14 @@ python tests/examples/example_multiple_trace_readers.py
 ## Test Highlights
 
 ### Comprehensive Coverage
-- All 15 implemented classes have dedicated unit tests
-- Integration tests verify cross-component functionality
-- Examples demonstrate real-world usage scenarios
+- All 20 implemented classes have dedicated unit tests
+- **135 unit tests** covering all functionality including:
+  - Enhanced TraceInfo with large-scale parallel metadata
+  - Separate forward/backward callbacks in TraceReplayer
+  - Topological sort execution in FlowGraph
+  - Full parsing implementation for 6 trace format readers
+- **12 integration tests** verify cross-component functionality
+- **4 examples** demonstrate real-world usage scenarios
 
 ### Well-Documented
 - Each test has descriptive docstrings
