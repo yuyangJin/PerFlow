@@ -49,6 +49,8 @@ class CriticalPathFinding(TraceReplayer):
         m_successors: Dictionary tracking successor events
         m_enable_memory_tracking: Flag to enable/disable memory consumption tracking
         m_memory_stats: Dictionary storing memory consumption statistics
+        m_memory_timeline: List of (phase, event_count, memory_bytes) tuples tracking memory over time
+        m_memory_sample_interval: Interval for sampling memory during replay (events)
     """
     
     def __init__(self, trace: Optional[Trace] = None, enable_memory_tracking: bool = False) -> None:
@@ -85,6 +87,8 @@ class CriticalPathFinding(TraceReplayer):
         # Memory tracking
         self.m_enable_memory_tracking: bool = enable_memory_tracking
         self.m_memory_stats: Dict[str, Any] = {}
+        self.m_memory_timeline: List[Tuple[str, int, float]] = []  # (phase, event_count, memory_bytes)
+        self.m_memory_sample_interval: int = 1000  # Sample memory every N events
         
         # Register callback for forward pass
         self.registerCallback("compute_earliest_times", 
@@ -441,6 +445,7 @@ class CriticalPathFinding(TraceReplayer):
         self.m_successors.clear()
         self.m_process_last_event.clear()
         self.m_memory_stats.clear()
+        self.m_memory_timeline.clear()
     
     def _measure_memory_usage(self) -> float:
         """
@@ -488,6 +493,15 @@ class CriticalPathFinding(TraceReplayer):
         """
         self.m_enable_memory_tracking = enable
     
+    def setMemorySampleInterval(self, interval: int) -> None:
+        """
+        Set the memory sampling interval during replay.
+        
+        Args:
+            interval: Number of events between memory samples (default: 1000)
+        """
+        self.m_memory_sample_interval = max(1, interval)
+    
     def isMemoryTrackingEnabled(self) -> bool:
         """
         Check if memory tracking is enabled.
@@ -513,6 +527,132 @@ class CriticalPathFinding(TraceReplayer):
             - peak_memory_bytes: Peak memory usage during analysis
         """
         return self.m_memory_stats.copy()
+    
+    def getMemoryTimeline(self) -> List[Tuple[str, int, float]]:
+        """
+        Get the memory usage timeline during replay.
+        
+        Returns:
+            List of tuples (phase, event_count, memory_bytes) showing memory
+            consumption at different points during forward and backward replay.
+            Phase is either 'forward' or 'backward'.
+        """
+        return self.m_memory_timeline.copy()
+    
+    def plotMemoryUsage(self, output_file: str = "memory_usage.png") -> None:
+        """
+        Generate a plot showing memory usage during forward and backward replay.
+        
+        Args:
+            output_file: Path to save the plot image
+            
+        Raises:
+            ImportError: If matplotlib is not installed
+        """
+        try:
+            import matplotlib.pyplot as plt
+        except ImportError:
+            raise ImportError(
+                "matplotlib is required for plotting. Install it with: pip install matplotlib"
+            )
+        
+        if not self.m_memory_timeline:
+            print("No memory timeline data available. Enable memory tracking and run analysis first.")
+            return
+        
+        # Separate forward and backward phases
+        forward_events = []
+        forward_memory = []
+        backward_events = []
+        backward_memory = []
+        
+        for phase, event_count, memory_bytes in self.m_memory_timeline:
+            memory_mb = memory_bytes / (1024 * 1024)  # Convert to MB
+            if phase == 'forward':
+                forward_events.append(event_count)
+                forward_memory.append(memory_mb)
+            elif phase == 'backward':
+                backward_events.append(event_count)
+                backward_memory.append(memory_mb)
+        
+        # Create the plot
+        fig, ax = plt.subplots(figsize=(12, 6))
+        
+        if forward_events:
+            ax.plot(forward_events, forward_memory, 'b-o', label='Forward Replay', 
+                   linewidth=2, markersize=4)
+        
+        if backward_events:
+            ax.plot(backward_events, backward_memory, 'r-s', label='Backward Replay', 
+                   linewidth=2, markersize=4)
+        
+        ax.set_xlabel('Event Count', fontsize=12)
+        ax.set_ylabel('Memory Usage (MB)', fontsize=12)
+        ax.set_title('Memory Consumption During Critical Path Analysis', fontsize=14, fontweight='bold')
+        ax.legend(fontsize=10)
+        ax.grid(True, alpha=0.3)
+        
+        # Add annotations for peak memory
+        if forward_memory:
+            peak_fwd_idx = forward_memory.index(max(forward_memory))
+            ax.annotate(f'Peak: {max(forward_memory):.1f} MB',
+                       xy=(forward_events[peak_fwd_idx], forward_memory[peak_fwd_idx]),
+                       xytext=(10, 10), textcoords='offset points',
+                       bbox=dict(boxstyle='round,pad=0.5', fc='yellow', alpha=0.7),
+                       arrowprops=dict(arrowstyle='->', connectionstyle='arc3,rad=0'))
+        
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"Memory usage plot saved to: {output_file}")
+        plt.close()
+    
+    def forwardReplay(self) -> None:
+        """
+        Replay the trace in forward order with memory tracking.
+        
+        If memory tracking is enabled, this method samples memory usage
+        at regular intervals during replay.
+        """
+        if self.m_trace is None:
+            return
+        
+        events = self.m_trace.getEvents()
+        total_events = len(events)
+        
+        for idx, event in enumerate(events):
+            # Invoke all registered forward callbacks
+            for callback in self.m_forward_callbacks.values():
+                callback(event)
+            
+            # Sample memory at intervals if tracking is enabled
+            if self.m_enable_memory_tracking:
+                if idx == 0 or (idx + 1) % self.m_memory_sample_interval == 0 or idx == total_events - 1:
+                    memory_bytes = self._measure_memory_usage()
+                    self.m_memory_timeline.append(('forward', idx + 1, memory_bytes))
+    
+    def backwardReplay(self) -> None:
+        """
+        Replay the trace in backward order with memory tracking.
+        
+        If memory tracking is enabled, this method samples memory usage
+        at regular intervals during replay.
+        """
+        if self.m_trace is None:
+            return
+        
+        events = self.m_trace.getEvents()
+        total_events = len(events)
+        
+        for idx, event in enumerate(reversed(events)):
+            # Invoke all registered backward callbacks
+            for callback in self.m_backward_callbacks.values():
+                callback(event)
+            
+            # Sample memory at intervals if tracking is enabled
+            if self.m_enable_memory_tracking:
+                if idx == 0 or (idx + 1) % self.m_memory_sample_interval == 0 or idx == total_events - 1:
+                    memory_bytes = self._measure_memory_usage()
+                    self.m_memory_timeline.append(('backward', idx + 1, memory_bytes))
     
     def run(self) -> None:
         """
@@ -572,14 +712,18 @@ class CriticalPathFinding(TraceReplayer):
                         self.m_memory_stats['backward_replay_start_memory_bytes']
                     )
                     
-                    # Compute peak memory
-                    memory_values = [
-                        self.m_memory_stats.get('forward_replay_start_memory_bytes', 0),
-                        self.m_memory_stats.get('forward_replay_end_memory_bytes', 0),
-                        self.m_memory_stats.get('backward_replay_start_memory_bytes', 0),
-                        self.m_memory_stats.get('backward_replay_end_memory_bytes', 0)
-                    ]
-                    self.m_memory_stats['peak_memory_bytes'] = max(memory_values)
+                    # Compute peak memory from timeline if available, otherwise use sampled values
+                    if self.m_memory_timeline:
+                        peak_memory = max(mem for _, _, mem in self.m_memory_timeline)
+                        self.m_memory_stats['peak_memory_bytes'] = peak_memory
+                    else:
+                        memory_values = [
+                            self.m_memory_stats.get('forward_replay_start_memory_bytes', 0),
+                            self.m_memory_stats.get('forward_replay_end_memory_bytes', 0),
+                            self.m_memory_stats.get('backward_replay_start_memory_bytes', 0),
+                            self.m_memory_stats.get('backward_replay_end_memory_bytes', 0)
+                        ]
+                        self.m_memory_stats['peak_memory_bytes'] = max(memory_values)
                 
                 # Identify critical path (events with zero slack)
                 self._identify_critical_path()

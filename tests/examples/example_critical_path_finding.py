@@ -541,11 +541,12 @@ def run_memory_tracking_example(trace):
     print("=" * 80)
     
     print("\nThis example demonstrates memory consumption tracking during")
-    print("critical path analysis.")
+    print("critical path analysis with detailed timeline and visualization.")
     
     # Create analyzer with memory tracking enabled
     print("\nStep 1: Creating analyzer with memory tracking enabled...")
     analyzer = CriticalPathFinding(enable_memory_tracking=True)
+    analyzer.setMemorySampleInterval(5000)  # Sample every 5000 events
     analyzer.get_inputs().add_data(trace)
     
     # Run analysis
@@ -556,6 +557,7 @@ def run_memory_tracking_example(trace):
     critical_path = analyzer.getCriticalPath()
     path_length = analyzer.getCriticalPathLength()
     memory_stats = analyzer.getMemoryStatistics()
+    memory_timeline = analyzer.getMemoryTimeline()
     
     print("\nStep 3: Analysis Results:")
     print(f"  Critical path length: {path_length:.6f} seconds")
@@ -599,11 +601,46 @@ def run_memory_tracking_example(trace):
         peak_mb = memory_stats['peak_memory_bytes'] / (1024 * 1024)
         print(f"  Peak Memory Usage: {peak_mb:.2f} MB")
     
+    # Display memory timeline information
+    if memory_timeline:
+        print(f"\nStep 5: Memory Timeline Information:")
+        print("-" * 80)
+        print(f"  Total memory samples collected: {len(memory_timeline)}")
+        
+        # Count samples per phase
+        forward_samples = sum(1 for phase, _, _ in memory_timeline if phase == 'forward')
+        backward_samples = sum(1 for phase, _, _ in memory_timeline if phase == 'backward')
+        print(f"  Forward replay samples: {forward_samples}")
+        print(f"  Backward replay samples: {backward_samples}")
+        
+        # Show first few and last few samples
+        print(f"\n  First 3 samples:")
+        for phase, event_count, memory_bytes in memory_timeline[:3]:
+            memory_mb = memory_bytes / (1024 * 1024)
+            print(f"    {phase:8s} @ event {event_count:6d}: {memory_mb:8.2f} MB")
+        
+        print(f"\n  Last 3 samples:")
+        for phase, event_count, memory_bytes in memory_timeline[-3:]:
+            memory_mb = memory_bytes / (1024 * 1024)
+            print(f"    {phase:8s} @ event {event_count:6d}: {memory_mb:8.2f} MB")
+    
+    # Generate memory usage plot
+    print("\nStep 6: Generating memory usage visualization...")
+    try:
+        analyzer.plotMemoryUsage("critical_path_memory_usage.png")
+        print("  ✓ Memory usage plot saved successfully!")
+    except ImportError as e:
+        print(f"  ✗ Could not generate plot: {e}")
+    except Exception as e:
+        print(f"  ✗ Error generating plot: {e}")
+    
     print("\nKey Insights:")
     print("  - Memory tracking can be enabled/disabled as needed")
-    print("  - Tracks memory consumption at key points in the analysis")
-    print("  - Helps identify memory bottlenecks in large-scale analysis")
+    print("  - Tracks memory consumption at regular intervals during replay")
+    print("  - Memory timeline shows detailed progression during analysis")
+    print("  - Visualization helps identify memory bottlenecks")
     print("  - Can be used to optimize memory usage in performance analysis")
+
 
 
 

@@ -394,3 +394,102 @@ class TestMemoryTracking:
         # Stats should be similar but not necessarily identical
         assert 'trace_memory_bytes' in stats2
         assert 'peak_memory_bytes' in stats2
+    
+    def test_memory_timeline_collection(self):
+        """Test that memory timeline is collected during replay"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True)
+        analyzer.setMemorySampleInterval(1)  # Sample every event
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        timeline = analyzer.getMemoryTimeline()
+        assert len(timeline) > 0
+        
+        # Check timeline structure
+        for phase, event_count, memory_bytes in timeline:
+            assert phase in ['forward', 'backward']
+            assert event_count > 0
+            assert memory_bytes > 0
+    
+    def test_memory_timeline_phases(self):
+        """Test that timeline contains both forward and backward phases"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        timeline = analyzer.getMemoryTimeline()
+        phases = {phase for phase, _, _ in timeline}
+        
+        assert 'forward' in phases
+        assert 'backward' in phases
+    
+    def test_memory_sample_interval(self):
+        """Test setting memory sample interval"""
+        analyzer = CriticalPathFinding(enable_memory_tracking=True)
+        
+        # Default interval
+        assert analyzer.m_memory_sample_interval == 1000
+        
+        # Set custom interval
+        analyzer.setMemorySampleInterval(500)
+        assert analyzer.m_memory_sample_interval == 500
+        
+        # Ensure minimum of 1
+        analyzer.setMemorySampleInterval(0)
+        assert analyzer.m_memory_sample_interval == 1
+        
+        analyzer.setMemorySampleInterval(-10)
+        assert analyzer.m_memory_sample_interval == 1
+    
+    def test_memory_timeline_cleared_on_clear(self):
+        """Test that memory timeline is cleared when clear() is called"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        # Verify timeline exists
+        timeline = analyzer.getMemoryTimeline()
+        assert len(timeline) > 0
+        
+        # Clear and verify timeline is gone
+        analyzer.clear()
+        timeline = analyzer.getMemoryTimeline()
+        assert len(timeline) == 0
+    
+    def test_plot_memory_usage_no_timeline(self):
+        """Test plotting when no timeline data is available"""
+        analyzer = CriticalPathFinding()
+        
+        # Should handle gracefully when no data
+        try:
+            import matplotlib
+            # This should print a message but not crash
+            analyzer.plotMemoryUsage("/tmp/test_plot.png")
+        except ImportError:
+            # matplotlib not installed, skip this test
+            pass
+    
+    def test_peak_memory_from_timeline(self):
+        """Test that peak memory is computed from timeline when available"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        memory_stats = analyzer.getMemoryStatistics()
+        timeline = analyzer.getMemoryTimeline()
+        
+        if timeline:
+            # Peak from timeline should match or be close to peak from stats
+            timeline_peak = max(mem for _, _, mem in timeline)
+            stats_peak = memory_stats['peak_memory_bytes']
+            
+            # They should be equal
+            assert timeline_peak == stats_peak
