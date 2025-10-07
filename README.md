@@ -15,6 +15,7 @@ A programmable and fast performance analysis for parallel programs
 - **Profile Analysis**: Profiling data analysis infrastructure (S4 2025 Milestone 1)
   - Profile data structures (PerfData, ProfileInfo, SampleData)
   - Calling Context Tree (CCT) for hierarchical call path analysis
+  - Built-in visualization: tree view and ring/sunburst charts
   - Hotspot detection and performance analysis
   - Load imbalance analyzer for parallel efficiency
   - Cache behavior analyzer for memory performance
@@ -91,6 +92,12 @@ for func_name, metrics in top_hotspots:
 cct = CallingContextTree()
 cct.buildFromProfile(profile)
 hot_paths = cct.getHotPaths("cycles", top_n=5)
+for path, cycles in hot_paths:
+    print(f"{' -> '.join(path)}: {cycles} cycles")
+
+# Generate visualizations
+cct.visualize("cct_tree.png", view_type="tree", metric="cycles")
+cct.visualize("cct_ring.png", view_type="ring", metric="cycles")
 for path, cycles in hot_paths:
     print(f"{' -> '.join(path)}: {cycles} cycles")
 ```

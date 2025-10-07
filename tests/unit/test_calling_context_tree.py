@@ -320,6 +320,153 @@ class TestCallingContextTreeEdgeCases:
         assert cct.getNodeCount() != initial_count
 
 
+class TestCallingContextTreeVisualization:
+    """Test CCT visualization methods."""
+    
+    def test_visualize_tree_view(self):
+        """Test tree view visualization."""
+        import os
+        import tempfile
+        
+        cct = CallingContextTree()
+        profile = PerfData()
+        
+        # Add samples
+        sample = SampleData()
+        sample.setCallStack(["main", "compute", "func_a"])
+        sample.setMetric("cycles", 1000.0)
+        profile.addSample(sample)
+        
+        cct.buildFromProfile(profile)
+        
+        # Generate visualization
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            output_file = f.name
+        
+        try:
+            cct.visualize(output_file, view_type="tree", metric="cycles")
+            
+            # Check file was created
+            assert os.path.exists(output_file)
+            assert os.path.getsize(output_file) > 0
+        finally:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+    
+    def test_visualize_ring_chart(self):
+        """Test ring/sunburst chart visualization."""
+        import os
+        import tempfile
+        
+        cct = CallingContextTree()
+        profile = PerfData()
+        
+        # Add samples with multiple paths
+        samples = [
+            (["main", "compute", "func_a"], 1000.0),
+            (["main", "compute", "func_b"], 500.0),
+            (["main", "io"], 2000.0),
+        ]
+        
+        for call_stack, cycles in samples:
+            sample = SampleData()
+            sample.setCallStack(call_stack)
+            sample.setMetric("cycles", cycles)
+            profile.addSample(sample)
+        
+        cct.buildFromProfile(profile)
+        
+        # Generate visualization
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            output_file = f.name
+        
+        try:
+            cct.visualize(output_file, view_type="ring", metric="cycles")
+            
+            # Check file was created
+            assert os.path.exists(output_file)
+            assert os.path.getsize(output_file) > 0
+        finally:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+    
+    def test_visualize_with_different_metrics(self):
+        """Test visualization with different metrics."""
+        import os
+        import tempfile
+        
+        cct = CallingContextTree()
+        profile = PerfData()
+        
+        # Add sample with multiple metrics
+        sample = SampleData()
+        sample.setCallStack(["main", "func_a"])
+        sample.setMetric("cycles", 1000.0)
+        sample.setMetric("instructions", 500.0)
+        profile.addSample(sample)
+        
+        cct.buildFromProfile(profile)
+        
+        # Test with different metrics
+        for metric in ["cycles", "instructions"]:
+            with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+                output_file = f.name
+            
+            try:
+                cct.visualize(output_file, view_type="tree", metric=metric)
+                assert os.path.exists(output_file)
+            finally:
+                if os.path.exists(output_file):
+                    os.unlink(output_file)
+    
+    def test_visualize_invalid_view_type(self):
+        """Test that invalid view type raises error."""
+        cct = CallingContextTree()
+        profile = PerfData()
+        
+        sample = SampleData()
+        sample.setCallStack(["main", "func_a"])
+        profile.addSample(sample)
+        
+        cct.buildFromProfile(profile)
+        
+        with pytest.raises(ValueError, match="Unknown view_type"):
+            cct.visualize("output.png", view_type="invalid")
+    
+    def test_visualize_empty_cct(self):
+        """Test that visualizing empty CCT raises error."""
+        cct = CallingContextTree()
+        
+        with pytest.raises(ValueError, match="Cannot visualize empty CCT"):
+            cct.visualize("output.png", view_type="tree")
+    
+    def test_visualize_custom_figsize(self):
+        """Test visualization with custom figure size."""
+        import os
+        import tempfile
+        
+        cct = CallingContextTree()
+        profile = PerfData()
+        
+        sample = SampleData()
+        sample.setCallStack(["main", "func_a"])
+        sample.setMetric("cycles", 1000.0)
+        profile.addSample(sample)
+        
+        cct.buildFromProfile(profile)
+        
+        with tempfile.NamedTemporaryFile(suffix='.png', delete=False) as f:
+            output_file = f.name
+        
+        try:
+            cct.visualize(output_file, view_type="tree", 
+                         figsize=(16, 10), dpi=100)
+            assert os.path.exists(output_file)
+        finally:
+            if os.path.exists(output_file):
+                os.unlink(output_file)
+
+
 class TestCallingContextTreeIntegration:
     """Integration tests for CCT."""
     

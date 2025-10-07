@@ -376,20 +376,63 @@ for context, sample_count in stats['contexts']:
 
 ### Visualization
 
-The CCT can be visualized using text or DOT format:
+The CCT provides built-in visualization methods for creating publication-quality figures:
+
+#### Using the visualize() Method
 
 ```python
-# Text visualization (for debugging)
+# Tree view visualization
+cct.visualize(
+    output_file="cct_tree.png",
+    view_type="tree",
+    metric="cycles",
+    figsize=(14, 10),
+    dpi=150
+)
+
+# Ring/sunburst chart visualization
+cct.visualize(
+    output_file="cct_ring.png",
+    view_type="ring",
+    metric="cycles",
+    figsize=(12, 12),
+    dpi=150
+)
+```
+
+**Visualization Features:**
+- **Tree View**: Top-down hierarchical tree layout
+  - Nodes sized proportionally to inclusive metrics
+  - Color intensity indicates metric value (red=high, yellow=low)
+  - Sample counts displayed on nodes
+  - Edges show calling relationships
+
+- **Ring Chart**: Circular sunburst layout
+  - Inner rings represent higher-level functions
+  - Outer rings show deeper call contexts
+  - Angular size proportional to metric values
+  - Color-coded by metric intensity
+
+**Parameters:**
+- `output_file`: Path for saving the visualization
+- `view_type`: "tree" for top-down tree, "ring" for sunburst chart
+- `metric`: Metric to visualize (e.g., "cycles", "instructions")
+- `figsize`: Figure size in inches (width, height)
+- `dpi`: Resolution in dots per inch
+
+#### Text-based Visualization (for debugging)
+
+```python
+# Simple text visualization
 def print_tree(node_id, indent=0):
     node = cct.getNode(node_id)
     metrics = cct.getNodeMetrics(node_id)
     print("  " * indent + f"{node.getName()}: {metrics.get('cycles', 0)} cycles")
     for child_id in cct.getChildren(node_id):
         print_tree(child_id, indent + 1)
-
-# DOT format for Graphviz
-# See tests/examples/example_cct_psg_visualization.py for complete example
 ```
+
+See `tests/examples/example_cct_visualization.py` for complete examples.
 
 ### API Reference - CallingContextTree
 
@@ -401,6 +444,7 @@ def print_tree(node_id, indent=0):
 - `getHotPaths(metric, top_n)`: Get hottest calling paths
 - `getContextDepth()`: Get maximum depth of calling contexts
 - `getFunctionStats(function_name)`: Get statistics for a function across all contexts
+- `visualize(output_file, view_type, metric, figsize, dpi)`: Generate tree or ring chart visualization
 - `clear()`: Clear the CCT
 
 ## Examples
@@ -409,4 +453,5 @@ Complete examples are available in the `tests/examples/` directory:
 
 - **example_hotspot_analysis.py**: Comprehensive hotspot analysis workflow
 - **example_cct_psg_visualization.py**: CCT and PSG visualization with text and DOT formats
+- **example_cct_visualization.py**: CCT visualization using built-in visualize() method with tree and ring charts
 
