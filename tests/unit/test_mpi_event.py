@@ -76,7 +76,6 @@ class TestMpiSendEvent:
     def test_send_event_creation(self):
         """Test creating send event"""
         event = MpiSendEvent(
-            event_type=EventType.SEND,
             idx=1,
             name="send",
             pid=0,
@@ -87,6 +86,7 @@ class TestMpiSendEvent:
             tag=100,
             dest_pid=1
         )
+        assert event.getType() == EventType.SEND
         assert event.getDestPid() == 1
         assert event.getTag() == 100
         assert event.getCommunicator() == 1
@@ -119,7 +119,6 @@ class TestMpiRecvEvent:
     def test_recv_event_creation(self):
         """Test creating receive event"""
         event = MpiRecvEvent(
-            event_type=EventType.RECV,
             idx=2,
             name="recv",
             pid=1,
@@ -130,6 +129,7 @@ class TestMpiRecvEvent:
             tag=100,
             src_pid=0
         )
+        assert event.getType() == EventType.RECV
         assert event.getSrcPid() == 0
         assert event.getTag() == 100
         assert event.getCommunicator() == 1
@@ -162,7 +162,6 @@ class TestMpiEventMatching:
     def test_bidirectional_matching(self):
         """Test bidirectional send-recv matching"""
         send_event = MpiSendEvent(
-            event_type=EventType.SEND,
             idx=1,
             name="send",
             pid=0,
@@ -174,7 +173,6 @@ class TestMpiEventMatching:
         )
         
         recv_event = MpiRecvEvent(
-            event_type=EventType.RECV,
             idx=2,
             name="recv",
             pid=1,

@@ -166,8 +166,8 @@ class TestLateSender:
         trace = Trace()
         
         # Send happens before receive (not late)
-        send = MpiSendEvent(EventType.SEND, 1, "send", 0, 0, 1.0, 0, 1, 100, dest_pid=1)
-        recv = MpiRecvEvent(EventType.RECV, 2, "recv", 1, 0, 2.0, 1, 1, 100, src_pid=0)
+        send = MpiSendEvent(1, "send", 0, 0, 1.0, 0, 1, 100, dest_pid=1)
+        recv = MpiRecvEvent(2, "recv", 1, 0, 2.0, 1, 1, 100, src_pid=0)
         
         send.setRecvEvent(recv)
         recv.setSendEvent(send)
@@ -186,8 +186,8 @@ class TestLateSender:
         trace = Trace()
         
         # Receive is ready at 1.0, but send doesn't arrive until 2.0 (late!)
-        send = MpiSendEvent(EventType.SEND, 1, "send", 0, 0, 2.0, 0, 1, 100, dest_pid=1)
-        recv = MpiRecvEvent(EventType.RECV, 2, "recv", 1, 0, 1.0, 1, 1, 100, src_pid=0)
+        send = MpiSendEvent(1, "send", 0, 0, 2.0, 0, 1, 100, dest_pid=1)
+        recv = MpiRecvEvent(2, "recv", 1, 0, 1.0, 1, 1, 100, src_pid=0)
         
         send.setRecvEvent(recv)
         recv.setSendEvent(send)
@@ -211,14 +211,14 @@ class TestLateSender:
         trace = Trace()
         
         # Late send 1: wait time = 1.0
-        send1 = MpiSendEvent(EventType.SEND, 1, "send1", 0, 0, 3.0, 0, 1, 100, dest_pid=1)
-        recv1 = MpiRecvEvent(EventType.RECV, 2, "recv1", 1, 0, 2.0, 1, 1, 100, src_pid=0)
+        send1 = MpiSendEvent(1, "send1", 0, 0, 3.0, 0, 1, 100, dest_pid=1)
+        recv1 = MpiRecvEvent(2, "recv1", 1, 0, 2.0, 1, 1, 100, src_pid=0)
         send1.setRecvEvent(recv1)
         recv1.setSendEvent(send1)
         
         # Late send 2: wait time = 2.0
-        send2 = MpiSendEvent(EventType.SEND, 3, "send2", 0, 0, 7.0, 0, 1, 200, dest_pid=1)
-        recv2 = MpiRecvEvent(EventType.RECV, 4, "recv2", 1, 0, 5.0, 1, 1, 200, src_pid=0)
+        send2 = MpiSendEvent(3, "send2", 0, 0, 7.0, 0, 1, 200, dest_pid=1)
+        recv2 = MpiRecvEvent(4, "recv2", 1, 0, 5.0, 1, 1, 200, src_pid=0)
         send2.setRecvEvent(recv2)
         recv2.setSendEvent(send2)
         
@@ -240,8 +240,8 @@ class TestLateSender:
         """Test clearing late sender results"""
         trace = Trace()
         
-        send = MpiSendEvent(EventType.SEND, 1, "send", 0, 0, 2.0, 0, 1, 100, dest_pid=1)
-        recv = MpiRecvEvent(EventType.RECV, 2, "recv", 1, 0, 1.0, 1, 1, 100, src_pid=0)
+        send = MpiSendEvent(1, "send", 0, 0, 2.0, 0, 1, 100, dest_pid=1)
+        recv = MpiRecvEvent(2, "recv", 1, 0, 1.0, 1, 1, 100, src_pid=0)
         send.setRecvEvent(recv)
         recv.setSendEvent(send)
         

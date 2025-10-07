@@ -95,8 +95,8 @@ class TestLateSenderIntegration:
         # Process 0 sends at time 5.0
         # Process 1 is ready to receive at time 2.0
         # This is a late sender (wait time = 3.0)
-        send = MpiSendEvent(EventType.SEND, 1, "send", 0, 0, 5.0, 0, 1, 100, dest_pid=1)
-        recv = MpiRecvEvent(EventType.RECV, 2, "recv", 1, 0, 2.0, 1, 1, 100, src_pid=0)
+        send = MpiSendEvent(1, "send", 0, 0, 5.0, 0, 1, 100, dest_pid=1)
+        recv = MpiRecvEvent(2, "recv", 1, 0, 2.0, 1, 1, 100, src_pid=0)
         
         # Match events
         send.setRecvEvent(recv)
@@ -121,20 +121,20 @@ class TestLateSenderIntegration:
         trace = Trace()
         
         # Communication 1: on time
-        send1 = MpiSendEvent(EventType.SEND, 1, "send1", 0, 0, 1.0, 0, 1, 100, dest_pid=1)
-        recv1 = MpiRecvEvent(EventType.RECV, 2, "recv1", 1, 0, 2.0, 1, 1, 100, src_pid=0)
+        send1 = MpiSendEvent(1, "send1", 0, 0, 1.0, 0, 1, 100, dest_pid=1)
+        recv1 = MpiRecvEvent(2, "recv1", 1, 0, 2.0, 1, 1, 100, src_pid=0)
         send1.setRecvEvent(recv1)
         recv1.setSendEvent(send1)
         
         # Communication 2: late (wait = 2.0)
-        send2 = MpiSendEvent(EventType.SEND, 3, "send2", 0, 0, 7.0, 0, 1, 200, dest_pid=1)
-        recv2 = MpiRecvEvent(EventType.RECV, 4, "recv2", 1, 0, 5.0, 1, 1, 200, src_pid=0)
+        send2 = MpiSendEvent(3, "send2", 0, 0, 7.0, 0, 1, 200, dest_pid=1)
+        recv2 = MpiRecvEvent(4, "recv2", 1, 0, 5.0, 1, 1, 200, src_pid=0)
         send2.setRecvEvent(recv2)
         recv2.setSendEvent(send2)
         
         # Communication 3: late (wait = 1.0)
-        send3 = MpiSendEvent(EventType.SEND, 5, "send3", 0, 0, 11.0, 0, 1, 300, dest_pid=1)
-        recv3 = MpiRecvEvent(EventType.RECV, 6, "recv3", 1, 0, 10.0, 1, 1, 300, src_pid=0)
+        send3 = MpiSendEvent(5, "send3", 0, 0, 11.0, 0, 1, 300, dest_pid=1)
+        recv3 = MpiRecvEvent(6, "recv3", 1, 0, 10.0, 1, 1, 300, src_pid=0)
         send3.setRecvEvent(recv3)
         recv3.setSendEvent(send3)
         
@@ -161,8 +161,8 @@ class TestLateSenderIntegration:
         
         # All sends arrive before receives are ready
         for i in range(5):
-            send = MpiSendEvent(EventType.SEND, i*2, f"send{i}", 0, 0, float(i), 0, 1, i*100, dest_pid=1)
-            recv = MpiRecvEvent(EventType.RECV, i*2+1, f"recv{i}", 1, 0, float(i+1), 1, 1, i*100, src_pid=0)
+            send = MpiSendEvent(i*2, f"send{i}", 0, 0, float(i), 0, 1, i*100, dest_pid=1)
+            recv = MpiRecvEvent(i*2+1, f"recv{i}", 1, 0, float(i+1), 1, 1, i*100, src_pid=0)
             send.setRecvEvent(recv)
             recv.setSendEvent(send)
             trace.addEvent(send)
@@ -180,20 +180,20 @@ class TestLateSenderIntegration:
         trace = Trace()
         
         # Process 0 -> Process 1: late
-        send_01 = MpiSendEvent(EventType.SEND, 1, "send_01", 0, 0, 5.0, 0, 1, 100, dest_pid=1)
-        recv_01 = MpiRecvEvent(EventType.RECV, 2, "recv_01", 1, 0, 3.0, 1, 1, 100, src_pid=0)
+        send_01 = MpiSendEvent(1, "send_01", 0, 0, 5.0, 0, 1, 100, dest_pid=1)
+        recv_01 = MpiRecvEvent(2, "recv_01", 1, 0, 3.0, 1, 1, 100, src_pid=0)
         send_01.setRecvEvent(recv_01)
         recv_01.setSendEvent(send_01)
         
         # Process 1 -> Process 2: on time
-        send_12 = MpiSendEvent(EventType.SEND, 3, "send_12", 1, 0, 6.0, 1, 1, 200, dest_pid=2)
-        recv_12 = MpiRecvEvent(EventType.RECV, 4, "recv_12", 2, 0, 7.0, 2, 1, 200, src_pid=1)
+        send_12 = MpiSendEvent(3, "send_12", 1, 0, 6.0, 1, 1, 200, dest_pid=2)
+        recv_12 = MpiRecvEvent(4, "recv_12", 2, 0, 7.0, 2, 1, 200, src_pid=1)
         send_12.setRecvEvent(recv_12)
         recv_12.setSendEvent(send_12)
         
         # Process 2 -> Process 0: late
-        send_20 = MpiSendEvent(EventType.SEND, 5, "send_20", 2, 0, 12.0, 2, 1, 300, dest_pid=0)
-        recv_20 = MpiRecvEvent(EventType.RECV, 6, "recv_20", 0, 0, 10.0, 0, 1, 300, src_pid=2)
+        send_20 = MpiSendEvent(5, "send_20", 2, 0, 12.0, 2, 1, 300, dest_pid=0)
+        recv_20 = MpiRecvEvent(6, "recv_20", 0, 0, 10.0, 0, 1, 300, src_pid=2)
         send_20.setRecvEvent(recv_20)
         recv_20.setSendEvent(send_20)
         

@@ -36,7 +36,6 @@ def create_communication_trace(num_processes=4, comm_rounds=3):
             dest_pid = (src_pid + 1) % num_processes
             
             send = MpiSendEvent(
-                event_type=EventType.SEND,
                 idx=event_id,
                 name=f"MPI_Send_R{round_num}",
                 pid=src_pid,
@@ -50,7 +49,6 @@ def create_communication_trace(num_processes=4, comm_rounds=3):
             timestamp += 0.1
             
             recv = MpiRecvEvent(
-                event_type=EventType.RECV,
                 idx=event_id,
                 name=f"MPI_Recv_R{round_num}",
                 pid=dest_pid,

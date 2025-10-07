@@ -133,7 +133,6 @@ class MpiSendEvent(MpiP2PEvent):
     
     def __init__(
         self,
-        event_type: Optional[EventType] = None,
         idx: Optional[int] = None,
         name: Optional[str] = None,
         pid: Optional[int] = None,
@@ -147,8 +146,9 @@ class MpiSendEvent(MpiP2PEvent):
         """
         Initialize an MpiSendEvent object.
         
+        The event_type is automatically set to EventType.SEND.
+        
         Args:
-            event_type: Type of the event
             idx: Unique identifier for this event
             name: Human-readable name of the event
             pid: Process ID where this event occurred
@@ -159,7 +159,7 @@ class MpiSendEvent(MpiP2PEvent):
             tag: Message tag
             dest_pid: Destination process ID
         """
-        super().__init__(event_type, idx, name, pid, tid, timestamp, replay_pid, communicator, tag)
+        super().__init__(EventType.SEND, idx, name, pid, tid, timestamp, replay_pid, communicator, tag)
         self.m_dest_pid: Optional[int] = dest_pid
         self.m_recv_event: Optional[Event] = None
     
@@ -200,7 +200,6 @@ class MpiRecvEvent(MpiP2PEvent):
     
     def __init__(
         self,
-        event_type: Optional[EventType] = None,
         idx: Optional[int] = None,
         name: Optional[str] = None,
         pid: Optional[int] = None,
@@ -214,8 +213,9 @@ class MpiRecvEvent(MpiP2PEvent):
         """
         Initialize an MpiRecvEvent object.
         
+        The event_type is automatically set to EventType.RECV.
+        
         Args:
-            event_type: Type of the event
             idx: Unique identifier for this event
             name: Human-readable name of the event
             pid: Process ID where this event occurred
@@ -226,7 +226,7 @@ class MpiRecvEvent(MpiP2PEvent):
             tag: Message tag
             src_pid: Source process ID
         """
-        super().__init__(event_type, idx, name, pid, tid, timestamp, replay_pid, communicator, tag)
+        super().__init__(EventType.RECV, idx, name, pid, tid, timestamp, replay_pid, communicator, tag)
         self.m_src_pid: Optional[int] = src_pid
         self.m_send_event: Optional[Event] = None
     
