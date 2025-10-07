@@ -104,11 +104,24 @@ namespace perf_data_structure {
 
         namespace trace {
 
+            Enum EventType {
+                UNKNOWN
+                ENTER
+                LEAVE
+                SEND
+                RECV
+                COLLECTIVE
+                BARRIER
+                COMPUTE
+                LOOP
+                BRANCH
+            }
+
             ' Represent an execution event 
             interface Event{
                 "Represent an execution event"
 
-                + m_type: event_type_t
+                + m_type: EventType
                 + m_idx: id_t
                 + m_name: string
                 + m_pid: id_t
@@ -124,6 +137,8 @@ namespace perf_data_structure {
                 + getTimestamp()
                 + getReplayPid()
             }
+
+            EventType -right-* Event
 
             class MpiEvent{
                 + m_communicator: comm_t
@@ -158,7 +173,16 @@ namespace perf_data_structure {
             class TraceInfo{
                 + m_pid: id_t
                 + m_tid: id_t
+                + m_num_execution_processes: int
+                + m_num_replay_processes: int
+                + m_ep_to_rp_mapping: Dict<int, int>
+                + m_trace_format: string
+                + m_trace_start_time: timestamp_t
+                + m_trace_end_time: timestamp_t
+                + m_application_name: string
 
+                + getTraceDuration()
+                + getReplayProcessForEp()
             }
 
             TraceInfo *-- Trace
@@ -278,25 +302,50 @@ namespace task {
         }
     }
 
-    namespace report {
+    namespace reporter {
         class TextViewer {}
 
         class GraphViewer {}
 
-        class TraceViewer {}
+        class TimelineViewer {
+            + m_format: string
+            
+            + visualize()
+            + toText()
+            + toHTML()
+            + toJSON()
+        }
 
-        TraceViewer -up-|> FlowNode
+        TimelineViewer -up-|> FlowNode
     }
 
     namespace reader {
-        class OTF2TraceReader{}
-        class CTFTraceReader{}
-        class HPCToolkitTraceReader{}
-        class VTuneTraceReader{}
-        class NsightTraceReader{}
+        class OTF2Reader{
+            + load()
+        }
+        class CTFReader{
+            + load()
+        }
+        class HpctoolkitReader{
+            + load()
+        }
+        class VtuneReader{
+            + load()
+        }
+        class NsightReader{
+            + load()
+        }
+        class ScalatraceReader{
+            + load()
+        }
         class HPCToolkitSamplesReader{}
 
-        OTF2TraceReader -up-|> FlowNode
+        OTF2Reader -up-|> FlowNode
+        CTFReader -up-|> FlowNode
+        HpctoolkitReader -up-|> FlowNode
+        VtuneReader -up-|> FlowNode
+        NsightReader -up-|> FlowNode
+        ScalatraceReader -up-|> FlowNode
     }
 
 }
@@ -324,7 +373,12 @@ class flow.FlowGraph #D2C1FF
 
 class task.trace_analysis.low_level.TraceReplayer #D2C1FF
 class task.trace_analysis.LateSender #D2C1FF
-class task.reader.OTF2TraceReader #D2C1FF
-class task.report.TraceViewer #D2C1FF
+class task.reader.OTF2Reader #D2C1FF
+class task.reader.VtuneReader #D2C1FF
+class task.reader.NsightReader #D2C1FF
+class task.reader.HpctoolkitReader #D2C1FF
+class task.reader.CTFReader #D2C1FF
+class task.reader.ScalatraceReader #D2C1FF
+class task.reporter.TimelineViewer #D2C1FF
 
 @enduml
