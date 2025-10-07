@@ -14,6 +14,9 @@ class TestTraceInfo:
         trace_info = TraceInfo()
         assert trace_info.m_pid is None
         assert trace_info.m_tid is None
+        assert trace_info.m_num_execution_processes is None
+        assert trace_info.m_num_replay_processes is None
+        assert trace_info.m_ep_to_rp_mapping == {}
     
     def test_traceinfo_creation_with_parameters(self):
         """Test creating TraceInfo with parameters"""
@@ -34,6 +37,98 @@ class TestTraceInfo:
         trace_info.setTid(7)
         assert trace_info.getPid() == 3
         assert trace_info.getTid() == 7
+    
+    def test_traceinfo_execution_processes(self):
+        """Test execution process metadata"""
+        trace_info = TraceInfo(num_execution_processes=128)
+        assert trace_info.getNumExecutionProcesses() == 128
+        
+        trace_info.setNumExecutionProcesses(256)
+        assert trace_info.getNumExecutionProcesses() == 256
+    
+    def test_traceinfo_replay_processes(self):
+        """Test replay process metadata"""
+        trace_info = TraceInfo(num_replay_processes=32)
+        assert trace_info.getNumReplayProcesses() == 32
+        
+        trace_info.setNumReplayProcesses(64)
+        assert trace_info.getNumReplayProcesses() == 64
+    
+    def test_traceinfo_ep_to_rp_mapping(self):
+        """Test execution to replay process mapping"""
+        trace_info = TraceInfo()
+        
+        # Add individual mappings
+        trace_info.addEpToRpMapping(0, 0)
+        trace_info.addEpToRpMapping(1, 0)
+        trace_info.addEpToRpMapping(2, 1)
+        trace_info.addEpToRpMapping(3, 1)
+        
+        assert trace_info.getReplayProcessForEp(0) == 0
+        assert trace_info.getReplayProcessForEp(1) == 0
+        assert trace_info.getReplayProcessForEp(2) == 1
+        assert trace_info.getReplayProcessForEp(3) == 1
+        assert trace_info.getReplayProcessForEp(99) is None
+        
+        # Set entire mapping
+        new_mapping = {10: 5, 11: 5, 12: 6, 13: 6}
+        trace_info.setEpToRpMapping(new_mapping)
+        assert trace_info.getEpToRpMapping() == new_mapping
+        assert trace_info.getReplayProcessForEp(10) == 5
+    
+    def test_traceinfo_trace_format(self):
+        """Test trace format metadata"""
+        trace_info = TraceInfo(trace_format="OTF2")
+        assert trace_info.getTraceFormat() == "OTF2"
+        
+        trace_info.setTraceFormat("Scalatrace")
+        assert trace_info.getTraceFormat() == "Scalatrace"
+    
+    def test_traceinfo_trace_times(self):
+        """Test trace timing metadata"""
+        trace_info = TraceInfo(trace_start_time=0.0, trace_end_time=10.5)
+        assert trace_info.getTraceStartTime() == 0.0
+        assert trace_info.getTraceEndTime() == 10.5
+        assert trace_info.getTraceDuration() == 10.5
+        
+        trace_info.setTraceStartTime(1.5)
+        trace_info.setTraceEndTime(15.0)
+        assert trace_info.getTraceDuration() == 13.5
+    
+    def test_traceinfo_application_name(self):
+        """Test application name metadata"""
+        trace_info = TraceInfo(application_name="MPI_Test")
+        assert trace_info.getApplicationName() == "MPI_Test"
+        
+        trace_info.setApplicationName("LAMMPS")
+        assert trace_info.getApplicationName() == "LAMMPS"
+    
+    def test_traceinfo_comprehensive(self):
+        """Test comprehensive TraceInfo with all metadata"""
+        ep_to_rp = {i: i // 4 for i in range(16)}  # 16 EPs mapped to 4 RPs
+        
+        trace_info = TraceInfo(
+            pid=0,
+            tid=0,
+            num_execution_processes=16,
+            num_replay_processes=4,
+            ep_to_rp_mapping=ep_to_rp,
+            trace_format="OTF2",
+            trace_start_time=0.0,
+            trace_end_time=100.0,
+            application_name="ParallelApp"
+        )
+        
+        # Verify all attributes
+        assert trace_info.getPid() == 0
+        assert trace_info.getTid() == 0
+        assert trace_info.getNumExecutionProcesses() == 16
+        assert trace_info.getNumReplayProcesses() == 4
+        assert trace_info.getReplayProcessForEp(5) == 1
+        assert trace_info.getReplayProcessForEp(15) == 3
+        assert trace_info.getTraceFormat() == "OTF2"
+        assert trace_info.getTraceDuration() == 100.0
+        assert trace_info.getApplicationName() == "ParallelApp"
 
 
 class TestTrace:
