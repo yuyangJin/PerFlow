@@ -3,9 +3,17 @@ module trace replayer
 '''
 
 from typing import Any, Callable, Optional
+from enum import Enum
 from ....flow.flow import FlowNode
 from ....perf_data_struct.dynamic.trace.trace import Trace
 from ....perf_data_struct.dynamic.trace.event import Event
+
+
+class ReplayDirection(Enum):
+    """Enum for replay direction."""
+    FWD = "forward"
+    BWD = "backward"
+
 
 '''
 @class TraceReplayer
@@ -57,77 +65,42 @@ class TraceReplayer(FlowNode):
         """
         return self.m_trace
     
-    def registerForwardCallback(self, name: str, callback: Callable[[Event], None]) -> None:
+    def registerCallback(self, name: str, callback: Callable[[Event], None], 
+                         direction: ReplayDirection) -> None:
         """
-        Register a callback function for forward replay event processing.
+        Register a callback function for specified replay direction.
         
-        Callbacks are invoked during forward replay for each event, allowing
+        Callbacks are invoked during replay for each event, allowing
         custom analysis logic to be executed.
         
         Args:
             name: Name identifier for the callback
             callback: Function that takes an Event and returns None
+            direction: ReplayDirection.FWD for forward replay or ReplayDirection.BWD for backward replay
         """
-        self.m_forward_callbacks[name] = callback
+        if direction == ReplayDirection.FWD:
+            self.m_forward_callbacks[name] = callback
+        elif direction == ReplayDirection.BWD:
+            self.m_backward_callbacks[name] = callback
+        else:
+            raise ValueError(f"Invalid replay direction: {direction}")
     
-    def registerBackwardCallback(self, name: str, callback: Callable[[Event], None]) -> None:
+    def unregisterCallback(self, name: str, direction: ReplayDirection) -> None:
         """
-        Register a callback function for backward replay event processing.
-        
-        Callbacks are invoked during backward replay for each event, allowing
-        custom analysis logic to be executed.
-        
-        Args:
-            name: Name identifier for the callback
-            callback: Function that takes an Event and returns None
-        """
-        self.m_backward_callbacks[name] = callback
-    
-    def registerCallback(self, name: str, callback: Callable[[Event], None]) -> None:
-        """
-        Register a callback function for both forward and backward replay.
-        
-        This is a convenience method that registers the same callback for
-        both forward and backward replay directions.
-        
-        Args:
-            name: Name identifier for the callback
-            callback: Function that takes an Event and returns None
-        """
-        self.m_forward_callbacks[name] = callback
-        self.m_backward_callbacks[name] = callback
-    
-    def unregisterForwardCallback(self, name: str) -> None:
-        """
-        Unregister a forward replay callback function.
+        Unregister a callback function from specified replay direction.
         
         Args:
             name: Name identifier of the callback to remove
+            direction: ReplayDirection.FWD for forward replay or ReplayDirection.BWD for backward replay
         """
-        if name in self.m_forward_callbacks:
-            del self.m_forward_callbacks[name]
-    
-    def unregisterBackwardCallback(self, name: str) -> None:
-        """
-        Unregister a backward replay callback function.
-        
-        Args:
-            name: Name identifier of the callback to remove
-        """
-        if name in self.m_backward_callbacks:
-            del self.m_backward_callbacks[name]
-    
-    def unregisterCallback(self, name: str) -> None:
-        """
-        Unregister a callback function from both forward and backward replay.
-        
-        Args:
-            name: Name identifier of the callback to remove
-        """
-        if name in self.m_forward_callbacks:
-            del self.m_forward_callbacks[name]
-        if name in self.m_backward_callbacks:
-            del self.m_backward_callbacks[name]
+        if direction == ReplayDirection.FWD:
+            if name in self.m_forward_callbacks:
+                del self.m_forward_callbacks[name]
+        elif direction == ReplayDirection.BWD:
+            if name in self.m_backward_callbacks:
+                del self.m_backward_callbacks[name]
+        else:
+            raise ValueError(f"Invalid replay direction: {direction}")
     
     def forwardReplay(self) -> None:
         """

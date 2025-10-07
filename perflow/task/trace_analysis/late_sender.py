@@ -3,7 +3,7 @@ module late sender analysis
 '''
 
 from typing import Dict, List, Optional
-from .low_level.trace_replayer import TraceReplayer
+from .low_level.trace_replayer import TraceReplayer, ReplayDirection
 from ...perf_data_struct.dynamic.trace.trace import Trace
 from ...perf_data_struct.dynamic.trace.event import Event
 from ...perf_data_struct.dynamic.trace.mpi_event import MpiSendEvent, MpiRecvEvent
@@ -40,8 +40,8 @@ class LateSender(TraceReplayer):
         self.m_late_sends: List[MpiSendEvent] = []
         self.m_wait_times: Dict[int, float] = {}
         
-        # Register callback for late sender detection
-        self.registerCallback("late_sender_detector", self._detect_late_sender)
+        # Register callback for late sender detection (forward replay)
+        self.registerCallback("late_sender_detector", self._detect_late_sender, ReplayDirection.FWD)
     
     def _detect_late_sender(self, event: Event) -> None:
         """

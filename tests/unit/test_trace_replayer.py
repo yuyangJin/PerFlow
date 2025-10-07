@@ -2,7 +2,7 @@
 Unit tests for TraceReplayer and LateSender classes
 """
 import pytest
-from perflow.task.trace_analysis.low_level.trace_replayer import TraceReplayer
+from perflow.task.trace_analysis.low_level.trace_replayer import TraceReplayer, ReplayDirection
 from perflow.task.trace_analysis.late_sender import LateSender
 from perflow.perf_data_struct.dynamic.trace.trace import Trace, TraceInfo
 from perflow.perf_data_struct.dynamic.trace.event import Event, EventType
@@ -49,7 +49,7 @@ class TestTraceReplayer:
         def test_callback(event):
             callback_called.append(event.getName())
         
-        replayer.registerCallback("test", test_callback)
+        replayer.registerCallback("test", test_callback, ReplayDirection.FWD)
         replayer.forwardReplay()
         
         assert len(callback_called) == 1
@@ -71,7 +71,7 @@ class TestTraceReplayer:
         replayer.setTrace(trace)
         
         replayed_events = []
-        replayer.registerCallback("recorder", lambda e: replayed_events.append(e))
+        replayer.registerCallback("recorder", lambda e: replayed_events.append(e), ReplayDirection.FWD)
         
         replayer.forwardReplay()
         
@@ -96,7 +96,7 @@ class TestTraceReplayer:
         replayer.setTrace(trace)
         
         replayed_events = []
-        replayer.registerCallback("recorder", lambda e: replayed_events.append(e))
+        replayer.registerCallback("recorder", lambda e: replayed_events.append(e), ReplayDirection.BWD)
         
         replayer.backwardReplay()
         
@@ -116,8 +116,8 @@ class TestTraceReplayer:
         callback1_count = [0]
         callback2_count = [0]
         
-        replayer.registerCallback("cb1", lambda e: callback1_count.__setitem__(0, callback1_count[0] + 1))
-        replayer.registerCallback("cb2", lambda e: callback2_count.__setitem__(0, callback2_count[0] + 1))
+        replayer.registerCallback("cb1", lambda e: callback1_count.__setitem__(0, callback1_count[0] + 1), ReplayDirection.FWD)
+        replayer.registerCallback("cb2", lambda e: callback2_count.__setitem__(0, callback2_count[0] + 1), ReplayDirection.FWD)
         
         replayer.forwardReplay()
         
@@ -132,13 +132,13 @@ class TestTraceReplayer:
         replayer.setTrace(trace)
         
         callback_count = [0]
-        replayer.registerCallback("test", lambda e: callback_count.__setitem__(0, callback_count[0] + 1))
+        replayer.registerCallback("test", lambda e: callback_count.__setitem__(0, callback_count[0] + 1), ReplayDirection.FWD)
         
         replayer.forwardReplay()
         assert callback_count[0] == 1
         
         # Unregister and replay again
-        replayer.unregisterCallback("test")
+        replayer.unregisterCallback("test", ReplayDirection.FWD)
         replayer.forwardReplay()
         
         # Count should still be 1 (callback not called second time)
@@ -158,8 +158,8 @@ class TestTraceReplayer:
         forward_events = []
         backward_events = []
         
-        replayer.registerForwardCallback("fwd", lambda e: forward_events.append(e.getName()))
-        replayer.registerBackwardCallback("bwd", lambda e: backward_events.append(e.getName()))
+        replayer.registerCallback("fwd", lambda e: forward_events.append(e.getName()), ReplayDirection.FWD)
+        replayer.registerCallback("bwd", lambda e: backward_events.append(e.getName()), ReplayDirection.BWD)
         
         # Forward replay should only trigger forward callbacks
         replayer.forwardReplay()
@@ -181,8 +181,8 @@ class TestTraceReplayer:
         forward_count = [0]
         backward_count = [0]
         
-        replayer.registerForwardCallback("test", lambda e: forward_count.__setitem__(0, forward_count[0] + 1))
-        replayer.registerBackwardCallback("test", lambda e: backward_count.__setitem__(0, backward_count[0] + 1))
+        replayer.registerCallback("test", lambda e: forward_count.__setitem__(0, forward_count[0] + 1), ReplayDirection.FWD)
+        replayer.registerCallback("test", lambda e: backward_count.__setitem__(0, backward_count[0] + 1), ReplayDirection.BWD)
         
         replayer.forwardReplay()
         replayer.backwardReplay()
@@ -190,7 +190,7 @@ class TestTraceReplayer:
         assert backward_count[0] == 1
         
         # Unregister forward callback only
-        replayer.unregisterForwardCallback("test")
+        replayer.unregisterCallback("test", ReplayDirection.FWD)
         replayer.forwardReplay()
         replayer.backwardReplay()
         
@@ -208,8 +208,8 @@ class TestTraceReplayer:
         forward_count = [0]
         backward_count = [0]
         
-        replayer.registerForwardCallback("test", lambda e: forward_count.__setitem__(0, forward_count[0] + 1))
-        replayer.registerBackwardCallback("test", lambda e: backward_count.__setitem__(0, backward_count[0] + 1))
+        replayer.registerCallback("test", lambda e: forward_count.__setitem__(0, forward_count[0] + 1), ReplayDirection.FWD)
+        replayer.registerCallback("test", lambda e: backward_count.__setitem__(0, backward_count[0] + 1), ReplayDirection.BWD)
         
         replayer.forwardReplay()
         replayer.backwardReplay()
@@ -217,7 +217,7 @@ class TestTraceReplayer:
         assert backward_count[0] == 1
         
         # Unregister backward callback only
-        replayer.unregisterBackwardCallback("test")
+        replayer.unregisterCallback("test", ReplayDirection.BWD)
         replayer.forwardReplay()
         replayer.backwardReplay()
         
