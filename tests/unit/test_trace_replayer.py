@@ -143,6 +143,87 @@ class TestTraceReplayer:
         
         # Count should still be 1 (callback not called second time)
         assert callback_count[0] == 1
+    
+    def test_tracereplayer_separate_forward_backward_callbacks(self):
+        """Test separate forward and backward callbacks"""
+        replayer = TraceReplayer()
+        trace = Trace()
+        
+        event1 = Event(EventType.ENTER, 1, "func1", 0, 0, 1.0, 0)
+        event2 = Event(EventType.LEAVE, 2, "func1", 0, 0, 2.0, 0)
+        trace.addEvent(event1)
+        trace.addEvent(event2)
+        replayer.setTrace(trace)
+        
+        forward_events = []
+        backward_events = []
+        
+        replayer.registerForwardCallback("fwd", lambda e: forward_events.append(e.getName()))
+        replayer.registerBackwardCallback("bwd", lambda e: backward_events.append(e.getName()))
+        
+        # Forward replay should only trigger forward callbacks
+        replayer.forwardReplay()
+        assert len(forward_events) == 2
+        assert len(backward_events) == 0
+        
+        # Backward replay should only trigger backward callbacks
+        replayer.backwardReplay()
+        assert len(forward_events) == 2  # Still 2 from before
+        assert len(backward_events) == 2  # Now has data
+    
+    def test_tracereplayer_unregister_forward_callback(self):
+        """Test unregistering forward callback only"""
+        replayer = TraceReplayer()
+        trace = Trace()
+        trace.addEvent(Event(EventType.ENTER, 1, "func1", 0, 0, 1.0, 0))
+        replayer.setTrace(trace)
+        
+        forward_count = [0]
+        backward_count = [0]
+        
+        replayer.registerForwardCallback("test", lambda e: forward_count.__setitem__(0, forward_count[0] + 1))
+        replayer.registerBackwardCallback("test", lambda e: backward_count.__setitem__(0, backward_count[0] + 1))
+        
+        replayer.forwardReplay()
+        replayer.backwardReplay()
+        assert forward_count[0] == 1
+        assert backward_count[0] == 1
+        
+        # Unregister forward callback only
+        replayer.unregisterForwardCallback("test")
+        replayer.forwardReplay()
+        replayer.backwardReplay()
+        
+        # Forward count should still be 1, backward should be 2
+        assert forward_count[0] == 1
+        assert backward_count[0] == 2
+    
+    def test_tracereplayer_unregister_backward_callback(self):
+        """Test unregistering backward callback only"""
+        replayer = TraceReplayer()
+        trace = Trace()
+        trace.addEvent(Event(EventType.ENTER, 1, "func1", 0, 0, 1.0, 0))
+        replayer.setTrace(trace)
+        
+        forward_count = [0]
+        backward_count = [0]
+        
+        replayer.registerForwardCallback("test", lambda e: forward_count.__setitem__(0, forward_count[0] + 1))
+        replayer.registerBackwardCallback("test", lambda e: backward_count.__setitem__(0, backward_count[0] + 1))
+        
+        replayer.forwardReplay()
+        replayer.backwardReplay()
+        assert forward_count[0] == 1
+        assert backward_count[0] == 1
+        
+        # Unregister backward callback only
+        replayer.unregisterBackwardCallback("test")
+        replayer.forwardReplay()
+        replayer.backwardReplay()
+        
+        # Forward count should be 2, backward should still be 1
+        assert forward_count[0] == 2
+        assert backward_count[0] == 1
 
 
 class TestLateSender:

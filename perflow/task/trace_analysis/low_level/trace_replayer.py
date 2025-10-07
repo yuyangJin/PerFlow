@@ -18,12 +18,13 @@ class TraceReplayer(FlowNode):
     TraceReplayer replays trace events with callback support.
     
     This class provides functionality to replay trace events in forward or
-    backward order. Callback functions can be registered to process events
-    during replay, enabling various trace analysis tasks.
+    backward order. Callback functions can be registered separately for
+    forward and backward replay, enabling various trace analysis tasks.
     
     Attributes:
         m_trace: The trace to be replayed
-        m_callbacks: Dictionary of registered callback functions
+        m_forward_callbacks: Dictionary of callback functions for forward replay
+        m_backward_callbacks: Dictionary of callback functions for backward replay
     """
     
     def __init__(self, trace: Optional[Trace] = None) -> None:
@@ -35,7 +36,8 @@ class TraceReplayer(FlowNode):
         """
         super().__init__()
         self.m_trace: Optional[Trace] = trace
-        self.m_callbacks: dict[str, Callable[[Event], None]] = {}
+        self.m_forward_callbacks: dict[str, Callable[[Event], None]] = {}
+        self.m_backward_callbacks: dict[str, Callable[[Event], None]] = {}
     
     def setTrace(self, trace: Trace) -> None:
         """
@@ -55,43 +57,92 @@ class TraceReplayer(FlowNode):
         """
         return self.m_trace
     
-    def registerCallback(self, name: str, callback: Callable[[Event], None]) -> None:
+    def registerForwardCallback(self, name: str, callback: Callable[[Event], None]) -> None:
         """
-        Register a callback function for event processing.
+        Register a callback function for forward replay event processing.
         
-        Callbacks are invoked during replay for each event, allowing
+        Callbacks are invoked during forward replay for each event, allowing
         custom analysis logic to be executed.
         
         Args:
             name: Name identifier for the callback
             callback: Function that takes an Event and returns None
         """
-        self.m_callbacks[name] = callback
+        self.m_forward_callbacks[name] = callback
     
-    def unregisterCallback(self, name: str) -> None:
+    def registerBackwardCallback(self, name: str, callback: Callable[[Event], None]) -> None:
         """
-        Unregister a callback function.
+        Register a callback function for backward replay event processing.
+        
+        Callbacks are invoked during backward replay for each event, allowing
+        custom analysis logic to be executed.
+        
+        Args:
+            name: Name identifier for the callback
+            callback: Function that takes an Event and returns None
+        """
+        self.m_backward_callbacks[name] = callback
+    
+    def registerCallback(self, name: str, callback: Callable[[Event], None]) -> None:
+        """
+        Register a callback function for both forward and backward replay.
+        
+        This is a convenience method that registers the same callback for
+        both forward and backward replay directions.
+        
+        Args:
+            name: Name identifier for the callback
+            callback: Function that takes an Event and returns None
+        """
+        self.m_forward_callbacks[name] = callback
+        self.m_backward_callbacks[name] = callback
+    
+    def unregisterForwardCallback(self, name: str) -> None:
+        """
+        Unregister a forward replay callback function.
         
         Args:
             name: Name identifier of the callback to remove
         """
-        if name in self.m_callbacks:
-            del self.m_callbacks[name]
+        if name in self.m_forward_callbacks:
+            del self.m_forward_callbacks[name]
+    
+    def unregisterBackwardCallback(self, name: str) -> None:
+        """
+        Unregister a backward replay callback function.
+        
+        Args:
+            name: Name identifier of the callback to remove
+        """
+        if name in self.m_backward_callbacks:
+            del self.m_backward_callbacks[name]
+    
+    def unregisterCallback(self, name: str) -> None:
+        """
+        Unregister a callback function from both forward and backward replay.
+        
+        Args:
+            name: Name identifier of the callback to remove
+        """
+        if name in self.m_forward_callbacks:
+            del self.m_forward_callbacks[name]
+        if name in self.m_backward_callbacks:
+            del self.m_backward_callbacks[name]
     
     def forwardReplay(self) -> None:
         """
         Replay the trace in forward (chronological) order.
         
         Events are processed from earliest to latest timestamp.
-        All registered callbacks are invoked for each event.
+        All registered forward callbacks are invoked for each event.
         """
         if self.m_trace is None:
             return
         
         events = self.m_trace.getEvents()
         for event in events:
-            # Invoke all registered callbacks
-            for callback in self.m_callbacks.values():
+            # Invoke all registered forward callbacks
+            for callback in self.m_forward_callbacks.values():
                 callback(event)
     
     def backwardReplay(self) -> None:
@@ -99,15 +150,15 @@ class TraceReplayer(FlowNode):
         Replay the trace in backward (reverse chronological) order.
         
         Events are processed from latest to earliest timestamp.
-        All registered callbacks are invoked for each event.
+        All registered backward callbacks are invoked for each event.
         """
         if self.m_trace is None:
             return
         
         events = self.m_trace.getEvents()
         for event in reversed(events):
-            # Invoke all registered callbacks
-            for callback in self.m_callbacks.values():
+            # Invoke all registered backward callbacks
+            for callback in self.m_backward_callbacks.values():
                 callback(event)
     
     def run(self) -> None:
