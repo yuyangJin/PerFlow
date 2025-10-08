@@ -56,7 +56,9 @@ class CriticalPathFinding(TraceReplayer):
     """
     
     def __init__(self, trace: Optional[Trace] = None, enable_memory_tracking: bool = False, 
-                 enable_detailed_memory_tracking: bool = False) -> None:
+                 enable_detailed_memory_tracking: bool = False,
+                 recomputation_mode: str = 'none', recomputation_threshold: int = 5,
+                 checkpoint_interval: int = 500) -> None:
         """
         Initialize a CriticalPathFinding analyzer.
         
@@ -64,11 +66,19 @@ class CriticalPathFinding(TraceReplayer):
             trace: Optional trace to analyze
             enable_memory_tracking: If True, track memory consumption during analysis
             enable_detailed_memory_tracking: If True, track memory of individual data structures
+            recomputation_mode: Memory optimization mode - 'none', 'full', or 'partial'
+                - 'none': Store all earliest times (Step 1 optimization only)
+                - 'full': Store no earliest times, recompute all during backward pass
+                - 'partial': Store only for events with >= threshold predecessors
+            recomputation_threshold: Number of predecessors threshold for partial mode
+            checkpoint_interval: Store checkpoints every N events to limit recursion depth
+                (used in full recomputation mode, default: 500, based on Python's recursion limit)
         """
         super().__init__(trace)
         self.m_event_costs: Dict[int, float] = {}
         self.m_critical_path: List[Event] = []
         self.m_critical_path_length: float = 0.0
+        self.m_max_earliest_finish: float = 0.0  # Track max even in recomputation mode
         
         # Forward pass results
         self.m_earliest_start_times: Dict[int, float] = {}
@@ -98,6 +108,17 @@ class CriticalPathFinding(TraceReplayer):
         # Detailed memory tracking for individual data structures
         self.m_detailed_memory_timeline: List[Tuple[str, int, Dict[str, float]]] = []  # (phase, event_count, {var_name: memory_bytes})
         
+        # Step 2: Recomputation strategy
+        self.m_recomputation_mode: str = recomputation_mode
+        self.m_recomputation_threshold: int = recomputation_threshold
+        self.m_checkpoint_interval: int = checkpoint_interval
+        self.m_event_counter: int = 0  # Track event count for checkpointing
+        self.m_recomputation_stats: Dict[str, int] = {
+            'stored_events': 0,
+            'recomputed_events': 0,
+            'checkpoint_events': 0
+        }
+        
         # Register callback for forward pass
         self.registerCallback("compute_earliest_times", 
                             self._compute_earliest_times, 
@@ -114,6 +135,9 @@ class CriticalPathFinding(TraceReplayer):
         
         This implements the forward pass of CPM where each event's earliest
         start time is the maximum of all its predecessors' earliest finish times.
+        
+        Step 2 optimization: Based on recomputation mode, may skip storing earliest times
+        to save memory. These will be recomputed during backward pass if needed.
         
         Args:
             event: Event being processed during replay
@@ -145,43 +169,130 @@ class CriticalPathFinding(TraceReplayer):
         
         # Check process-local dependency (sequential execution)
         pid = event.getPid()
+        prev_finish_time = None
         if pid is not None and pid in self.m_process_last_event:
             prev_event = self.m_process_last_event[pid]
             prev_idx = prev_event.getIdx()
-            if prev_idx is not None and prev_idx in self.m_earliest_finish_times:
-                # Add dependency edge
+            if prev_idx is not None:
+                # Always add dependency edge (needed for backward pass)
                 self.m_predecessors[event_idx].append(prev_idx)
                 if prev_idx not in self.m_successors:
                     self.m_successors[prev_idx] = []
                 self.m_successors[prev_idx].append(event_idx)
                 
-                # Update earliest start time
-                local_dep_time = self.m_earliest_finish_times[prev_idx]
-                earliest_start = max(earliest_start, local_dep_time)
+                # Get predecessor's finish time (from storage or tracking)
+                if prev_idx in self.m_earliest_finish_times:
+                    prev_finish_time = self.m_earliest_finish_times[prev_idx]
+                # If not stored, we need to track it somehow - use process tracking
+                # Store previous event's computed time temporarily
+                if not hasattr(self, 'm_temp_finish_times'):
+                    self.m_temp_finish_times = {}
+                if prev_idx in self.m_temp_finish_times:
+                    prev_finish_time = self.m_temp_finish_times[prev_idx]
+                
+                if prev_finish_time is not None:
+                    earliest_start = max(earliest_start, prev_finish_time)
         
         # Check communication dependency (for receive events)
         if isinstance(event, MpiRecvEvent):
             send_event = event.getSendEvent()
             if send_event is not None:
                 send_idx = send_event.getIdx()
-                if send_idx is not None and send_idx in self.m_earliest_finish_times:
-                    # Add dependency edge
+                if send_idx is not None:
+                    # Always add dependency edge
                     self.m_predecessors[event_idx].append(send_idx)
                     if send_idx not in self.m_successors:
                         self.m_successors[send_idx] = []
                     self.m_successors[send_idx].append(event_idx)
                     
-                    # Update earliest start time
-                    comm_dep_time = self.m_earliest_finish_times[send_idx]
-                    earliest_start = max(earliest_start, comm_dep_time)
+                    # Get send event's finish time
+                    send_finish_time = None
+                    if send_idx in self.m_earliest_finish_times:
+                        send_finish_time = self.m_earliest_finish_times[send_idx]
+                    elif hasattr(self, 'm_temp_finish_times') and send_idx in self.m_temp_finish_times:
+                        send_finish_time = self.m_temp_finish_times[send_idx]
+                    
+                    if send_finish_time is not None:
+                        earliest_start = max(earliest_start, send_finish_time)
         
         # Compute earliest start and finish times for this event
-        self.m_earliest_start_times[event_idx] = earliest_start
-        self.m_earliest_finish_times[event_idx] = earliest_start + event_cost
+        earliest_finish = earliest_start + event_cost
+        
+        # Always track maximum earliest finish time for critical path length
+        self.m_max_earliest_finish = max(self.m_max_earliest_finish, earliest_finish)
+        
+        # Temporarily store finish time for dependency tracking (used by next events)
+        if not hasattr(self, 'm_temp_finish_times'):
+            self.m_temp_finish_times = {}
+        self.m_temp_finish_times[event_idx] = earliest_finish
+        
+        # Increment event counter for checkpointing
+        self.m_event_counter += 1
+        
+        # Step 2: Decide whether to store earliest times based on recomputation mode
+        should_store = True
+        is_checkpoint = False
+        
+        if self.m_recomputation_mode == 'full':
+            # Full recomputation with checkpoints: store every M events to limit recursion
+            # This prevents RecursionError for long dependency chains
+            is_checkpoint = (self.m_event_counter % self.m_checkpoint_interval == 0)
+            should_store = is_checkpoint
+            if is_checkpoint:
+                self.m_recomputation_stats['checkpoint_events'] += 1
+            else:
+                self.m_recomputation_stats['recomputed_events'] += 1
+        elif self.m_recomputation_mode == 'partial':
+            # Partial recomputation: store only if predecessors >= threshold
+            num_predecessors = len(self.m_predecessors[event_idx])
+            should_store = num_predecessors >= self.m_recomputation_threshold
+            if should_store:
+                self.m_recomputation_stats['stored_events'] += 1
+            else:
+                self.m_recomputation_stats['recomputed_events'] += 1
+        else:
+            # Mode 'none': always store (default behavior)
+            self.m_recomputation_stats['stored_events'] += 1
+        
+        if should_store:
+            self.m_earliest_start_times[event_idx] = earliest_start
+            self.m_earliest_finish_times[event_idx] = earliest_finish
         
         # Update process-local last event
         if pid is not None:
             self.m_process_last_event[pid] = event
+    
+    def _recompute_earliest_times(self, event_idx: int) -> Tuple[float, float]:
+        """
+        Recompute earliest start and finish times for an event during backward pass.
+        
+        This recursively recomputes the earliest times by traversing predecessors.
+        Used when earliest times were not stored during forward pass (Step 2 optimization).
+        
+        Args:
+            event_idx: Event index to recompute
+            
+        Returns:
+            Tuple of (earliest_start_time, earliest_finish_time)
+        """
+        # Check if already computed and stored
+        if event_idx in self.m_earliest_start_times:
+            return (self.m_earliest_start_times[event_idx], 
+                    self.m_earliest_finish_times[event_idx])
+        
+        # Get event cost
+        event_cost = self.m_event_costs.get(event_idx, 0.1)
+        
+        # Compute earliest start time from predecessors
+        earliest_start = 0.0
+        if event_idx in self.m_predecessors:
+            for pred_idx in self.m_predecessors[event_idx]:
+                # Recursively recompute predecessor if needed
+                pred_start, pred_finish = self._recompute_earliest_times(pred_idx)
+                earliest_start = max(earliest_start, pred_finish)
+        
+        earliest_finish = earliest_start + event_cost
+        return (earliest_start, earliest_finish)
     
     def _compute_latest_times(self, event: Event) -> None:
         """
@@ -189,6 +300,14 @@ class CriticalPathFinding(TraceReplayer):
         
         This implements the backward pass of CPM where each event's latest
         finish time is the minimum of all its successors' latest start times.
+        
+        Memory optimization: After computing latest times for an event, we delete
+        the entries for m_successors, m_earliest_start_times, and m_earliest_finish_times
+        since they are no longer needed. This progressively reduces memory consumption
+        during backward replay.
+        
+        Step 2 optimization: If earliest times were not stored (recomputation mode),
+        recompute them on-the-fly during backward pass.
         
         Args:
             event: Event being processed during backward replay
@@ -222,9 +341,25 @@ class CriticalPathFinding(TraceReplayer):
         self.m_latest_start_times[event_idx] = self.m_latest_finish_times[event_idx] - event_cost
         
         # Compute slack time (total float)
-        earliest_start = self.m_earliest_start_times.get(event_idx, 0.0)
+        # Step 2: Recompute earliest times if not stored
+        if event_idx in self.m_earliest_start_times:
+            earliest_start = self.m_earliest_start_times[event_idx]
+        else:
+            # Recompute on-the-fly
+            earliest_start, _ = self._recompute_earliest_times(event_idx)
+        
         latest_start = self.m_latest_start_times[event_idx]
         self.m_slack_times[event_idx] = latest_start - earliest_start
+        
+        # Memory optimization: Remove entries that are no longer needed after backward processing
+        # These dictionaries were built during forward pass and are read-only during backward pass
+        # Once we've computed the latest times for this event, we can safely delete these entries
+        if event_idx in self.m_successors:
+            del self.m_successors[event_idx]
+        if event_idx in self.m_earliest_start_times:
+            del self.m_earliest_start_times[event_idx]
+        if event_idx in self.m_earliest_finish_times:
+            del self.m_earliest_finish_times[event_idx]
     
     def _identify_critical_path(self) -> None:
         """
@@ -444,6 +579,7 @@ class CriticalPathFinding(TraceReplayer):
         self.m_event_costs.clear()
         self.m_critical_path.clear()
         self.m_critical_path_length = 0.0
+        self.m_max_earliest_finish = 0.0
         self.m_earliest_start_times.clear()
         self.m_earliest_finish_times.clear()
         self.m_latest_start_times.clear()
@@ -455,6 +591,24 @@ class CriticalPathFinding(TraceReplayer):
         self.m_memory_stats.clear()
         self.m_memory_timeline.clear()
         self.m_detailed_memory_timeline.clear()
+        # Step 2: Clear recomputation stats and temp data
+        self.m_event_counter = 0
+        self.m_recomputation_stats = {
+            'stored_events': 0,
+            'recomputed_events': 0,
+            'checkpoint_events': 0
+        }
+        if hasattr(self, 'm_temp_finish_times'):
+            self.m_temp_finish_times.clear()
+    
+    def getRecomputationStats(self) -> Dict[str, int]:
+        """
+        Get recomputation statistics (Step 2).
+        
+        Returns:
+            Dictionary with counts of stored vs recomputed events
+        """
+        return self.m_recomputation_stats.copy()
     
     def _measure_memory_usage(self) -> float:
         """
@@ -840,9 +994,12 @@ class CriticalPathFinding(TraceReplayer):
         2. Backward pass to compute latest start/finish times
         3. Slack computation and critical path identification
         4. Optional memory consumption tracking
+        5. Step 2: Timing measurements for forward and backward replay
         
         Results are stored in m_critical_path and related attributes.
         """
+        import time
+        
         # Clear previous results
         self.clear()
         
@@ -859,8 +1016,15 @@ class CriticalPathFinding(TraceReplayer):
                     # Measure memory before forward replay
                     self.m_memory_stats['forward_replay_start_memory_bytes'] = self._measure_memory_usage()
                 
+                # Step 2: Timing - Forward pass
+                forward_start_time = time.time()
+                
                 # Forward pass: compute earliest times and build dependency graph
                 self.forwardReplay()
+                
+                forward_end_time = time.time()
+                forward_duration = forward_end_time - forward_start_time
+                self.m_memory_stats['forward_replay_time_seconds'] = forward_duration
                 
                 # Track memory after forward replay
                 if self.m_enable_memory_tracking:
@@ -871,15 +1035,26 @@ class CriticalPathFinding(TraceReplayer):
                     )
                 
                 # Set critical path length (max earliest finish time)
-                if self.m_earliest_finish_times:
+                # Use tracked max even if we didn't store all earliest times
+                if self.m_max_earliest_finish > 0:
+                    self.m_critical_path_length = self.m_max_earliest_finish
+                elif self.m_earliest_finish_times:
                     self.m_critical_path_length = max(self.m_earliest_finish_times.values())
                 
                 # Track memory before backward replay
                 if self.m_enable_memory_tracking:
                     self.m_memory_stats['backward_replay_start_memory_bytes'] = self._measure_memory_usage()
                 
+                # Step 2: Timing - Backward pass
+                backward_start_time = time.time()
+                
                 # Backward pass: compute latest times and slack
                 self.backwardReplay()
+                
+                backward_end_time = time.time()
+                backward_duration = backward_end_time - backward_start_time
+                self.m_memory_stats['backward_replay_time_seconds'] = backward_duration
+                self.m_memory_stats['total_time_seconds'] = forward_duration + backward_duration
                 
                 # Track memory after backward replay
                 if self.m_enable_memory_tracking:
@@ -901,6 +1076,9 @@ class CriticalPathFinding(TraceReplayer):
                             self.m_memory_stats.get('backward_replay_end_memory_bytes', 0)
                         ]
                         self.m_memory_stats['peak_memory_bytes'] = max(memory_values)
+                
+                # Step 2: Add recomputation statistics
+                self.m_memory_stats['recomputation_stats'] = self.m_recomputation_stats.copy()
                 
                 # Identify critical path (events with zero slack)
                 self._identify_critical_path()
