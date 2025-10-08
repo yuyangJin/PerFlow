@@ -493,3 +493,122 @@ class TestMemoryTracking:
             
             # They should be equal
             assert timeline_peak == stats_peak
+    
+    def test_detailed_memory_tracking_disabled_by_default(self):
+        """Test that detailed memory tracking is disabled by default"""
+        analyzer = CriticalPathFinding()
+        assert not analyzer.m_enable_detailed_memory_tracking
+        
+        analyzer2 = CriticalPathFinding(enable_memory_tracking=True)
+        assert not analyzer2.m_enable_detailed_memory_tracking
+    
+    def test_detailed_memory_tracking_enable_via_constructor(self):
+        """Test enabling detailed tracking via constructor"""
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        assert analyzer.m_enable_detailed_memory_tracking
+    
+    def test_detailed_memory_timeline_collection(self):
+        """Test that detailed memory timeline is collected"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        analyzer.setMemorySampleInterval(1)  # Sample every event
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        detailed_timeline = analyzer.getDetailedMemoryTimeline()
+        assert len(detailed_timeline) > 0
+        
+        # Check structure
+        for phase, event_count, mem_dict in detailed_timeline:
+            assert phase in ['forward', 'backward']
+            assert event_count > 0
+            assert isinstance(mem_dict, dict)
+            assert len(mem_dict) > 0
+    
+    def test_detailed_memory_tracks_key_variables(self):
+        """Test that detailed tracking captures key data structures"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        detailed_timeline = analyzer.getDetailedMemoryTimeline()
+        
+        if detailed_timeline:
+            _, _, mem_dict = detailed_timeline[0]
+            
+            # Check that key variables are tracked
+            expected_vars = [
+                'm_event_costs',
+                'm_earliest_start_times',
+                'm_earliest_finish_times',
+                'm_latest_start_times',
+                'm_latest_finish_times',
+                'm_slack_times',
+                'm_predecessors',
+                'm_successors'
+            ]
+            
+            for var_name in expected_vars:
+                assert var_name in mem_dict
+                assert mem_dict[var_name] >= 0
+    
+    def test_detailed_memory_shows_growth(self):
+        """Test that detailed tracking shows memory growth"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        detailed_timeline = analyzer.getDetailedMemoryTimeline()
+        
+        if len(detailed_timeline) >= 2:
+            first_sample = detailed_timeline[0][2]
+            last_sample = detailed_timeline[-1][2]
+            
+            # Check that some variables grow
+            for var_name in ['m_earliest_start_times', 'm_earliest_finish_times']:
+                assert last_sample[var_name] >= first_sample[var_name]
+    
+    def test_detailed_memory_cleared_on_clear(self):
+        """Test that detailed timeline is cleared when clear() is called"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        # Verify timeline exists
+        detailed_timeline = analyzer.getDetailedMemoryTimeline()
+        assert len(detailed_timeline) > 0
+        
+        # Clear and verify timeline is gone
+        analyzer.clear()
+        detailed_timeline = analyzer.getDetailedMemoryTimeline()
+        assert len(detailed_timeline) == 0
+    
+    def test_plot_detailed_memory(self):
+        """Test plotting detailed memory usage"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        # Try to plot detailed view
+        try:
+            import matplotlib
+            analyzer.plotMemoryUsage("/tmp/test_detailed_plot.png", plot_detailed=True)
+            # If matplotlib is available, this should work
+        except ImportError:
+            # matplotlib not installed, skip
+            pass

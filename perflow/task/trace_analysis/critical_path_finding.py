@@ -48,18 +48,22 @@ class CriticalPathFinding(TraceReplayer):
         m_predecessors: Dictionary tracking predecessor events
         m_successors: Dictionary tracking successor events
         m_enable_memory_tracking: Flag to enable/disable memory consumption tracking
+        m_enable_detailed_memory_tracking: Flag to enable tracking of individual data structures
         m_memory_stats: Dictionary storing memory consumption statistics
         m_memory_timeline: List of (phase, event_count, memory_bytes) tuples tracking memory over time
+        m_detailed_memory_timeline: List of (phase, event_count, {var_name: memory_bytes}) tracking individual variables
         m_memory_sample_interval: Interval for sampling memory during replay (events)
     """
     
-    def __init__(self, trace: Optional[Trace] = None, enable_memory_tracking: bool = False) -> None:
+    def __init__(self, trace: Optional[Trace] = None, enable_memory_tracking: bool = False, 
+                 enable_detailed_memory_tracking: bool = False) -> None:
         """
         Initialize a CriticalPathFinding analyzer.
         
         Args:
             trace: Optional trace to analyze
             enable_memory_tracking: If True, track memory consumption during analysis
+            enable_detailed_memory_tracking: If True, track memory of individual data structures
         """
         super().__init__(trace)
         self.m_event_costs: Dict[int, float] = {}
@@ -86,9 +90,13 @@ class CriticalPathFinding(TraceReplayer):
         
         # Memory tracking
         self.m_enable_memory_tracking: bool = enable_memory_tracking
+        self.m_enable_detailed_memory_tracking: bool = enable_detailed_memory_tracking
         self.m_memory_stats: Dict[str, Any] = {}
         self.m_memory_timeline: List[Tuple[str, int, float]] = []  # (phase, event_count, memory_bytes)
         self.m_memory_sample_interval: int = 1000  # Sample memory every N events
+        
+        # Detailed memory tracking for individual data structures
+        self.m_detailed_memory_timeline: List[Tuple[str, int, Dict[str, float]]] = []  # (phase, event_count, {var_name: memory_bytes})
         
         # Register callback for forward pass
         self.registerCallback("compute_earliest_times", 
@@ -446,6 +454,7 @@ class CriticalPathFinding(TraceReplayer):
         self.m_process_last_event.clear()
         self.m_memory_stats.clear()
         self.m_memory_timeline.clear()
+        self.m_detailed_memory_timeline.clear()
     
     def _measure_memory_usage(self) -> float:
         """
@@ -483,6 +492,65 @@ class CriticalPathFinding(TraceReplayer):
                 pass
         
         return total_size
+    
+    def _measure_data_structure_memory(self, obj: Any) -> int:
+        """
+        Measure the memory consumption of a data structure (dict, list, etc.).
+        
+        This provides a more accurate measurement than sys.getsizeof alone by
+        recursively measuring container contents.
+        
+        Args:
+            obj: Object to measure (dict, list, set, etc.)
+            
+        Returns:
+            Estimated memory size in bytes
+        """
+        total_size = sys.getsizeof(obj)
+        
+        # Add memory for dictionary contents
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                total_size += sys.getsizeof(key)
+                total_size += sys.getsizeof(value)
+                # For nested structures, add their size too
+                if isinstance(value, (list, dict, set)):
+                    try:
+                        total_size += sum(sys.getsizeof(item) for item in value) if isinstance(value, (list, set)) else 0
+                    except:
+                        pass
+        # Add memory for list/set contents
+        elif isinstance(obj, (list, set, tuple)):
+            try:
+                for item in obj:
+                    total_size += sys.getsizeof(item)
+            except:
+                pass
+        
+        return total_size
+    
+    def _collect_detailed_memory_snapshot(self) -> Dict[str, float]:
+        """
+        Collect memory usage of individual data structures.
+        
+        Returns:
+            Dictionary mapping variable name to memory size in bytes
+        """
+        snapshot = {}
+        
+        # Measure key data structures
+        snapshot['m_event_costs'] = self._measure_data_structure_memory(self.m_event_costs)
+        snapshot['m_critical_path'] = self._measure_data_structure_memory(self.m_critical_path)
+        snapshot['m_earliest_start_times'] = self._measure_data_structure_memory(self.m_earliest_start_times)
+        snapshot['m_earliest_finish_times'] = self._measure_data_structure_memory(self.m_earliest_finish_times)
+        snapshot['m_latest_start_times'] = self._measure_data_structure_memory(self.m_latest_start_times)
+        snapshot['m_latest_finish_times'] = self._measure_data_structure_memory(self.m_latest_finish_times)
+        snapshot['m_slack_times'] = self._measure_data_structure_memory(self.m_slack_times)
+        snapshot['m_predecessors'] = self._measure_data_structure_memory(self.m_predecessors)
+        snapshot['m_successors'] = self._measure_data_structure_memory(self.m_successors)
+        snapshot['m_process_last_event'] = self._measure_data_structure_memory(self.m_process_last_event)
+        
+        return snapshot
     
     def setEnableMemoryTracking(self, enable: bool) -> None:
         """
@@ -539,12 +607,25 @@ class CriticalPathFinding(TraceReplayer):
         """
         return self.m_memory_timeline.copy()
     
-    def plotMemoryUsage(self, output_file: str = "memory_usage.png") -> None:
+    def getDetailedMemoryTimeline(self) -> List[Tuple[str, int, Dict[str, float]]]:
+        """
+        Get the detailed memory usage timeline for individual data structures.
+        
+        Returns:
+            List of tuples (phase, event_count, {var_name: memory_bytes}) showing
+            memory consumption of individual variables at different points during
+            forward and backward replay.
+        """
+        return self.m_detailed_memory_timeline.copy()
+    
+    def plotMemoryUsage(self, output_file: str = "memory_usage.png", 
+                        plot_detailed: bool = False) -> None:
         """
         Generate a plot showing memory usage during forward and backward replay.
         
         Args:
             output_file: Path to save the plot image
+            plot_detailed: If True and detailed tracking enabled, plot individual variables
             
         Raises:
             ImportError: If matplotlib is not installed
@@ -556,9 +637,19 @@ class CriticalPathFinding(TraceReplayer):
                 "matplotlib is required for plotting. Install it with: pip install matplotlib"
             )
         
-        if not self.m_memory_timeline:
+        if not self.m_memory_timeline and not self.m_detailed_memory_timeline:
             print("No memory timeline data available. Enable memory tracking and run analysis first.")
             return
+        
+        # Check if we should plot detailed view
+        if plot_detailed and self.m_detailed_memory_timeline:
+            self._plot_detailed_memory_usage(output_file)
+        else:
+            self._plot_summary_memory_usage(output_file)
+    
+    def _plot_summary_memory_usage(self, output_file: str) -> None:
+        """Plot summary memory usage (overall process memory)."""
+        import matplotlib.pyplot as plt
         
         # Separate forward and backward phases
         forward_events = []
@@ -606,6 +697,82 @@ class CriticalPathFinding(TraceReplayer):
         print(f"Memory usage plot saved to: {output_file}")
         plt.close()
     
+    def _plot_detailed_memory_usage(self, output_file: str) -> None:
+        """Plot detailed memory usage showing individual data structures."""
+        import matplotlib.pyplot as plt
+        
+        if not self.m_detailed_memory_timeline:
+            print("No detailed memory timeline data available.")
+            return
+        
+        # Organize data by variable
+        variables = {}
+        forward_events = []
+        backward_events = []
+        
+        for phase, event_count, mem_dict in self.m_detailed_memory_timeline:
+            if phase == 'forward':
+                forward_events.append(event_count)
+            elif phase == 'backward':
+                backward_events.append(event_count)
+            
+            for var_name, mem_bytes in mem_dict.items():
+                if var_name not in variables:
+                    variables[var_name] = {'forward_events': [], 'forward_memory': [],
+                                          'backward_events': [], 'backward_memory': []}
+                
+                mem_mb = mem_bytes / (1024 * 1024)  # Convert to MB
+                if phase == 'forward':
+                    variables[var_name]['forward_events'].append(event_count)
+                    variables[var_name]['forward_memory'].append(mem_mb)
+                elif phase == 'backward':
+                    variables[var_name]['backward_events'].append(event_count)
+                    variables[var_name]['backward_memory'].append(mem_mb)
+        
+        # Create the plot with subplots
+        fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(14, 10))
+        
+        # Color palette for different variables
+        colors = plt.cm.tab10.colors
+        markers = ['o', 's', '^', 'v', 'D', 'p', '*', 'h', 'x', '+']
+        
+        # Plot forward replay
+        for idx, (var_name, data) in enumerate(sorted(variables.items())):
+            if data['forward_events']:
+                color = colors[idx % len(colors)]
+                marker = markers[idx % len(markers)]
+                ax1.plot(data['forward_events'], data['forward_memory'], 
+                        marker=marker, color=color, label=var_name,
+                        linewidth=1.5, markersize=4, alpha=0.8)
+        
+        ax1.set_xlabel('Event Count', fontsize=11)
+        ax1.set_ylabel('Memory Usage (MB)', fontsize=11)
+        ax1.set_title('Forward Replay - Memory Consumption by Data Structure', 
+                     fontsize=12, fontweight='bold')
+        ax1.legend(fontsize=8, loc='best', ncol=2)
+        ax1.grid(True, alpha=0.3)
+        
+        # Plot backward replay
+        for idx, (var_name, data) in enumerate(sorted(variables.items())):
+            if data['backward_events']:
+                color = colors[idx % len(colors)]
+                marker = markers[idx % len(markers)]
+                ax2.plot(data['backward_events'], data['backward_memory'], 
+                        marker=marker, color=color, label=var_name,
+                        linewidth=1.5, markersize=4, alpha=0.8)
+        
+        ax2.set_xlabel('Event Count', fontsize=11)
+        ax2.set_ylabel('Memory Usage (MB)', fontsize=11)
+        ax2.set_title('Backward Replay - Memory Consumption by Data Structure', 
+                     fontsize=12, fontweight='bold')
+        ax2.legend(fontsize=8, loc='best', ncol=2)
+        ax2.grid(True, alpha=0.3)
+        
+        plt.tight_layout()
+        plt.savefig(output_file, dpi=150, bbox_inches='tight')
+        print(f"Detailed memory usage plot saved to: {output_file}")
+        plt.close()
+    
     def forwardReplay(self) -> None:
         """
         Replay the trace in forward order with memory tracking.
@@ -629,6 +796,11 @@ class CriticalPathFinding(TraceReplayer):
                 if idx == 0 or (idx + 1) % self.m_memory_sample_interval == 0 or idx == total_events - 1:
                     memory_bytes = self._measure_memory_usage()
                     self.m_memory_timeline.append(('forward', idx + 1, memory_bytes))
+                    
+                    # Collect detailed memory snapshot if enabled
+                    if self.m_enable_detailed_memory_tracking:
+                        detailed_snapshot = self._collect_detailed_memory_snapshot()
+                        self.m_detailed_memory_timeline.append(('forward', idx + 1, detailed_snapshot))
     
     def backwardReplay(self) -> None:
         """
@@ -653,6 +825,11 @@ class CriticalPathFinding(TraceReplayer):
                 if idx == 0 or (idx + 1) % self.m_memory_sample_interval == 0 or idx == total_events - 1:
                     memory_bytes = self._measure_memory_usage()
                     self.m_memory_timeline.append(('backward', idx + 1, memory_bytes))
+                    
+                    # Collect detailed memory snapshot if enabled
+                    if self.m_enable_detailed_memory_tracking:
+                        detailed_snapshot = self._collect_detailed_memory_snapshot()
+                        self.m_detailed_memory_timeline.append(('backward', idx + 1, detailed_snapshot))
     
     def run(self) -> None:
         """

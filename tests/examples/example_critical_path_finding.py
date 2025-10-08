@@ -642,6 +642,100 @@ def run_memory_tracking_example(trace):
     print("  - Can be used to optimize memory usage in performance analysis")
 
 
+def run_detailed_memory_tracking_example(trace):
+    """
+    Demonstrate detailed memory tracking of individual data structures.
+    
+    Args:
+        trace: Trace object to analyze
+    """
+    print("\n" + "=" * 80)
+    print("DETAILED MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    
+    print("\nThis example demonstrates granular memory tracking of individual")
+    print("data structures during critical path analysis.")
+    
+    # Create analyzer with detailed memory tracking enabled
+    print("\nStep 1: Creating analyzer with detailed memory tracking enabled...")
+    analyzer = CriticalPathFinding(enable_memory_tracking=True, 
+                                  enable_detailed_memory_tracking=True)
+    analyzer.setMemorySampleInterval(10000)  # Sample every 10000 events for clarity
+    analyzer.get_inputs().add_data(trace)
+    
+    # Run analysis
+    print("Step 2: Running critical path analysis with detailed memory tracking...")
+    analyzer.run()
+    
+    # Get results
+    critical_path = analyzer.getCriticalPath()
+    path_length = analyzer.getCriticalPathLength()
+    detailed_timeline = analyzer.getDetailedMemoryTimeline()
+    
+    print("\nStep 3: Analysis Results:")
+    print(f"  Critical path length: {path_length:.6f} seconds")
+    print(f"  Number of events on critical path: {len(critical_path)}")
+    
+    print("\nStep 4: Detailed Memory Timeline:")
+    print("-" * 80)
+    print(f"  Total detailed samples collected: {len(detailed_timeline)}")
+    
+    if detailed_timeline:
+        # Count samples per phase
+        forward_samples = sum(1 for phase, _, _ in detailed_timeline if phase == 'forward')
+        backward_samples = sum(1 for phase, _, _ in detailed_timeline if phase == 'backward')
+        print(f"  Forward replay samples: {forward_samples}")
+        print(f"  Backward replay samples: {backward_samples}")
+        
+        # Show first sample with all variables
+        if detailed_timeline:
+            phase, event_count, mem_dict = detailed_timeline[0]
+            print(f"\n  First sample ({phase} @ event {event_count}):")
+            for var_name, mem_bytes in sorted(mem_dict.items()):
+                mem_kb = mem_bytes / 1024
+                print(f"    {var_name:30s}: {mem_kb:10.2f} KB")
+        
+        # Show last sample
+        if len(detailed_timeline) > 1:
+            phase, event_count, mem_dict = detailed_timeline[-1]
+            print(f"\n  Last sample ({phase} @ event {event_count}):")
+            for var_name, mem_bytes in sorted(mem_dict.items()):
+                mem_kb = mem_bytes / 1024
+                print(f"    {var_name:30s}: {mem_kb:10.2f} KB")
+        
+        # Calculate growth for each variable
+        print(f"\n  Memory growth by data structure:")
+        if len(detailed_timeline) >= 2:
+            first_mem = detailed_timeline[0][2]
+            last_mem = detailed_timeline[-1][2]
+            
+            for var_name in sorted(first_mem.keys()):
+                if var_name in last_mem:
+                    growth_kb = (last_mem[var_name] - first_mem[var_name]) / 1024
+                    growth_pct = ((last_mem[var_name] / first_mem[var_name]) - 1) * 100 if first_mem[var_name] > 0 else 0
+                    print(f"    {var_name:30s}: {growth_kb:+10.2f} KB ({growth_pct:+6.1f}%)")
+    
+    # Generate detailed memory usage plot
+    print("\nStep 5: Generating detailed memory usage visualization...")
+    try:
+        analyzer.plotMemoryUsage("critical_path_detailed_memory.png", plot_detailed=True)
+        print("  ✓ Detailed memory usage plot saved successfully!")
+        print("    - Shows memory progression for each data structure")
+        print("    - Separate subplots for forward and backward replay")
+        print("    - Color-coded lines for different variables")
+    except ImportError as e:
+        print(f"  ✗ Could not generate plot: {e}")
+    except Exception as e:
+        print(f"  ✗ Error generating plot: {e}")
+    
+    print("\nKey Insights:")
+    print("  - Detailed tracking shows memory of individual data structures")
+    print("  - Identifies which variables contribute most to memory consumption")
+    print("  - Helps pinpoint optimization opportunities")
+    print("  - Forward pass shows growth of earliest_* and dependency dictionaries")
+    print("  - Backward pass shows growth of latest_* and slack_times dictionaries")
+
+
 
 
 def main():
@@ -699,6 +793,12 @@ def main():
     print("=" * 80)
     run_memory_tracking_example(complex_trace)
     
+    # Example 5: Detailed memory tracking demonstration
+    print("\n\n" + "=" * 80)
+    print("EXAMPLE 5: DETAILED MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    run_detailed_memory_tracking_example(complex_trace)
+    
     print("\n" + "=" * 80)
     print("ALL EXAMPLES COMPLETE!")
     print("=" * 80)
@@ -708,6 +808,7 @@ def main():
     print("  - Optimizing non-critical events won't improve overall performance")
     print("  - Focus optimization efforts on critical path events")
     print("  - Memory tracking helps identify resource consumption patterns")
+    print("  - Detailed tracking pinpoints specific data structures consuming memory")
     print()
 
 
