@@ -115,151 +115,234 @@ def create_simple_trace():
 
 def create_complex_trace():
     """
-    Create a complex trace with multiple processes and communications.
+    Create a large, complex trace that consumes hundreds of MB of memory.
     
-    This simulates a more realistic parallel application with:
-    - 4 processes
-    - Multiple computation phases
-    - Various communication patterns (pipeline, broadcast-like)
-    - Different computation loads per process
+    This simulates a realistic large-scale parallel application with:
+    - 32 processes (simulating multi-node execution)
+    - Multiple computation phases with varying durations
+    - Various communication patterns (pipeline, all-to-all, gather, scatter)
+    - Hundreds of thousands of events (~600K-800K events)
+    - Memory consumption: ~200-300 MB
     
-    The critical path should go through the slowest process chain.
+    The trace demonstrates:
+    - Realistic parallel application behavior
+    - Memory-intensive trace analysis scenarios
+    - Critical path through complex dependencies
     
     Returns:
-        Trace object with complex communication pattern
+        Trace object with hundreds of MB memory footprint
     """
+    # Configuration for large trace generation
+    num_processes = 32
+    num_iterations = 10000  # Number of computation-communication iterations
+    events_per_iteration = 4  # Compute + optional comm events per process
+    
+    # Estimate total events and memory
+    estimated_events = num_processes * num_iterations * events_per_iteration
+    estimated_mb = (estimated_events * 344) / (1024 * 1024)  # 344 bytes per event estimate
+    
+    print(f"\n{'='*80}")
+    print("GENERATING LARGE-SCALE TRACE FOR MEMORY TRACKING DEMONSTRATION")
+    print(f"{'='*80}")
+    print(f"\nConfiguration:")
+    print(f"  Number of processes: {num_processes}")
+    print(f"  Number of iterations: {num_iterations:,}")
+    print(f"  Estimated total events: {estimated_events:,}")
+    print(f"  Estimated memory consumption: ~{estimated_mb:.1f} MB")
+    print(f"\nGenerating trace (this may take a few seconds)...")
+    
     trace = Trace()
-    trace_info = TraceInfo(pid=0, tid=0, num_execution_processes=4)
+    trace_info = TraceInfo(pid=0, tid=0, num_execution_processes=num_processes)
     trace.setTraceInfo(trace_info)
     
     event_id = 0
     timestamp = 0.0
     
-    # Phase 1: Initial computation (different durations per process)
-    print("Creating Phase 1: Initial computation...")
-    comp_durations = [0.5, 1.0, 0.8, 0.6]  # Process 1 is slowest
-    for pid in range(4):
-        comp = Event(
-            event_type=EventType.COMPUTE,
-            idx=event_id,
-            name=f"Phase1_Compute_P{pid}",
-            pid=pid,
-            tid=0,
-            timestamp=timestamp
-        )
-        event_id += 1
-        trace.addEvent(comp)
+    # Track communication events for matching send/recv
+    pending_sends = {}
     
-    # Phase 2: Pipeline communication (0 -> 1 -> 2 -> 3)
-    print("Creating Phase 2: Pipeline communication...")
-    pipeline_start = max(comp_durations)
-    
-    for src_pid in range(3):
-        dest_pid = src_pid + 1
+    # Generate realistic parallel application trace with multiple phases
+    for iteration in range(num_iterations):
+        if iteration % 1000 == 0:
+            print(f"  Progress: {iteration:,}/{num_iterations:,} iterations ({100*iteration/num_iterations:.1f}%)")
         
-        # Send event
-        send = MpiSendEvent(
-            idx=event_id,
-            name=f"Pipeline_Send_{src_pid}_to_{dest_pid}",
-            pid=src_pid,
-            tid=0,
-            timestamp=pipeline_start + src_pid * 0.2,
-            communicator=1,
-            tag=100 + src_pid,
-            dest_pid=dest_pid
-        )
-        event_id += 1
-        trace.addEvent(send)
+        current_time = timestamp + iteration * 0.001
         
-        # Receive event
-        recv = MpiRecvEvent(
-            idx=event_id,
-            name=f"Pipeline_Recv_{src_pid}_to_{dest_pid}",
-            pid=dest_pid,
-            tid=0,
-            timestamp=pipeline_start + src_pid * 0.2 + 0.1,
-            communicator=1,
-            tag=100 + src_pid,
-            src_pid=src_pid
-        )
-        event_id += 1
-        trace.addEvent(recv)
+        # Phase 1: Local computation on all processes
+        for pid in range(num_processes):
+            comp = Event(
+                event_type=EventType.COMPUTE,
+                idx=event_id,
+                name=f"Compute_Iter{iteration}_P{pid}",
+                pid=pid,
+                tid=0,
+                timestamp=current_time
+            )
+            event_id += 1
+            trace.addEvent(comp)
         
-        # Match send/recv
-        send.setRecvEvent(recv)
-        recv.setSendEvent(send)
-    
-    # Phase 3: Heavy computation on some processes
-    print("Creating Phase 3: Heavy computation phase...")
-    heavy_comp_start = pipeline_start + 0.7
-    heavy_comp_durations = [0.3, 0.5, 1.2, 0.4]  # Process 2 is slowest
-    
-    for pid in range(4):
-        comp = Event(
-            event_type=EventType.COMPUTE,
-            idx=event_id,
-            name=f"Phase3_Heavy_Compute_P{pid}",
-            pid=pid,
-            tid=0,
-            timestamp=heavy_comp_start + pid * 0.05
-        )
-        event_id += 1
-        trace.addEvent(comp)
-    
-    # Phase 4: Gather-like communication (all processes send to process 0)
-    print("Creating Phase 4: Gather-like communication...")
-    gather_start = heavy_comp_start + max(heavy_comp_durations)
-    
-    for src_pid in range(1, 4):
-        # Send to process 0
-        send = MpiSendEvent(
-            idx=event_id,
-            name=f"Gather_Send_P{src_pid}_to_P0",
-            pid=src_pid,
-            tid=0,
-            timestamp=gather_start + src_pid * 0.05,
-            communicator=1,
-            tag=200 + src_pid,
-            dest_pid=0
-        )
-        event_id += 1
-        trace.addEvent(send)
+        # Phase 2: Communication patterns (varies by iteration type)
+        comm_time = current_time + 0.0001
         
-        # Receive at process 0
-        recv = MpiRecvEvent(
-            idx=event_id,
-            name=f"Gather_Recv_P{src_pid}_to_P0",
-            pid=0,
-            tid=0,
-            timestamp=gather_start + src_pid * 0.05 + 0.05,
-            communicator=1,
-            tag=200 + src_pid,
-            src_pid=src_pid
-        )
-        event_id += 1
-        trace.addEvent(recv)
+        # Every 10 iterations: Pipeline communication (chain pattern)
+        if iteration % 10 == 0:
+            for src_pid in range(num_processes - 1):
+                dest_pid = src_pid + 1
+                
+                send = MpiSendEvent(
+                    idx=event_id,
+                    name=f"Pipeline_Send_I{iteration}_P{src_pid}",
+                    pid=src_pid,
+                    tid=0,
+                    timestamp=comm_time + src_pid * 0.00001,
+                    communicator=1,
+                    tag=iteration * 1000 + src_pid,
+                    dest_pid=dest_pid
+                )
+                event_id += 1
+                trace.addEvent(send)
+                
+                recv = MpiRecvEvent(
+                    idx=event_id,
+                    name=f"Pipeline_Recv_I{iteration}_P{dest_pid}",
+                    pid=dest_pid,
+                    tid=0,
+                    timestamp=comm_time + src_pid * 0.00001 + 0.000005,
+                    communicator=1,
+                    tag=iteration * 1000 + src_pid,
+                    src_pid=src_pid
+                )
+                event_id += 1
+                trace.addEvent(recv)
+                
+                send.setRecvEvent(recv)
+                recv.setSendEvent(send)
         
-        # Match send/recv
-        send.setRecvEvent(recv)
-        recv.setSendEvent(send)
+        # Every 25 iterations: Gather pattern (all processes send to process 0)
+        elif iteration % 25 == 0:
+            for src_pid in range(1, num_processes):
+                send = MpiSendEvent(
+                    idx=event_id,
+                    name=f"Gather_Send_I{iteration}_P{src_pid}",
+                    pid=src_pid,
+                    tid=0,
+                    timestamp=comm_time + src_pid * 0.000001,
+                    communicator=1,
+                    tag=iteration * 1000 + src_pid,
+                    dest_pid=0
+                )
+                event_id += 1
+                trace.addEvent(send)
+                
+                recv = MpiRecvEvent(
+                    idx=event_id,
+                    name=f"Gather_Recv_I{iteration}_P0",
+                    pid=0,
+                    tid=0,
+                    timestamp=comm_time + src_pid * 0.000001 + 0.000002,
+                    communicator=1,
+                    tag=iteration * 1000 + src_pid,
+                    src_pid=src_pid
+                )
+                event_id += 1
+                trace.addEvent(recv)
+                
+                send.setRecvEvent(recv)
+                recv.setSendEvent(send)
+        
+        # Every 50 iterations: Scatter pattern (process 0 sends to all)
+        elif iteration % 50 == 0:
+            for dest_pid in range(1, num_processes):
+                send = MpiSendEvent(
+                    idx=event_id,
+                    name=f"Scatter_Send_I{iteration}_P0",
+                    pid=0,
+                    tid=0,
+                    timestamp=comm_time + dest_pid * 0.000001,
+                    communicator=1,
+                    tag=iteration * 1000 + dest_pid,
+                    dest_pid=dest_pid
+                )
+                event_id += 1
+                trace.addEvent(send)
+                
+                recv = MpiRecvEvent(
+                    idx=event_id,
+                    name=f"Scatter_Recv_I{iteration}_P{dest_pid}",
+                    pid=dest_pid,
+                    tid=0,
+                    timestamp=comm_time + dest_pid * 0.000001 + 0.000002,
+                    communicator=1,
+                    tag=iteration * 1000 + dest_pid,
+                    src_pid=0
+                )
+                event_id += 1
+                trace.addEvent(recv)
+                
+                send.setRecvEvent(recv)
+                recv.setSendEvent(send)
+        
+        # Every 100 iterations: Ring communication (each sends to next, wrapping around)
+        elif iteration % 100 == 0:
+            for src_pid in range(num_processes):
+                dest_pid = (src_pid + 1) % num_processes
+                
+                send = MpiSendEvent(
+                    idx=event_id,
+                    name=f"Ring_Send_I{iteration}_P{src_pid}",
+                    pid=src_pid,
+                    tid=0,
+                    timestamp=comm_time + src_pid * 0.000001,
+                    communicator=1,
+                    tag=iteration * 1000 + src_pid,
+                    dest_pid=dest_pid
+                )
+                event_id += 1
+                trace.addEvent(send)
+                
+                recv = MpiRecvEvent(
+                    idx=event_id,
+                    name=f"Ring_Recv_I{iteration}_P{dest_pid}",
+                    pid=dest_pid,
+                    tid=0,
+                    timestamp=comm_time + src_pid * 0.000001 + 0.000002,
+                    communicator=1,
+                    tag=iteration * 1000 + src_pid,
+                    src_pid=src_pid
+                )
+                event_id += 1
+                trace.addEvent(recv)
+                
+                send.setRecvEvent(recv)
+                recv.setSendEvent(send)
+        
+        # Phase 3: Post-communication computation
+        post_comm_time = comm_time + 0.0002
+        for pid in range(num_processes):
+            comp = Event(
+                event_type=EventType.COMPUTE,
+                idx=event_id,
+                name=f"PostComm_Compute_I{iteration}_P{pid}",
+                pid=pid,
+                tid=0,
+                timestamp=post_comm_time
+            )
+            event_id += 1
+            trace.addEvent(comp)
     
-    # Phase 5: Final computation
-    print("Creating Phase 5: Final computation...")
-    final_start = gather_start + 0.4
+    actual_events = trace.getEventCount()
+    actual_mb = (actual_events * 344) / (1024 * 1024)
     
-    for pid in range(4):
-        comp = Event(
-            event_type=EventType.COMPUTE,
-            idx=event_id,
-            name=f"Phase5_Final_Compute_P{pid}",
-            pid=pid,
-            tid=0,
-            timestamp=final_start + pid * 0.02
-        )
-        event_id += 1
-        trace.addEvent(comp)
+    print(f"  Progress: {num_iterations:,}/{num_iterations:,} iterations (100.0%)")
+    print(f"\n{'='*80}")
+    print(f"Trace Generation Complete!")
+    print(f"{'='*80}")
+    print(f"  Total events created: {actual_events:,}")
+    print(f"  Estimated trace memory: ~{actual_mb:.1f} MB")
+    print(f"  Number of processes: {num_processes}")
+    print(f"  Number of iterations: {num_iterations:,}")
+    print(f"{'='*80}\n")
     
-    print(f"Created complex trace with {trace.getEventCount()} events across 4 processes")
     return trace
 
 
@@ -321,6 +404,24 @@ def print_critical_path_summary(analyzer):
         comm_pct = (stats['communication_time'] / stats['total_length']) * 100
         print(f"  Computation %: {comp_pct:.2f}%")
         print(f"  Communication %: {comm_pct:.2f}%")
+    
+    # Print memory statistics if available
+    if analyzer.isMemoryTrackingEnabled():
+        memory_stats = analyzer.getMemoryStatistics()
+        if memory_stats:
+            print(f"\nMemory Consumption Statistics:")
+            if 'trace_memory_bytes' in memory_stats:
+                trace_mb = memory_stats['trace_memory_bytes'] / (1024 * 1024)
+                print(f"  Input Trace Memory: {trace_mb:.2f} MB")
+            if 'forward_replay_delta_bytes' in memory_stats:
+                fwd_mb = memory_stats['forward_replay_delta_bytes'] / (1024 * 1024)
+                print(f"  Forward Replay Memory Delta: {fwd_mb:.2f} MB")
+            if 'backward_replay_delta_bytes' in memory_stats:
+                bwd_mb = memory_stats['backward_replay_delta_bytes'] / (1024 * 1024)
+                print(f"  Backward Replay Memory Delta: {bwd_mb:.2f} MB")
+            if 'peak_memory_bytes' in memory_stats:
+                peak_mb = memory_stats['peak_memory_bytes'] / (1024 * 1024)
+                print(f"  Peak Memory Usage: {peak_mb:.2f} MB")
 
 
 def print_detailed_critical_path(analyzer):
@@ -428,6 +529,215 @@ def run_workflow_example(trace):
     print(f"Number of events on critical path: {len(critical_path)}")
 
 
+def run_memory_tracking_example(trace):
+    """
+    Demonstrate memory tracking functionality in critical path analysis.
+    
+    Args:
+        trace: Trace object to analyze
+    """
+    print("\n" + "=" * 80)
+    print("MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    
+    print("\nThis example demonstrates memory consumption tracking during")
+    print("critical path analysis with detailed timeline and visualization.")
+    
+    # Create analyzer with memory tracking enabled
+    print("\nStep 1: Creating analyzer with memory tracking enabled...")
+    analyzer = CriticalPathFinding(enable_memory_tracking=True)
+    analyzer.setMemorySampleInterval(5000)  # Sample every 5000 events
+    analyzer.get_inputs().add_data(trace)
+    
+    # Run analysis
+    print("Step 2: Running critical path analysis with memory tracking...")
+    analyzer.run()
+    
+    # Get results
+    critical_path = analyzer.getCriticalPath()
+    path_length = analyzer.getCriticalPathLength()
+    memory_stats = analyzer.getMemoryStatistics()
+    memory_timeline = analyzer.getMemoryTimeline()
+    
+    print("\nStep 3: Analysis Results:")
+    print(f"  Critical path length: {path_length:.6f} seconds")
+    print(f"  Number of events on critical path: {len(critical_path)}")
+    
+    print("\nStep 4: Memory Consumption Results:")
+    print("-" * 80)
+    
+    if 'trace_memory_bytes' in memory_stats:
+        trace_kb = memory_stats['trace_memory_bytes'] / 1024
+        trace_mb = memory_stats['trace_memory_bytes'] / (1024 * 1024)
+        print(f"  Input Trace Memory: {trace_kb:.2f} KB ({trace_mb:.4f} MB)")
+    
+    if 'forward_replay_start_memory_bytes' in memory_stats:
+        fwd_start_mb = memory_stats['forward_replay_start_memory_bytes'] / (1024 * 1024)
+        print(f"  Forward Replay Start Memory: {fwd_start_mb:.2f} MB")
+    
+    if 'forward_replay_end_memory_bytes' in memory_stats:
+        fwd_end_mb = memory_stats['forward_replay_end_memory_bytes'] / (1024 * 1024)
+        print(f"  Forward Replay End Memory: {fwd_end_mb:.2f} MB")
+    
+    if 'forward_replay_delta_bytes' in memory_stats:
+        fwd_delta_kb = memory_stats['forward_replay_delta_bytes'] / 1024
+        fwd_delta_mb = memory_stats['forward_replay_delta_bytes'] / (1024 * 1024)
+        print(f"  Forward Replay Memory Delta: {fwd_delta_kb:.2f} KB ({fwd_delta_mb:.4f} MB)")
+    
+    if 'backward_replay_start_memory_bytes' in memory_stats:
+        bwd_start_mb = memory_stats['backward_replay_start_memory_bytes'] / (1024 * 1024)
+        print(f"  Backward Replay Start Memory: {bwd_start_mb:.2f} MB")
+    
+    if 'backward_replay_end_memory_bytes' in memory_stats:
+        bwd_end_mb = memory_stats['backward_replay_end_memory_bytes'] / (1024 * 1024)
+        print(f"  Backward Replay End Memory: {bwd_end_mb:.2f} MB")
+    
+    if 'backward_replay_delta_bytes' in memory_stats:
+        bwd_delta_kb = memory_stats['backward_replay_delta_bytes'] / 1024
+        bwd_delta_mb = memory_stats['backward_replay_delta_bytes'] / (1024 * 1024)
+        print(f"  Backward Replay Memory Delta: {bwd_delta_kb:.2f} KB ({bwd_delta_mb:.4f} MB)")
+    
+    if 'peak_memory_bytes' in memory_stats:
+        peak_mb = memory_stats['peak_memory_bytes'] / (1024 * 1024)
+        print(f"  Peak Memory Usage: {peak_mb:.2f} MB")
+    
+    # Display memory timeline information
+    if memory_timeline:
+        print(f"\nStep 5: Memory Timeline Information:")
+        print("-" * 80)
+        print(f"  Total memory samples collected: {len(memory_timeline)}")
+        
+        # Count samples per phase
+        forward_samples = sum(1 for phase, _, _ in memory_timeline if phase == 'forward')
+        backward_samples = sum(1 for phase, _, _ in memory_timeline if phase == 'backward')
+        print(f"  Forward replay samples: {forward_samples}")
+        print(f"  Backward replay samples: {backward_samples}")
+        
+        # Show first few and last few samples
+        print(f"\n  First 3 samples:")
+        for phase, event_count, memory_bytes in memory_timeline[:3]:
+            memory_mb = memory_bytes / (1024 * 1024)
+            print(f"    {phase:8s} @ event {event_count:6d}: {memory_mb:8.2f} MB")
+        
+        print(f"\n  Last 3 samples:")
+        for phase, event_count, memory_bytes in memory_timeline[-3:]:
+            memory_mb = memory_bytes / (1024 * 1024)
+            print(f"    {phase:8s} @ event {event_count:6d}: {memory_mb:8.2f} MB")
+    
+    # Generate memory usage plot
+    print("\nStep 6: Generating memory usage visualization...")
+    try:
+        analyzer.plotMemoryUsage("critical_path_memory_usage.png")
+        print("  ✓ Memory usage plot saved successfully!")
+    except ImportError as e:
+        print(f"  ✗ Could not generate plot: {e}")
+    except Exception as e:
+        print(f"  ✗ Error generating plot: {e}")
+    
+    print("\nKey Insights:")
+    print("  - Memory tracking can be enabled/disabled as needed")
+    print("  - Tracks memory consumption at regular intervals during replay")
+    print("  - Memory timeline shows detailed progression during analysis")
+    print("  - Visualization helps identify memory bottlenecks")
+    print("  - Can be used to optimize memory usage in performance analysis")
+
+
+def run_detailed_memory_tracking_example(trace):
+    """
+    Demonstrate detailed memory tracking of individual data structures.
+    
+    Args:
+        trace: Trace object to analyze
+    """
+    print("\n" + "=" * 80)
+    print("DETAILED MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    
+    print("\nThis example demonstrates granular memory tracking of individual")
+    print("data structures during critical path analysis.")
+    
+    # Create analyzer with detailed memory tracking enabled
+    print("\nStep 1: Creating analyzer with detailed memory tracking enabled...")
+    analyzer = CriticalPathFinding(enable_memory_tracking=True, 
+                                  enable_detailed_memory_tracking=True)
+    analyzer.setMemorySampleInterval(10000)  # Sample every 10000 events for clarity
+    analyzer.get_inputs().add_data(trace)
+    
+    # Run analysis
+    print("Step 2: Running critical path analysis with detailed memory tracking...")
+    analyzer.run()
+    
+    # Get results
+    critical_path = analyzer.getCriticalPath()
+    path_length = analyzer.getCriticalPathLength()
+    detailed_timeline = analyzer.getDetailedMemoryTimeline()
+    
+    print("\nStep 3: Analysis Results:")
+    print(f"  Critical path length: {path_length:.6f} seconds")
+    print(f"  Number of events on critical path: {len(critical_path)}")
+    
+    print("\nStep 4: Detailed Memory Timeline:")
+    print("-" * 80)
+    print(f"  Total detailed samples collected: {len(detailed_timeline)}")
+    
+    if detailed_timeline:
+        # Count samples per phase
+        forward_samples = sum(1 for phase, _, _ in detailed_timeline if phase == 'forward')
+        backward_samples = sum(1 for phase, _, _ in detailed_timeline if phase == 'backward')
+        print(f"  Forward replay samples: {forward_samples}")
+        print(f"  Backward replay samples: {backward_samples}")
+        
+        # Show first sample with all variables
+        if detailed_timeline:
+            phase, event_count, mem_dict = detailed_timeline[0]
+            print(f"\n  First sample ({phase} @ event {event_count}):")
+            for var_name, mem_bytes in sorted(mem_dict.items()):
+                mem_kb = mem_bytes / 1024
+                print(f"    {var_name:30s}: {mem_kb:10.2f} KB")
+        
+        # Show last sample
+        if len(detailed_timeline) > 1:
+            phase, event_count, mem_dict = detailed_timeline[-1]
+            print(f"\n  Last sample ({phase} @ event {event_count}):")
+            for var_name, mem_bytes in sorted(mem_dict.items()):
+                mem_kb = mem_bytes / 1024
+                print(f"    {var_name:30s}: {mem_kb:10.2f} KB")
+        
+        # Calculate growth for each variable
+        print(f"\n  Memory growth by data structure:")
+        if len(detailed_timeline) >= 2:
+            first_mem = detailed_timeline[0][2]
+            last_mem = detailed_timeline[-1][2]
+            
+            for var_name in sorted(first_mem.keys()):
+                if var_name in last_mem:
+                    growth_kb = (last_mem[var_name] - first_mem[var_name]) / 1024
+                    growth_pct = ((last_mem[var_name] / first_mem[var_name]) - 1) * 100 if first_mem[var_name] > 0 else 0
+                    print(f"    {var_name:30s}: {growth_kb:+10.2f} KB ({growth_pct:+6.1f}%)")
+    
+    # Generate detailed memory usage plot
+    print("\nStep 5: Generating detailed memory usage visualization...")
+    try:
+        analyzer.plotMemoryUsage("critical_path_detailed_memory.png", plot_detailed=True)
+        print("  ✓ Detailed memory usage plot saved successfully!")
+        print("    - Shows memory progression for each data structure")
+        print("    - Separate subplots for forward and backward replay")
+        print("    - Color-coded lines for different variables")
+    except ImportError as e:
+        print(f"  ✗ Could not generate plot: {e}")
+    except Exception as e:
+        print(f"  ✗ Error generating plot: {e}")
+    
+    print("\nKey Insights:")
+    print("  - Detailed tracking shows memory of individual data structures")
+    print("  - Identifies which variables contribute most to memory consumption")
+    print("  - Helps pinpoint optimization opportunities")
+    print("  - Forward pass shows growth of earliest_* and dependency dictionaries")
+    print("  - Backward pass shows growth of latest_* and slack_times dictionaries")
+
+
+
+
 def main():
     """
     Main function demonstrating critical path finding.
@@ -477,6 +787,18 @@ def main():
     print("=" * 80)
     run_workflow_example(complex_trace)
     
+    # Example 4: Memory tracking demonstration
+    print("\n\n" + "=" * 80)
+    print("EXAMPLE 4: MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    run_memory_tracking_example(complex_trace)
+    
+    # Example 5: Detailed memory tracking demonstration
+    print("\n\n" + "=" * 80)
+    print("EXAMPLE 5: DETAILED MEMORY TRACKING DEMONSTRATION")
+    print("=" * 80)
+    run_detailed_memory_tracking_example(complex_trace)
+    
     print("\n" + "=" * 80)
     print("ALL EXAMPLES COMPLETE!")
     print("=" * 80)
@@ -485,6 +807,8 @@ def main():
     print("  - Events on the critical path are performance bottlenecks")
     print("  - Optimizing non-critical events won't improve overall performance")
     print("  - Focus optimization efforts on critical path events")
+    print("  - Memory tracking helps identify resource consumption patterns")
+    print("  - Detailed tracking pinpoints specific data structures consuming memory")
     print()
 
 
