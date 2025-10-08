@@ -559,7 +559,7 @@ class TestMemoryTracking:
                 assert mem_dict[var_name] >= 0
     
     def test_detailed_memory_shows_growth(self):
-        """Test that detailed tracking shows memory growth"""
+        """Test that detailed tracking shows memory growth and cleanup"""
         trace = self.create_simple_trace()
         analyzer = CriticalPathFinding(enable_memory_tracking=True,
                                       enable_detailed_memory_tracking=True)
@@ -573,8 +573,16 @@ class TestMemoryTracking:
             first_sample = detailed_timeline[0][2]
             last_sample = detailed_timeline[-1][2]
             
-            # Check that some variables grow
-            for var_name in ['m_earliest_start_times', 'm_earliest_finish_times']:
+            # Check that forward-only variables shrink during backward pass
+            # (they are cleaned up during backward replay as memory optimization)
+            for var_name in ['m_earliest_start_times', 'm_earliest_finish_times', 'm_successors']:
+                # In backward pass, these should be cleaned up
+                if detailed_timeline[-1][0] == 'backward':
+                    assert last_sample[var_name] <= first_sample[var_name]
+            
+            # Check that backward-only variables grow during analysis
+            for var_name in ['m_latest_start_times', 'm_latest_finish_times', 'm_slack_times']:
+                # These grow during backward pass
                 assert last_sample[var_name] >= first_sample[var_name]
     
     def test_detailed_memory_cleared_on_clear(self):
@@ -612,3 +620,100 @@ class TestMemoryTracking:
         except ImportError:
             # matplotlib not installed, skip
             pass
+    
+    def test_memory_cleanup_during_backward_replay(self):
+        """Test that memory is cleaned up during backward replay"""
+        trace = self.create_simple_trace()
+        analyzer = CriticalPathFinding(trace, enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        
+        # Run forward replay
+        analyzer.forwardReplay()
+        
+        # Check that forward-pass data structures are populated
+        assert len(analyzer.m_successors) > 0
+        assert len(analyzer.m_earliest_start_times) > 0
+        assert len(analyzer.m_earliest_finish_times) > 0
+        
+        # Save sizes after forward pass
+        successors_size_after_forward = len(analyzer.m_successors)
+        earliest_start_size_after_forward = len(analyzer.m_earliest_start_times)
+        earliest_finish_size_after_forward = len(analyzer.m_earliest_finish_times)
+        
+        # Set critical path length for backward pass
+        if analyzer.m_earliest_finish_times:
+            analyzer.m_critical_path_length = max(analyzer.m_earliest_finish_times.values())
+        
+        # Run backward replay
+        analyzer.backwardReplay()
+        
+        # Check that forward-pass data structures are cleaned up during backward replay
+        # They should be smaller (ideally empty or very small) after backward pass
+        assert len(analyzer.m_successors) < successors_size_after_forward
+        assert len(analyzer.m_earliest_start_times) < earliest_start_size_after_forward
+        assert len(analyzer.m_earliest_finish_times) < earliest_finish_size_after_forward
+        
+        # Ideally they should be empty after full backward replay
+        assert len(analyzer.m_successors) == 0
+        assert len(analyzer.m_earliest_start_times) == 0
+        assert len(analyzer.m_earliest_finish_times) == 0
+        
+        # But backward-pass data structures should be populated
+        assert len(analyzer.m_latest_start_times) > 0
+        assert len(analyzer.m_latest_finish_times) > 0
+        assert len(analyzer.m_slack_times) > 0
+    
+    def test_memory_reduction_with_large_trace(self):
+        """Test that memory reduction is significant with larger traces"""
+        # Create a larger trace
+        trace = Trace()
+        trace_info = TraceInfo(pid=0, tid=0, num_execution_processes=4)
+        trace.setTraceInfo(trace_info)
+        
+        event_id = 0
+        for pid in range(4):
+            for i in range(100):
+                event = Event(
+                    event_type=EventType.COMPUTE,
+                    idx=event_id,
+                    name=f"Compute_P{pid}_E{i}",
+                    pid=pid,
+                    tid=0,
+                    timestamp=i * 0.1
+                )
+                event_id += 1
+                trace.addEvent(event)
+        
+        analyzer = CriticalPathFinding(enable_memory_tracking=True,
+                                      enable_detailed_memory_tracking=True)
+        analyzer.setMemorySampleInterval(50)
+        analyzer.get_inputs().add_data(trace)
+        
+        analyzer.run()
+        
+        # Get detailed timeline
+        detailed_timeline = analyzer.getDetailedMemoryTimeline()
+        
+        # Find peak memory for forward-pass structures during forward replay
+        forward_samples = [sample for sample in detailed_timeline if sample[0] == 'forward']
+        backward_samples = [sample for sample in detailed_timeline if sample[0] == 'backward']
+        
+        if forward_samples and backward_samples:
+            # Get peak size of cleaned-up structures during forward pass
+            peak_successors_forward = max(sample[2]['m_successors'] for sample in forward_samples)
+            peak_earliest_start_forward = max(sample[2]['m_earliest_start_times'] for sample in forward_samples)
+            peak_earliest_finish_forward = max(sample[2]['m_earliest_finish_times'] for sample in forward_samples)
+            
+            # Get final size during backward pass
+            final_successors_backward = backward_samples[-1][2]['m_successors']
+            final_earliest_start_backward = backward_samples[-1][2]['m_earliest_start_times']
+            final_earliest_finish_backward = backward_samples[-1][2]['m_earliest_finish_times']
+            
+            # Memory should be reduced
+            assert final_successors_backward < peak_successors_forward
+            assert final_earliest_start_backward < peak_earliest_start_forward
+            assert final_earliest_finish_backward < peak_earliest_finish_forward
+            
+            # Memory reduction should be significant (at least 50% for these structures)
+            reduction_ratio = final_successors_backward / peak_successors_forward if peak_successors_forward > 0 else 1.0
+            assert reduction_ratio < 0.5  # More than 50% reduction

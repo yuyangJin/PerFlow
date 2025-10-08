@@ -190,6 +190,11 @@ class CriticalPathFinding(TraceReplayer):
         This implements the backward pass of CPM where each event's latest
         finish time is the minimum of all its successors' latest start times.
         
+        Memory optimization: After computing latest times for an event, we delete
+        the entries for m_successors, m_earliest_start_times, and m_earliest_finish_times
+        since they are no longer needed. This progressively reduces memory consumption
+        during backward replay.
+        
         Args:
             event: Event being processed during backward replay
         """
@@ -225,6 +230,16 @@ class CriticalPathFinding(TraceReplayer):
         earliest_start = self.m_earliest_start_times.get(event_idx, 0.0)
         latest_start = self.m_latest_start_times[event_idx]
         self.m_slack_times[event_idx] = latest_start - earliest_start
+        
+        # Memory optimization: Remove entries that are no longer needed after backward processing
+        # These dictionaries were built during forward pass and are read-only during backward pass
+        # Once we've computed the latest times for this event, we can safely delete these entries
+        if event_idx in self.m_successors:
+            del self.m_successors[event_idx]
+        if event_idx in self.m_earliest_start_times:
+            del self.m_earliest_start_times[event_idx]
+        if event_idx in self.m_earliest_finish_times:
+            del self.m_earliest_finish_times[event_idx]
     
     def _identify_critical_path(self) -> None:
         """
