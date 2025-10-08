@@ -57,7 +57,8 @@ class CriticalPathFinding(TraceReplayer):
     
     def __init__(self, trace: Optional[Trace] = None, enable_memory_tracking: bool = False, 
                  enable_detailed_memory_tracking: bool = False,
-                 recomputation_mode: str = 'none', recomputation_threshold: int = 5) -> None:
+                 recomputation_mode: str = 'none', recomputation_threshold: int = 5,
+                 checkpoint_interval: int = 500) -> None:
         """
         Initialize a CriticalPathFinding analyzer.
         
@@ -70,6 +71,8 @@ class CriticalPathFinding(TraceReplayer):
                 - 'full': Store no earliest times, recompute all during backward pass
                 - 'partial': Store only for events with >= threshold predecessors
             recomputation_threshold: Number of predecessors threshold for partial mode
+            checkpoint_interval: Store checkpoints every N events to limit recursion depth
+                (used in full recomputation mode, default: 500, based on Python's recursion limit)
         """
         super().__init__(trace)
         self.m_event_costs: Dict[int, float] = {}
@@ -108,9 +111,12 @@ class CriticalPathFinding(TraceReplayer):
         # Step 2: Recomputation strategy
         self.m_recomputation_mode: str = recomputation_mode
         self.m_recomputation_threshold: int = recomputation_threshold
+        self.m_checkpoint_interval: int = checkpoint_interval
+        self.m_event_counter: int = 0  # Track event count for checkpointing
         self.m_recomputation_stats: Dict[str, int] = {
             'stored_events': 0,
-            'recomputed_events': 0
+            'recomputed_events': 0,
+            'checkpoint_events': 0
         }
         
         # Register callback for forward pass
@@ -220,12 +226,22 @@ class CriticalPathFinding(TraceReplayer):
             self.m_temp_finish_times = {}
         self.m_temp_finish_times[event_idx] = earliest_finish
         
+        # Increment event counter for checkpointing
+        self.m_event_counter += 1
+        
         # Step 2: Decide whether to store earliest times based on recomputation mode
         should_store = True
+        is_checkpoint = False
+        
         if self.m_recomputation_mode == 'full':
-            # Full recomputation: never store
-            should_store = False
-            self.m_recomputation_stats['recomputed_events'] += 1
+            # Full recomputation with checkpoints: store every M events to limit recursion
+            # This prevents RecursionError for long dependency chains
+            is_checkpoint = (self.m_event_counter % self.m_checkpoint_interval == 0)
+            should_store = is_checkpoint
+            if is_checkpoint:
+                self.m_recomputation_stats['checkpoint_events'] += 1
+            else:
+                self.m_recomputation_stats['recomputed_events'] += 1
         elif self.m_recomputation_mode == 'partial':
             # Partial recomputation: store only if predecessors >= threshold
             num_predecessors = len(self.m_predecessors[event_idx])
@@ -576,9 +592,11 @@ class CriticalPathFinding(TraceReplayer):
         self.m_memory_timeline.clear()
         self.m_detailed_memory_timeline.clear()
         # Step 2: Clear recomputation stats and temp data
+        self.m_event_counter = 0
         self.m_recomputation_stats = {
             'stored_events': 0,
-            'recomputed_events': 0
+            'recomputed_events': 0,
+            'checkpoint_events': 0
         }
         if hasattr(self, 'm_temp_finish_times'):
             self.m_temp_finish_times.clear()

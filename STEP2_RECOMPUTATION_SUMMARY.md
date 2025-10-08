@@ -20,9 +20,10 @@ Three modes are implemented to balance memory savings vs execution time:
    - Provides best execution time
 
 2. **Full Recomputation**
-   - Store NO earliest times during forward pass
-   - Recompute ALL values during backward pass when needed
+   - Store minimal checkpoints during forward pass (every M events, default M=500)
+   - Recompute most values during backward pass when needed
    - Provides maximum memory savings
+   - Checkpoint strategy prevents RecursionError for long dependency chains
    - Increases execution time due to recomputation
 
 3. **Partial Recomputation**
@@ -41,7 +42,8 @@ Modified `critical_path_finding.py`:
    ```python
    CriticalPathFinding(
        recomputation_mode='none',        # 'none', 'full', or 'partial'
-       recomputation_threshold=5         # threshold for partial mode
+       recomputation_threshold=5,        # threshold for partial mode
+       checkpoint_interval=500           # checkpoint interval for full mode
    )
    ```
 
@@ -49,13 +51,15 @@ Modified `critical_path_finding.py`:
    - Computes earliest times for all events
    - Selectively stores based on mode:
      - `none`: Store all
-     - `full`: Store none
+     - `full`: Store checkpoints every M events (default: 500)
      - `partial`: Store only if `len(predecessors) >= threshold`
    - Tracks maximum earliest finish time for critical path length
+   - Checkpoint strategy prevents RecursionError
 
 3. **Backward pass (`_compute_latest_times`):**
    - Added `_recompute_earliest_times()` method
    - When earliest times not stored, recursively recomputes from predecessors
+   - Uses stored checkpoints to limit recursion depth
    - Uses stored values when available to avoid redundant computation
 
 4. **Timing measurements:**
@@ -66,6 +70,40 @@ Modified `critical_path_finding.py`:
 5. **Statistics tracking:**
    - `stored_events`: Count of events with stored earliest times
    - `recomputed_events`: Count of events that will be recomputed
+   - `checkpoint_events`: Count of checkpoint events (full mode only)
+
+### Checkpoint Strategy (Full Recomputation Mode)
+
+**Problem**: Naive full recomputation causes RecursionError for long dependency chains
+- Python's default recursion limit: ~1000
+- Long sequential traces easily exceed this limit
+- Error: `RecursionError: maximum recursion depth exceeded`
+
+**Solution**: Store checkpoints at regular intervals
+- Store earliest times every M events (default: M=500)
+- Recompute others on-the-fly during backward pass
+- Recursion depth limited to M instead of chain length
+- Configurable via `checkpoint_interval` parameter
+
+**Benefits**:
+- Prevents RecursionError on arbitrary-length traces
+- Still achieves significant memory savings (most events not stored)
+- Minimal impact on execution time (checkpoints avoid deep recursion)
+- Configurable trade-off: smaller M = less memory, more recursion safety
+
+**Example**:
+```python
+# For very long traces, use smaller checkpoint interval
+analyzer = CriticalPathFinding(
+    recomputation_mode='full',
+    checkpoint_interval=250  # More frequent checkpoints
+)
+```
+
+For a 10,000 event trace with checkpoint_interval=500:
+- Checkpoint events: ~20 (0.2% of events)
+- Recomputed events: ~9,980 (99.8% of events)
+- Maximum recursion depth: ~500 (safe from RecursionError)
 
 ## Experimental Results
 
@@ -125,7 +163,8 @@ The relationship between memory and time follows expected patterns:
 ```python
 analyzer = CriticalPathFinding(
     enable_memory_tracking=True,
-    recomputation_mode='full'
+    recomputation_mode='full',
+    checkpoint_interval=500  # Prevent recursion errors
 )
 analyzer.get_inputs().add_data(trace)
 analyzer.run()

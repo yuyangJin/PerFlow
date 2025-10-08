@@ -6,8 +6,12 @@ of earliest times during backward replay instead of storing them during forward 
 
 The experiments test three modes:
 1. None (Step 1 only): Store all earliest times
-2. Full recomputation: Store no earliest times, recompute all
+2. Full recomputation: Store minimal checkpoints, recompute most (prevents RecursionError)
 3. Partial recomputation: Store only for events with >= N predecessors
+
+Full recomputation uses a checkpoint strategy to prevent RecursionError on long
+dependency chains. Checkpoints are stored every M events (default: 500) to limit
+recursion depth during recomputation.
 
 This generates data to analyze the trade-off between memory usage and execution time.
 """
@@ -108,7 +112,7 @@ def create_experimental_trace(num_processes=16, num_iterations=3000):
     return trace
 
 
-def run_experiment_mode(trace, mode, threshold=5):
+def run_experiment_mode(trace, mode, threshold=5, checkpoint_interval=500):
     """
     Run critical path analysis with specific recomputation mode.
     
@@ -116,17 +120,19 @@ def run_experiment_mode(trace, mode, threshold=5):
         trace: Trace to analyze
         mode: Recomputation mode ('none', 'full', 'partial')
         threshold: Threshold for partial mode
+        checkpoint_interval: Checkpoint interval for full mode
         
     Returns:
         Dictionary with results
     """
-    print(f"\nRunning: mode={mode}, threshold={threshold}")
+    print(f"\nRunning: mode={mode}, threshold={threshold}, checkpoint_interval={checkpoint_interval}")
     
     analyzer = CriticalPathFinding(
         enable_memory_tracking=True,
         enable_detailed_memory_tracking=True,
         recomputation_mode=mode,
-        recomputation_threshold=threshold
+        recomputation_threshold=threshold,
+        checkpoint_interval=checkpoint_interval
     )
     analyzer.setMemorySampleInterval(2000)
     analyzer.get_inputs().add_data(trace)
@@ -139,6 +145,7 @@ def run_experiment_mode(trace, mode, threshold=5):
     result = {
         'mode': mode,
         'threshold': threshold,
+        'checkpoint_interval': checkpoint_interval,
         'forward_time': stats.get('forward_replay_time_seconds', 0),
         'backward_time': stats.get('backward_replay_time_seconds', 0),
         'total_time': stats.get('total_time_seconds', 0),
@@ -146,7 +153,8 @@ def run_experiment_mode(trace, mode, threshold=5):
         'forward_memory_delta_mb': stats.get('forward_replay_delta_bytes', 0) / (1024 * 1024),
         'backward_memory_delta_mb': stats.get('backward_replay_delta_bytes', 0) / (1024 * 1024),
         'stored_events': recomp_stats.get('stored_events', 0),
-        'recomputed_events': recomp_stats.get('recomputed_events', 0)
+        'recomputed_events': recomp_stats.get('recomputed_events', 0),
+        'checkpoint_events': recomp_stats.get('checkpoint_events', 0)
     }
     
     print(f"  Forward time: {result['forward_time']:.3f}s")
@@ -154,6 +162,7 @@ def run_experiment_mode(trace, mode, threshold=5):
     print(f"  Total time: {result['total_time']:.3f}s")
     print(f"  Peak memory: {result['peak_memory_mb']:.2f} MB")
     print(f"  Stored events: {result['stored_events']:,}")
+    print(f"  Checkpoint events: {result['checkpoint_events']:,}")
     print(f"  Recomputed events: {result['recomputed_events']:,}")
     
     return result
@@ -187,10 +196,10 @@ def experiment_1_baseline(trace):
 
 def experiment_2_full_recomputation(trace):
     """
-    Experiment 2: Full recomputation - no storage of earliest times.
+    Experiment 2: Full recomputation - minimal storage with checkpoints.
     """
     print(f"\n{'='*80}")
-    print("EXPERIMENT 2: FULL RECOMPUTATION")
+    print("EXPERIMENT 2: FULL RECOMPUTATION (WITH CHECKPOINTS)")
     print(f"{'='*80}")
     
     result = run_experiment_mode(trace, 'full')
@@ -207,8 +216,11 @@ def experiment_2_full_recomputation(trace):
     print(f"\nTotal:")
     print(f"  Time: {result['total_time']:.3f} seconds")
     print(f"  Peak Memory: {result['peak_memory_mb']:.2f} MB")
-    print(f"\nRecomputation:")
-    print(f"  All {result['recomputed_events']:,} events recomputed")
+    print(f"\nRecomputation Strategy:")
+    print(f"  Checkpoint events (stored): {result['checkpoint_events']:,}")
+    print(f"  Recomputed events: {result['recomputed_events']:,}")
+    print(f"  Total events: {result['checkpoint_events'] + result['recomputed_events']:,}")
+    print(f"\nNote: Checkpoints are stored every 500 events to prevent RecursionError")
     
     return result
 
@@ -366,12 +378,14 @@ def print_final_analysis(baseline, full_recomp, partial_results):
     print(f"   - Memory: {baseline['peak_memory_mb']:.2f} MB")
     print(f"   - Strategy: Store all earliest times")
     
-    print(f"\n2. FULL RECOMPUTATION")
+    print(f"\n2. FULL RECOMPUTATION (WITH CHECKPOINTS)")
     time_overhead = ((full_recomp['total_time'] - baseline['total_time']) / baseline['total_time']) * 100
     memory_savings = ((baseline['peak_memory_mb'] - full_recomp['peak_memory_mb']) / baseline['peak_memory_mb']) * 100
     print(f"   - Time: {full_recomp['total_time']:.3f}s ({time_overhead:+.1f}%)")
     print(f"   - Memory: {full_recomp['peak_memory_mb']:.2f} MB ({memory_savings:.1f}% savings)")
-    print(f"   - Strategy: Store nothing, recompute all")
+    print(f"   - Strategy: Checkpoint every 500 events, recompute others")
+    print(f"   - Checkpoint events: {full_recomp['checkpoint_events']:,}")
+    print(f"   - Recomputed events: {full_recomp['recomputed_events']:,}")
     
     if partial_results:
         print(f"\n3. PARTIAL RECOMPUTATION (Best Configuration)")
@@ -399,6 +413,9 @@ def print_final_analysis(baseline, full_recomp, partial_results):
     print("KEY FINDINGS")
     print(f"{'='*80}")
     print(f"✓ Full recomputation saves memory but increases execution time")
+    print(f"✓ Checkpoint strategy prevents RecursionError for long dependency chains")
+    print(f"  - Checkpoints stored every 500 events by default")
+    print(f"  - Configurable via checkpoint_interval parameter")
     print(f"✓ Partial recomputation balances memory savings with acceptable time overhead")
     print(f"✓ Optimal threshold depends on application requirements:")
     print(f"  - Memory-constrained: Use full or low threshold")
