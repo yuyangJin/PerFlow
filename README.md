@@ -11,6 +11,7 @@ A programmable and fast performance analysis for parallel programs
   - Trace replay with forward/backward analysis
   - Late sender detection and communication pattern analysis
   - Communication pattern analyzer for identifying patterns (all-to-all, nearest neighbor, hub, etc.)
+  - **GPU-Accelerated Analysis**: CUDA-based parallel trace analysis with automatic CPU fallback
   
 - **Profile Analysis**: Profiling data analysis infrastructure
   - Profile data structures (PerfData, ProfileInfo, SampleData)
@@ -49,6 +50,23 @@ late_sends = analyzer.getLateSends()
 print(f"Found {len(late_sends)} late senders")
 ```
 
+### GPU-Accelerated Trace Analysis Example
+```python
+from perflow.task.trace_analysis.gpu import GPULateSender, GPUAvailable
+
+trace = Trace()
+# ... add events to trace ...
+
+# Automatically uses GPU if available, falls back to CPU otherwise
+analyzer = GPULateSender(trace, use_gpu=True)
+analyzer.enableSharedMemory(True)  # Enable optimization
+analyzer.forwardReplay()
+
+late_sends = analyzer.getLateSends()
+print(f"GPU Enabled: {analyzer.isGPUEnabled()}")
+print(f"Found {len(late_sends)} late senders")
+```
+
 ### Profile Analysis Example
 ```python
 from perflow.task.profile_analysis.hotspot_analyzer import HotspotAnalyzer
@@ -82,6 +100,7 @@ for path, cycles in hot_paths:
 
 ## Documentation
 
+- [GPU Trace Analysis Guide](docs/gpu_trace_analysis_guide.md)
 - [Profile Analysis Guide](docs/profile_analysis.md)
 - [Contributing Guide](docs/contributing.md)
 - [Test Documentation](tests/README.md)
