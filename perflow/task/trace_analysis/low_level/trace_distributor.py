@@ -9,7 +9,7 @@ by dividing them at the rank dimension.
 from typing import List, Dict, Optional
 from ....perf_data_struct.dynamic.trace.trace import Trace, TraceInfo
 from ....perf_data_struct.dynamic.trace.event import Event
-from .mpi_config import MPIConfig
+from ....utils.mpi_config import MPIConfig
 
 
 class TraceDistributor:

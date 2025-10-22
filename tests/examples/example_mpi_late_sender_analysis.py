@@ -21,7 +21,7 @@ import sys
 from perflow.perf_data_struct.dynamic.trace.trace import Trace, TraceInfo
 from perflow.perf_data_struct.dynamic.trace.mpi_event import MpiSendEvent, MpiRecvEvent
 from perflow.task.trace_analysis.low_level.mpi_trace_replayer import MPITraceReplayer
-from perflow.task.trace_analysis.low_level.mpi_config import MPIConfig
+from perflow.utils.mpi_config import MPIConfig
 from perflow.task.trace_analysis.low_level.trace_replayer import ReplayDirection
 
 

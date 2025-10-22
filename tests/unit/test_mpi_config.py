@@ -2,7 +2,7 @@
 Unit tests for MPIConfig class
 """
 import pytest
-from perflow.task.trace_analysis.low_level.mpi_config import MPIConfig
+from perflow.utils.mpi_config import MPIConfig
 
 
 class TestMPIConfig:

@@ -18,7 +18,7 @@ This document summarizes the implementation of MPI-based parallel trace analysis
 
 ### 1. Enable/Disable MPI Version (✅ Complete)
 
-**Implementation**: `perflow/task/trace_analysis/low_level/mpi_config.py`
+**Implementation**: `perflow/utils/mpi_config.py`
 
 - **MPIConfig class**: Singleton configuration manager
   - `enable_mpi()`: Enables MPI mode if mpi4py is available

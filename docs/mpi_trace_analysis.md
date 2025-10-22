@@ -36,7 +36,7 @@ This ensures even load balancing across replay processes.
 
 ```python
 from perflow.task.trace_analysis.low_level.mpi_trace_replayer import MPITraceReplayer
-from perflow.task.trace_analysis.low_level.mpi_config import MPIConfig
+from perflow.utils.mpi_config import MPIConfig
 
 # Initialize MPI
 mpi_config = MPIConfig.get_instance()
@@ -73,6 +73,8 @@ mpirun -np 8 python your_analysis_script.py
 MPI mode can be enabled or disabled programmatically:
 
 ```python
+from perflow.utils.mpi_config import MPIConfig
+
 mpi_config = MPIConfig.get_instance()
 
 # Enable MPI (returns True if successful)

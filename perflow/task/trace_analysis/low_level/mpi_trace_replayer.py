@@ -8,7 +8,7 @@ across multiple MPI processes.
 
 from typing import List, Optional
 from .trace_replayer import TraceReplayer, ReplayDirection
-from .mpi_config import MPIConfig
+from ....utils.mpi_config import MPIConfig
 from .trace_distributor import TraceDistributor
 from .event_data_fetcher import EventDataFetcher
 from ....perf_data_struct.dynamic.trace.trace import Trace

@@ -9,7 +9,7 @@ supporting both intra-process memory access and inter-process MPI communication.
 from typing import Optional, Dict, Any, List
 from ....perf_data_struct.dynamic.trace.event import Event
 from ....perf_data_struct.dynamic.trace.trace import Trace
-from .mpi_config import MPIConfig
+from ....utils.mpi_config import MPIConfig
 
 
 class EventDataFetcher:
