@@ -3,7 +3,7 @@ Integration tests for MPI-based trace analysis
 """
 import pytest
 from perflow.task.trace_analysis.low_level.mpi_trace_replayer import MPITraceReplayer
-from perflow.task.trace_analysis.low_level.trace_distributor import TraceDistributor
+from perflow.task.reader.trace_distributor import TraceDistributor
 from perflow.task.trace_analysis.low_level.event_data_fetcher import EventDataFetcher
 from perflow.task.trace_analysis.low_level.trace_replayer import ReplayDirection
 from perflow.perf_data_struct.dynamic.trace.trace import Trace, TraceInfo

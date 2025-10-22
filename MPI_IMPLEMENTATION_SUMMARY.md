@@ -36,7 +36,7 @@ This document summarizes the implementation of MPI-based parallel trace analysis
 
 ### 2. Trace Distribution by Rank (✅ Complete)
 
-**Implementation**: `perflow/task/trace_analysis/low_level/trace_distributor.py`
+**Implementation**: `perflow/task/reader/trace_distributor.py`
 
 - **TraceDistributor class**: Manages trace distribution
   - `compute_distribution()`: Round-robin assignment of EPs to RPs

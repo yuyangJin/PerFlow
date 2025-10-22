@@ -2,7 +2,7 @@
 Unit tests for TraceDistributor class
 """
 import pytest
-from perflow.task.trace_analysis.low_level.trace_distributor import TraceDistributor
+from perflow.task.reader.trace_distributor import TraceDistributor
 from perflow.perf_data_struct.dynamic.trace.trace import Trace, TraceInfo
 
 
