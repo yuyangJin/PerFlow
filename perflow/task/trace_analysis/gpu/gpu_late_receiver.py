@@ -48,67 +48,24 @@ class GPULateReceiver(GPUTraceReplayer):
             # Data dependence: NO_DEPS because each send event can be checked independently
             self.registerGPUCallback(
                 "late_receiver_detector",
-                self._gpu_late_receiver_callback,
+                self._late_receiver_callback,
                 DataDependence.NO_DEPS
             )
         else:
             # Register CPU callback as fallback
             self.registerCallback("late_receiver_detector", 
-                                 self._detect_late_receiver_cpu, 
+                                 self._late_receiver_callback, 
                                  ReplayDirection.FWD)
     
-    def _gpu_late_receiver_callback(
-        self, 
-        types: np.ndarray, 
-        timestamps: np.ndarray, 
-        partner_indices: np.ndarray
-    ) -> Dict[str, any]:
+    def _late_receiver_callback(self, event: Event) -> None:
         """
-        GPU callback function for late receiver detection.
+        Callback function for late receiver detection.
         
-        This callback processes event arrays on the GPU to identify late receivers.
-        Each send event is checked independently to see if its corresponding
-        receive was late.
+        This callback is invoked for each event during trace replay.
+        It checks if the current event is a send event with a late receiver.
         
         Args:
-            types: Array of event types
-            timestamps: Array of event timestamps
-            partner_indices: Array mapping events to their partners
-            
-        Returns:
-            Dictionary containing late receiver indices and wait times
-        """
-        late_recv_indices = []
-        wait_times = {}
-        
-        # Process all events in parallel (simulated for CPU fallback)
-        for i in range(len(types)):
-            # Check if this is a send event
-            if types[i] == EventType.SEND.value:
-                recv_idx = partner_indices[i]
-                
-                # Check if receive event is matched
-                if recv_idx >= 0 and recv_idx < len(types):
-                    send_time = timestamps[i]
-                    recv_time = timestamps[recv_idx]
-                    
-                    # Late receiver: receive happens after send is ready
-                    if recv_time > send_time:
-                        wait_time = recv_time - send_time
-                        late_recv_indices.append(recv_idx)
-                        wait_times[recv_idx] = wait_time
-        
-        return {
-            'late_recv_indices': late_recv_indices,
-            'wait_times': wait_times
-        }
-    
-    def _detect_late_receiver_cpu(self, event: Event) -> None:
-        """
-        CPU callback to detect late receivers during trace replay.
-        
-        Args:
-            event: Event being processed during replay
+            event: The current event being processed during replay
         """
         # Check if this is a send event
         if isinstance(event, MpiSendEvent):
@@ -131,32 +88,6 @@ class GPULateReceiver(GPUTraceReplayer):
                     if event_idx is not None:
                         self.m_wait_times[event_idx] = wait_time
     
-    def _process_gpu_results(self, results: Dict[str, any]) -> None:
-        """
-        Process results from GPU callback and populate analysis results.
-        
-        Args:
-            results: Dictionary containing GPU callback results
-        """
-        if 'late_receiver_detector' not in results:
-            return
-        
-        callback_results = results['late_receiver_detector']
-        late_recv_indices = callback_results.get('late_recv_indices', [])
-        wait_times_dict = callback_results.get('wait_times', {})
-        
-        # Convert indices back to event objects
-        if self.m_trace is not None:
-            events = self.m_trace.getEvents()
-            for idx in late_recv_indices:
-                if 0 <= idx < len(events):
-                    event = events[idx]
-                    if isinstance(event, MpiRecvEvent):
-                        self.m_late_recvs.append(event)
-            
-            # Store wait times
-            self.m_wait_times = wait_times_dict
-    
     def _analyze_cpu(self) -> None:
         """
         Perform late receiver analysis on CPU (fallback).
@@ -167,21 +98,22 @@ class GPULateReceiver(GPUTraceReplayer):
         # Clear and replay
         events = self.m_trace.getEvents()
         for event in events:
-            self._detect_late_receiver_cpu(event)
+            self._late_receiver_callback(event)
     
     def forwardReplay(self) -> None:
         """
         Execute late receiver analysis.
         
-        Uses GPU acceleration if available, otherwise falls back to CPU.
+        Replays the trace in forward order, invoking the registered callback
+        for each event. Uses GPU acceleration if available, otherwise falls
+        back to CPU.
         """
         # Clear previous results
         self.clear()
         
-        if self.use_gpu and self.gpu_data is not None:
-            # Execute GPU callbacks
-            results = self._execute_gpu_callbacks(ReplayDirection.FWD)
-            self._process_gpu_results(results)
+        if self.use_gpu:
+            # Execute GPU callbacks through parent class
+            super().forwardReplay()
         else:
             self._analyze_cpu()
     

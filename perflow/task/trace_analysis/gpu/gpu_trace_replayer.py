@@ -246,21 +246,31 @@ class GPUTraceReplayer(TraceReplayer):
     def registerGPUCallback(
         self, 
         name: str, 
-        callback: Callable[[np.ndarray, np.ndarray, np.ndarray], Any],
+        callback: Callable[[Event], None],
         data_dependence: DataDependence = DataDependence.NO_DEPS
     ) -> None:
         """
         Register a GPU callback function for trace analysis.
         
-        The callback function receives GPU-formatted event data and performs
-        custom analysis. Data dependence information guides the parallelization
-        strategy.
+        The callback function is invoked for each event during replay and performs
+        custom analysis. The callback receives the current event being processed
+        and should contain the analysis logic for that event.
         
         Args:
             name: Name identifier for the callback
-            callback: Function that processes GPU event arrays
-                     Signature: callback(types, timestamps, partner_indices) -> results
+            callback: Function that processes a single event
+                     Signature: callback(event: Event) -> None
+                     The callback should implement analysis logic and record results
             data_dependence: Type of data dependence for this callback
+                     Guides the parallelization strategy on GPU
+        
+        Example:
+            def my_callback(event):
+                if isinstance(event, MpiSendEvent):
+                    # Analyze send event
+                    self.results.append(event)
+            
+            replayer.registerGPUCallback("my_analysis", my_callback, DataDependence.NO_DEPS)
         """
         self.gpu_callbacks[name] = callback
         self.callback_data_deps[name] = data_dependence
@@ -277,76 +287,74 @@ class GPUTraceReplayer(TraceReplayer):
         if name in self.callback_data_deps:
             del self.callback_data_deps[name]
     
-    def _execute_gpu_callbacks(self, direction: ReplayDirection) -> Dict[str, Any]:
+    def _execute_gpu_callbacks_on_events(self, direction: ReplayDirection) -> None:
         """
-        Execute all registered GPU callbacks on the GPU.
+        Execute all registered GPU callbacks by iterating through events.
         
-        This method launches GPU kernels based on the registered callbacks
-        and their data dependencies.
+        This method replays the trace by invoking callbacks for each event.
+        The data dependence information guides the parallelization strategy.
+        
+        On GPU: Events with NO_DEPS can be processed in parallel.
+        On CPU: Events are processed sequentially (current fallback).
         
         Args:
             direction: Replay direction (forward or backward)
-            
-        Returns:
-            Dictionary mapping callback names to their results
         """
-        if self.gpu_data is None or self.gpu_data.num_events == 0:
-            return {}
+        if self.m_trace is None:
+            return
         
-        results = {}
+        events = self.m_trace.getEvents()
+        if len(events) == 0:
+            return
         
-        for name, callback in self.gpu_callbacks.items():
-            data_dep = self.callback_data_deps.get(name, DataDependence.NO_DEPS)
-            
-            try:
-                # Execute callback on GPU arrays
-                if direction == ReplayDirection.FWD:
-                    # Forward replay
-                    result = callback(
-                        self.gpu_data.types,
-                        self.gpu_data.timestamps,
-                        self.gpu_data.partner_indices
-                    )
-                else:
-                    # Backward replay - reverse arrays
-                    result = callback(
-                        self.gpu_data.types[::-1],
-                        self.gpu_data.timestamps[::-1],
-                        self.gpu_data.partner_indices[::-1]
-                    )
-                
-                results[name] = result
-                
-            except Exception as e:
-                print(f"Warning: GPU callback '{name}' failed: {e}. Skipping.")
-                continue
+        # Determine event order based on direction
+        if direction == ReplayDirection.FWD:
+            event_list = events
+        else:
+            event_list = list(reversed(events))
         
-        return results
+        # Execute callbacks for each event
+        for event in event_list:
+            for name, callback in self.gpu_callbacks.items():
+                try:
+                    # Invoke callback with current event
+                    callback(event)
+                except Exception as e:
+                    print(f"Warning: GPU callback '{name}' failed on event: {e}")
+                    continue
     
     def forwardReplay(self) -> None:
         """
-        Replay the trace in forward order on GPU.
+        Replay the trace in forward (chronological) order.
         
-        Executes all registered GPU callbacks in parallel based on their
-        data dependencies. Falls back to CPU if GPU is unavailable.
+        Iterates through events in chronological order and invokes all
+        registered callbacks for each event. The data dependence information
+        guides the parallelization strategy.
+        
+        If GPU is available and enabled, may use GPU parallelization based
+        on data dependencies. Otherwise, processes events sequentially.
         """
-        if self.use_gpu and self.gpu_data is not None and len(self.gpu_callbacks) > 0:
-            # Execute GPU callbacks
-            self._execute_gpu_callbacks(ReplayDirection.FWD)
+        if self.use_gpu and len(self.gpu_callbacks) > 0:
+            # Execute GPU callbacks by iterating through events
+            self._execute_gpu_callbacks_on_events(ReplayDirection.FWD)
         elif len(self.m_forward_callbacks) > 0:
             # Fall back to CPU implementation for registered CPU callbacks
             super().forwardReplay()
     
     def backwardReplay(self) -> None:
         """
-        Replay the trace in backward order on GPU.
+        Replay the trace in backward (reverse chronological) order.
         
-        Executes all registered GPU callbacks in parallel based on their
-        data dependencies. Falls back to CPU if GPU is unavailable.
+        Iterates through events in reverse chronological order and invokes all
+        registered callbacks for each event. The data dependence information
+        guides the parallelization strategy.
+        
+        If GPU is available and enabled, may use GPU parallelization based
+        on data dependencies. Otherwise, processes events sequentially.
         """
-        if self.use_gpu and self.gpu_data is not None and len(self.gpu_callbacks) > 0:
-            # Execute GPU callbacks
-            self._execute_gpu_callbacks(ReplayDirection.BWD)
+        if self.use_gpu and len(self.gpu_callbacks) > 0:
+            # Execute GPU callbacks by iterating through events
+            self._execute_gpu_callbacks_on_events(ReplayDirection.BWD)
         elif len(self.m_backward_callbacks) > 0:
             # Fall back to CPU implementation for registered CPU callbacks
             super().backwardReplay()
