@@ -20,3 +20,15 @@ sdist/
 *.log
 *.dot
 *.png
+
+# CUDA build artifacts
+*.so
+*.dylib
+*.dll
+*.o
+*.a
+build/
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
