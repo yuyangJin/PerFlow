@@ -11,6 +11,7 @@ A programmable and fast performance analysis for parallel programs
   - Trace replay with forward/backward analysis
   - Late sender detection and communication pattern analysis
   - Communication pattern analyzer for identifying patterns (all-to-all, nearest neighbor, hub, etc.)
+  - **MPI-based parallel trace analysis** for large-scale traces with distributed replay
   
 - **Profile Analysis**: Profiling data analysis infrastructure
   - Profile data structures (PerfData, ProfileInfo, SampleData)
@@ -83,11 +84,12 @@ for path, cycles in hot_paths:
 ## Documentation
 
 - [Profile Analysis Guide](docs/profile_analysis.md)
+- [MPI Trace Analysis Guide](docs/mpi_trace_analysis.md)
 - [Contributing Guide](docs/contributing.md)
 - [Test Documentation](tests/README.md)
 
 ## Testing
 
-- **283 tests** (259 unit + 25 integration) - 3 pre-existing failures
-- **7 comprehensive examples** (including CCT/PSG/CST visualization and analysis)
+- **340 tests** (309 unit + 32 integration) - 3 pre-existing failures
+- **8 comprehensive examples** (including MPI-based parallel trace analysis)
 - See [tests/README.md](tests/README.md) for details

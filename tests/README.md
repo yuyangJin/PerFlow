@@ -83,7 +83,7 @@ python tests/examples/example_hotspot_analysis.py
 
 ## Test Coverage
 
-### Unit Tests (218 tests)
+### Unit Tests (309 tests)
 - **Event Classes** (6 tests): Event, EventType (including LOOP and BRANCH types)
 - **Trace Classes** (18 tests): Trace, TraceInfo with enhanced metadata
   - TraceInfo: EP/RP metadata, mapping, format, timing, application name
@@ -96,6 +96,11 @@ python tests/examples/example_hotspot_analysis.py
   - FlowNode: Inputs/outputs, abstract methods
   - FlowGraph: Node/edge management, **topological sort execution**, **cycle detection**
 - **TraceReplayer** (19 tests): Replay, **separate forward/backward callbacks**, late sender analysis
+- **MPI-based Parallel Analysis** (50 tests):
+  - **MPIConfig** (7 tests): MPI configuration and singleton pattern
+  - **TraceDistributor** (15 tests): Trace distribution and load balancing
+  - **EventDataFetcher** (13 tests): Inter-process event data access with caching
+  - **MPITraceReplayer** (15 tests): MPI-enabled parallel trace replay
 - **Trace Readers** (47 tests): 
   - **OTF2Reader** (6 tests): Text-based trace parsing with CSV format
   - **VtuneReader** (6 tests): JSON and CSV parsing for VTune exports
@@ -109,19 +114,28 @@ python tests/examples/example_hotspot_analysis.py
   - **PerfData and ProfileInfo** (36 tests): Profile data management and metadata
   - **ProfileAnalyzer and HotspotAnalyzer** (26 tests): Profile analysis and hotspot detection
 
-### Integration Tests (25 tests)
+### Integration Tests (32 tests)
 - **Trace Visualization** (5 tests): Reading and visualizing traces in multiple formats
 - **Trace Replay** (7 tests): Forward/backward replay with analysis callbacks
   - Late Sender Detection: Identifying communication delays across processes
   - Workflow Pipelines: End-to-end analysis workflows with topological execution
+- **MPI Trace Analysis** (7 tests): MPI-based parallel trace analysis workflows
+  - Full workflow without MPI (sequential mode)
+  - Trace distribution and metadata management
+  - Event data fetcher workflow with caching
+  - MPI replayer with callbacks
+  - Late sender detection in distributed environment
+  - Load balancing verification
+  - Backward replay in MPI context
 - **Profile Analysis** (13 tests): Complete profile analysis workflows
   - Basic workflow: ProfileAnalyzer with callbacks
   - Hotspot detection: HotspotAnalyzer with threshold filtering
   - Multi-profile analysis: Analyzing multiple profiles
   - Edge cases: Empty profiles, single samples, missing data
 
-### End-to-End Examples (5 examples)
+### End-to-End Examples (6 examples)
 - **Late Sender Analysis**: Complete workflow for detecting late senders
+- **MPI Late Sender Analysis**: Parallel late sender detection with 8 replay processes (works in both sequential and MPI modes)
 - **Communication Pattern Analysis**: Analyzing message patterns and topology
 - **Load Imbalance Analysis**: Detecting and quantifying load imbalance
 - **Multiple Trace Readers**: Using different trace format readers
@@ -130,16 +144,17 @@ python tests/examples/example_hotspot_analysis.py
 ## Test Highlights
 
 ### Comprehensive Coverage
-- All 23 implemented classes have dedicated unit tests
-- **218 unit tests** covering all functionality including:
+- All 27 implemented classes have dedicated unit tests
+- **309 unit tests** covering all functionality including:
   - Enhanced TraceInfo with large-scale parallel metadata
   - Separate forward/backward callbacks in TraceReplayer
+  - MPI-based parallel trace analysis (MPIConfig, TraceDistributor, EventDataFetcher, MPITraceReplayer)
   - Topological sort execution in FlowGraph
   - Full parsing implementation for 6 trace format readers
   - Complete profile data structures (PerfData, ProfileInfo, SampleData)
   - Profile analysis infrastructure (ProfileAnalyzer, HotspotAnalyzer)
-- **25 integration tests** verify cross-component functionality
-- **5 examples** demonstrate real-world usage scenarios
+- **32 integration tests** verify cross-component functionality
+- **6 examples** demonstrate real-world usage scenarios
 
 ### Well-Documented
 - Each test has descriptive docstrings

@@ -172,7 +172,7 @@ class MPITraceReplayer(TraceReplayer):
         In MPI mode, this replays only the traces assigned to the current
         replay process. Each trace is replayed in timeline order.
         """
-        if self.m_mpi_enabled and self.m_traces:
+        if self.m_traces:
             # Replay distributed traces
             for trace in self.m_traces:
                 self.setTrace(trace)
@@ -188,7 +188,7 @@ class MPITraceReplayer(TraceReplayer):
         In MPI mode, this replays only the traces assigned to the current
         replay process. Each trace is replayed in reverse timeline order.
         """
-        if self.m_mpi_enabled and self.m_traces:
+        if self.m_traces:
             # Replay distributed traces
             for trace in self.m_traces:
                 self.setTrace(trace)
