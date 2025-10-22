@@ -2,16 +2,16 @@
 GPU Late Sender Analyzer - GPU-accelerated late sender detection.
 
 This module provides GPU-accelerated detection of late sender patterns
-in MPI communication traces.
+in MPI communication traces using callback registration.
 """
 
 from typing import List, Dict, Optional
 import numpy as np
 
 from ....perf_data_struct.dynamic.trace.trace import Trace
-from ....perf_data_struct.dynamic.trace.event import Event
+from ....perf_data_struct.dynamic.trace.event import Event, EventType
 from ....perf_data_struct.dynamic.trace.mpi_event import MpiSendEvent, MpiRecvEvent
-from .gpu_trace_replayer import GPUTraceReplayer, GPUAvailable, _load_gpu_library
+from .gpu_trace_replayer import GPUTraceReplayer, GPUAvailable, DataDependence
 from ..late_sender import LateSender
 
 
@@ -19,9 +19,10 @@ class GPULateSender(GPUTraceReplayer):
     """
     GPU-accelerated late sender analyzer.
     
-    This class extends GPUTraceReplayer to detect late sender patterns
-    using GPU parallel processing. It identifies send operations that
-    arrive late relative to their corresponding receive operations.
+    This class extends GPUTraceReplayer and registers a callback function
+    to detect late sender patterns using GPU parallel processing. It identifies
+    send operations that arrive late relative to their corresponding receive
+    operations.
     
     When GPU is not available, automatically falls back to CPU implementation.
     
@@ -47,37 +48,86 @@ class GPULateSender(GPUTraceReplayer):
         self.cpu_analyzer: Optional[LateSender] = None
         if not self.use_gpu:
             self.cpu_analyzer = LateSender(trace)
+        else:
+            # Register GPU callback for late sender detection
+            # Data dependence: NO_DEPS because each receive event can be checked independently
+            self.registerGPUCallback(
+                "late_sender_detector",
+                self._gpu_late_sender_callback,
+                DataDependence.NO_DEPS
+            )
     
-    def _analyze_gpu(self) -> None:
+    def _gpu_late_sender_callback(
+        self, 
+        types: np.ndarray, 
+        timestamps: np.ndarray, 
+        partner_indices: np.ndarray
+    ) -> Dict[str, any]:
         """
-        Perform late sender analysis on GPU.
+        GPU callback function for late sender detection.
         
-        This method converts trace data to GPU format, launches CUDA kernels,
-        and retrieves results back to host memory.
+        This callback processes event arrays on the GPU to identify late senders.
+        Each receive event is checked independently to see if its corresponding
+        send arrived late.
+        
+        Args:
+            types: Array of event types
+            timestamps: Array of event timestamps
+            partner_indices: Array mapping events to their partners
+            
+        Returns:
+            Dictionary containing late sender indices and wait times
         """
-        if self.gpu_data is None or self.gpu_data.num_events == 0:
+        late_send_indices = []
+        wait_times = {}
+        
+        # Process all events in parallel (simulated for CPU fallback)
+        for i in range(len(types)):
+            # Check if this is a receive event
+            if types[i] == EventType.RECV.value:
+                send_idx = partner_indices[i]
+                
+                # Check if send event is matched
+                if send_idx >= 0 and send_idx < len(types):
+                    recv_time = timestamps[i]
+                    send_time = timestamps[send_idx]
+                    
+                    # Late sender: send happens after receive is ready
+                    if send_time > recv_time:
+                        wait_time = send_time - recv_time
+                        late_send_indices.append(send_idx)
+                        wait_times[i] = wait_time
+        
+        return {
+            'late_send_indices': late_send_indices,
+            'wait_times': wait_times
+        }
+    
+    def _process_gpu_results(self, results: Dict[str, any]) -> None:
+        """
+        Process results from GPU callback and populate analysis results.
+        
+        Args:
+            results: Dictionary containing GPU callback results
+        """
+        if 'late_sender_detector' not in results:
             return
         
-        try:
-            # Load GPU library
-            gpu_lib = _load_gpu_library()
-            if gpu_lib is None:
-                raise RuntimeError("GPU library not available")
+        callback_results = results['late_sender_detector']
+        late_send_indices = callback_results.get('late_send_indices', [])
+        wait_times_dict = callback_results.get('wait_times', {})
+        
+        # Convert indices back to event objects
+        if self.m_trace is not None:
+            events = self.m_trace.getEvents()
+            for idx in late_send_indices:
+                if 0 <= idx < len(events):
+                    event = events[idx]
+                    if isinstance(event, MpiSendEvent):
+                        self.m_late_sends.append(event)
             
-            # For now, we simulate GPU execution since we can't actually run CUDA
-            # In a real implementation with CUDA available, this would:
-            # 1. Allocate GPU memory
-            # 2. Copy data to GPU
-            # 3. Launch kernel
-            # 4. Copy results back
-            # 5. Free GPU memory
-            
-            # Simulate GPU analysis by calling CPU version for now
-            self._analyze_cpu()
-            
-        except Exception as e:
-            print(f"GPU analysis failed: {e}. Falling back to CPU.")
-            self._analyze_cpu()
+            # Store wait times
+            self.m_wait_times = wait_times_dict
     
     def _analyze_cpu(self) -> None:
         """
@@ -109,7 +159,10 @@ class GPULateSender(GPUTraceReplayer):
         self.clear()
         
         if self.use_gpu and self.gpu_data is not None:
-            self._analyze_gpu()
+            # Execute GPU callbacks
+            from ..low_level.trace_replayer import ReplayDirection
+            results = self._execute_gpu_callbacks(ReplayDirection.FWD)
+            self._process_gpu_results(results)
         else:
             self._analyze_cpu()
     

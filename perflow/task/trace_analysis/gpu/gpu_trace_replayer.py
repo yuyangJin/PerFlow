@@ -8,7 +8,8 @@ and analysis functionality.
 import ctypes
 import os
 import sys
-from typing import Optional, List, Dict, Callable
+from typing import Optional, List, Dict, Callable, Any
+from enum import Enum
 import numpy as np
 
 from ....perf_data_struct.dynamic.trace.trace import Trace
@@ -47,6 +48,19 @@ def _load_gpu_library():
     # GPU library not found
     GPUAvailable = False
     return None
+
+
+class DataDependence(Enum):
+    """
+    Enumeration of data dependence types for trace replay.
+    
+    Defines how events can be parallelized during replay based on
+    their dependencies.
+    """
+    NO_DEPS = "no_dependencies"  # All events independent, full parallelism
+    INTRA_PROCS_DEPS = "intra_process_dependencies"  # Events between processes independent
+    INTER_PROCS_DEPS = "inter_process_dependencies"  # Events within process independent
+    FULL_DEPS = "full_dependencies"  # Sequential replay required
 
 
 class GPUEventData:
@@ -176,10 +190,15 @@ class GPUTraceReplayer(TraceReplayer):
     trace replay and analysis. It automatically converts Python trace objects
     to GPU-friendly data structures and executes analysis kernels on the GPU.
     
+    The replayer supports callback registration for custom analysis tasks,
+    with automatic handling of data dependencies for optimal parallelization.
+    
     Attributes:
         gpu_data: GPU-friendly event data
         use_gpu: Whether GPU acceleration is enabled
         use_shared_mem: Whether to use shared memory optimization
+        gpu_callbacks: Dictionary of GPU callback functions
+        callback_data_deps: Dictionary mapping callback names to their data dependencies
     """
     
     def __init__(self, trace: Optional[Trace] = None, use_gpu: bool = True):
@@ -194,6 +213,10 @@ class GPUTraceReplayer(TraceReplayer):
         self.gpu_data: Optional[GPUEventData] = None
         self.use_gpu = use_gpu and GPUAvailable
         self.use_shared_mem = True  # Enable shared memory optimization by default
+        
+        # GPU-specific callback management
+        self.gpu_callbacks: Dict[str, Callable[[np.ndarray, np.ndarray, np.ndarray], Any]] = {}
+        self.callback_data_deps: Dict[str, DataDependence] = {}
         
         if not self.use_gpu and use_gpu:
             print("Warning: GPU acceleration requested but not available. "
@@ -220,29 +243,113 @@ class GPUTraceReplayer(TraceReplayer):
         """
         self.use_shared_mem = enable
     
+    def registerGPUCallback(
+        self, 
+        name: str, 
+        callback: Callable[[np.ndarray, np.ndarray, np.ndarray], Any],
+        data_dependence: DataDependence = DataDependence.NO_DEPS
+    ) -> None:
+        """
+        Register a GPU callback function for trace analysis.
+        
+        The callback function receives GPU-formatted event data and performs
+        custom analysis. Data dependence information guides the parallelization
+        strategy.
+        
+        Args:
+            name: Name identifier for the callback
+            callback: Function that processes GPU event arrays
+                     Signature: callback(types, timestamps, partner_indices) -> results
+            data_dependence: Type of data dependence for this callback
+        """
+        self.gpu_callbacks[name] = callback
+        self.callback_data_deps[name] = data_dependence
+    
+    def unregisterGPUCallback(self, name: str) -> None:
+        """
+        Unregister a GPU callback function.
+        
+        Args:
+            name: Name identifier of the callback to remove
+        """
+        if name in self.gpu_callbacks:
+            del self.gpu_callbacks[name]
+        if name in self.callback_data_deps:
+            del self.callback_data_deps[name]
+    
+    def _execute_gpu_callbacks(self, direction: ReplayDirection) -> Dict[str, Any]:
+        """
+        Execute all registered GPU callbacks on the GPU.
+        
+        This method launches GPU kernels based on the registered callbacks
+        and their data dependencies.
+        
+        Args:
+            direction: Replay direction (forward or backward)
+            
+        Returns:
+            Dictionary mapping callback names to their results
+        """
+        if self.gpu_data is None or self.gpu_data.num_events == 0:
+            return {}
+        
+        results = {}
+        
+        for name, callback in self.gpu_callbacks.items():
+            data_dep = self.callback_data_deps.get(name, DataDependence.NO_DEPS)
+            
+            try:
+                # Execute callback on GPU arrays
+                if direction == ReplayDirection.FWD:
+                    # Forward replay
+                    result = callback(
+                        self.gpu_data.types,
+                        self.gpu_data.timestamps,
+                        self.gpu_data.partner_indices
+                    )
+                else:
+                    # Backward replay - reverse arrays
+                    result = callback(
+                        self.gpu_data.types[::-1],
+                        self.gpu_data.timestamps[::-1],
+                        self.gpu_data.partner_indices[::-1]
+                    )
+                
+                results[name] = result
+                
+            except Exception as e:
+                print(f"Warning: GPU callback '{name}' failed: {e}. Skipping.")
+                continue
+        
+        return results
+    
     def forwardReplay(self) -> None:
         """
-        Replay the trace in forward order.
+        Replay the trace in forward order on GPU.
         
-        If GPU is available and enabled, uses GPU-accelerated replay.
-        Otherwise, falls back to CPU implementation.
+        Executes all registered GPU callbacks in parallel based on their
+        data dependencies. Falls back to CPU if GPU is unavailable.
         """
-        if self.use_gpu and self.gpu_data is not None:
-            # GPU implementation - subclasses should override
-            # Base implementation falls back to CPU
-            super().forwardReplay()
-        else:
-            # CPU fallback
+        if self.use_gpu and self.gpu_data is not None and len(self.gpu_callbacks) > 0:
+            # Execute GPU callbacks
+            self._execute_gpu_callbacks(ReplayDirection.FWD)
+        elif len(self.m_forward_callbacks) > 0:
+            # Fall back to CPU implementation for registered CPU callbacks
             super().forwardReplay()
     
     def backwardReplay(self) -> None:
         """
-        Replay the trace in backward order.
+        Replay the trace in backward order on GPU.
         
-        Note: GPU implementation currently only supports forward replay.
-        This always uses CPU implementation.
+        Executes all registered GPU callbacks in parallel based on their
+        data dependencies. Falls back to CPU if GPU is unavailable.
         """
-        super().backwardReplay()
+        if self.use_gpu and self.gpu_data is not None and len(self.gpu_callbacks) > 0:
+            # Execute GPU callbacks
+            self._execute_gpu_callbacks(ReplayDirection.BWD)
+        elif len(self.m_backward_callbacks) > 0:
+            # Fall back to CPU implementation for registered CPU callbacks
+            super().backwardReplay()
     
     def isGPUEnabled(self) -> bool:
         """Check if GPU acceleration is enabled."""

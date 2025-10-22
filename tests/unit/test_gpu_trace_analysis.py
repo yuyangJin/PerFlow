@@ -6,7 +6,7 @@ and GPU late receiver analysis with CPU fallback.
 """
 import pytest
 from perflow.task.trace_analysis.gpu import (
-    GPUTraceReplayer, GPULateSender, GPULateReceiver, GPUAvailable
+    GPUTraceReplayer, GPULateSender, GPULateReceiver, GPUAvailable, DataDependence
 )
 from perflow.task.trace_analysis.gpu.gpu_trace_replayer import GPUEventData
 from perflow.perf_data_struct.dynamic.trace.trace import Trace, TraceInfo
@@ -121,6 +121,49 @@ class TestGPUTraceReplayer:
         
         replayer.enableSharedMemory(False)
         assert replayer.use_shared_mem is False
+    
+    def test_register_gpu_callback(self):
+        """Test registering GPU callback"""
+        replayer = GPUTraceReplayer()
+        
+        def test_callback(types, timestamps, partner_indices):
+            return {"test": "result"}
+        
+        replayer.registerGPUCallback("test", test_callback, DataDependence.NO_DEPS)
+        
+        assert "test" in replayer.gpu_callbacks
+        assert replayer.callback_data_deps["test"] == DataDependence.NO_DEPS
+    
+    def test_unregister_gpu_callback(self):
+        """Test unregistering GPU callback"""
+        replayer = GPUTraceReplayer()
+        
+        def test_callback(types, timestamps, partner_indices):
+            return {"test": "result"}
+        
+        replayer.registerGPUCallback("test", test_callback, DataDependence.NO_DEPS)
+        assert "test" in replayer.gpu_callbacks
+        
+        replayer.unregisterGPUCallback("test")
+        assert "test" not in replayer.gpu_callbacks
+    
+    def test_data_dependence_types(self):
+        """Test all data dependence types"""
+        replayer = GPUTraceReplayer()
+        
+        def callback1(types, timestamps, partner_indices):
+            return {}
+        
+        # Test all dependence types
+        replayer.registerGPUCallback("no_deps", callback1, DataDependence.NO_DEPS)
+        replayer.registerGPUCallback("intra_proc", callback1, DataDependence.INTRA_PROCS_DEPS)
+        replayer.registerGPUCallback("inter_proc", callback1, DataDependence.INTER_PROCS_DEPS)
+        replayer.registerGPUCallback("full_deps", callback1, DataDependence.FULL_DEPS)
+        
+        assert replayer.callback_data_deps["no_deps"] == DataDependence.NO_DEPS
+        assert replayer.callback_data_deps["intra_proc"] == DataDependence.INTRA_PROCS_DEPS
+        assert replayer.callback_data_deps["inter_proc"] == DataDependence.INTER_PROCS_DEPS
+        assert replayer.callback_data_deps["full_deps"] == DataDependence.FULL_DEPS
 
 
 class TestGPULateSender:
