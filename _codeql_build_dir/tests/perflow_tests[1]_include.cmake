@@ -1,0 +1,5 @@
+if(EXISTS "/home/runner/work/PerFlow/PerFlow/_codeql_build_dir/tests/perflow_tests[1]_tests.cmake")
+  include("/home/runner/work/PerFlow/PerFlow/_codeql_build_dir/tests/perflow_tests[1]_tests.cmake")
+else()
+  add_test(perflow_tests_NOT_BUILT perflow_tests_NOT_BUILT)
+endif()

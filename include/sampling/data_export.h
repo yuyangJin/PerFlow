@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
+#include <ctime>
 
 #include "sampling/call_stack.h"
 #include "sampling/static_hash_map.h"

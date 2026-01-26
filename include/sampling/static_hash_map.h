@@ -8,9 +8,18 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <type_traits>
 
 namespace perflow {
 namespace sampling {
+
+// Helper to detect if type has hash() method
+template <typename T, typename = void>
+struct has_hash_method : std::false_type {};
+
+template <typename T>
+struct has_hash_method<T, std::void_t<decltype(std::declval<const T&>().hash())>>
+    : std::true_type {};
 
 /// Default capacity for the static hash map
 constexpr size_t kDefaultMapCapacity = 65536;
@@ -321,14 +330,14 @@ class StaticHashMap {
 
   /// Compute hash - specialization for types with hash() method
   template <typename K = Key>
-  typename std::enable_if<std::is_member_function_pointer<decltype(&K::hash)>::value, size_type>::type
+  typename std::enable_if<has_hash_method<K>::value, size_type>::type
   compute_hash(const K& key) const noexcept {
     return key.hash();
   }
 
   /// Compute hash - default implementation using memory contents
   template <typename K = Key>
-  typename std::enable_if<!std::is_member_function_pointer<decltype(&K::hash)>::value, size_type>::type
+  typename std::enable_if<!has_hash_method<K>::value, size_type>::type
   compute_hash(const K& key) const noexcept {
     // FNV-1a hash on raw bytes
     constexpr size_t kFnvOffsetBasis =

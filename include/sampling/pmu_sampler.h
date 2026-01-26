@@ -7,6 +7,7 @@
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
+#include <cstring>
 
 #include "sampling/call_stack.h"
 #include "sampling/data_export.h"
