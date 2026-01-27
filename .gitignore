@@ -1,0 +1,32 @@
+# Build directories
+build/
+cmake-build-*/
+
+# Object files
+*.o
+*.obj
+
+# Libraries
+*.a
+*.so
+*.dylib
+
+# Executables
+*.exe
+*.out
+
+# IDE files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# CodeQL artifacts
+_codeql_detected_source_root
+
+# Test output files
+test_output*
+perflow_samples*
+*.txt.rank*
+*.bin.rank*
