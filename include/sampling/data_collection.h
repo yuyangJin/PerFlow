@@ -4,6 +4,7 @@
 #ifndef PERFLOW_SAMPLING_DATA_COLLECTION_H_
 #define PERFLOW_SAMPLING_DATA_COLLECTION_H_
 
+#include <atomic>
 #include <cstdint>
 #include <fstream>
 #include <mutex>

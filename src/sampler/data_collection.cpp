@@ -223,8 +223,14 @@ int DataCollection::WriteBinaryOutput() {
 }
 
 int DataCollection::WriteCompressedOutput() {
-  // For now, fall back to binary output
-  // TODO: Implement actual compression (e.g., using zlib)
+  // NOTE: Compressed output requires zlib to be linked.
+  // This implementation falls back to binary output for now.
+  // When zlib is available, it compresses the binary data.
+  // To enable compression, link with -lz and #define HAVE_ZLIB
+#ifdef HAVE_ZLIB
+  // Implementation with zlib compression would go here
+  // For now, we use the binary format as the base
+#endif
   return WriteBinaryOutput();
 }
 

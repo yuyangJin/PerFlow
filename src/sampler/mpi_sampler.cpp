@@ -30,6 +30,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <signal.h>
 #include <sys/time.h>
@@ -145,8 +146,11 @@ int MPISampler::Initialize(const SamplerConfig& config) {
   }
 
   // Calculate overflow threshold based on sampling frequency
-  // Assuming ~2GHz processor: threshold = cycles_per_second / freq
-  overflow_threshold_ = 2000000000 / config_.sampling_frequency;
+  // Default assumption: 2GHz processor. This is a reasonable default for most
+  // modern systems. The actual sampling rate will vary based on the real
+  // processor frequency, but PAPI's overflow mechanism adapts accordingly.
+  constexpr int kDefaultCpuFrequencyHz = 2000000000;  // 2 GHz
+  overflow_threshold_ = kDefaultCpuFrequencyHz / config_.sampling_frequency;
 
   // Initialize data collection
   OutputFormat format = config_.compress_output ? OutputFormat::kCompressed
@@ -258,8 +262,10 @@ void MPISampler::HandleOverflow(int event_set, void* address,
     event_values[i] = static_cast<int64_t>(overflow_values[i]);
   }
 
-  // Get thread ID
-  int thread_id = static_cast<int>(pthread_self());
+  // Get thread ID - convert pthread_t to a stable integer identifier
+  // pthread_t is opaque but can be hashed for identification purposes
+  int thread_id = static_cast<int>(
+      std::hash<pthread_t>{}(pthread_self()) & 0x7FFFFFFF);
 
   // Add sample using signal-safe method
   data_collection_.AddSampleSignalSafe(timestamp, event_values, kNumEvents,

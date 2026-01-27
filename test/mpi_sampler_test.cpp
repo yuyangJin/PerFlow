@@ -17,6 +17,8 @@
 #include <mpi.h>
 #include <papi.h>
 
+#include "sampling/perflow_sampler.h"
+
 #include <algorithm>
 #include <chrono>
 #include <cmath>
@@ -25,17 +27,6 @@
 #include <iostream>
 #include <numeric>
 #include <vector>
-
-// Forward declarations from mpi_sampler.cpp
-extern "C" {
-void* perflow_sampler_create();
-int perflow_sampler_init(void* sampler, int frequency, const char* output_path);
-int perflow_sampler_start(void* sampler);
-int perflow_sampler_stop(void* sampler);
-int perflow_sampler_write_output(void* sampler);
-void perflow_sampler_destroy(void* sampler);
-size_t perflow_sampler_get_sample_count(void* sampler);
-}
 
 constexpr int MATRIX_SIZE = 100;
 constexpr int VECTOR_SIZE = 10000;

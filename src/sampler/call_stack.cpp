@@ -11,6 +11,7 @@
 
 #include "sampling/call_stack.h"
 
+#include <cinttypes>
 #include <cxxabi.h>
 #include <dlfcn.h>
 #include <execinfo.h>
@@ -38,7 +39,8 @@ int ResolveSymbol(void* addr, char* symbol, size_t symbol_size) {
 
   Dl_info info;
   if (dladdr(addr, &info) == 0) {
-    snprintf(symbol, symbol_size, "0x%lx", reinterpret_cast<unsigned long>(addr));
+    snprintf(symbol, symbol_size, "0x%" PRIxPTR,
+             reinterpret_cast<uintptr_t>(addr));
     return -1;
   }
 
@@ -56,7 +58,8 @@ int ResolveSymbol(void* addr, char* symbol, size_t symbol_size) {
   }
 
   // No symbol name, use address
-  snprintf(symbol, symbol_size, "0x%lx", reinterpret_cast<unsigned long>(addr));
+  snprintf(symbol, symbol_size, "0x%" PRIxPTR,
+           reinterpret_cast<uintptr_t>(addr));
   return -1;
 }
 
