@@ -164,12 +164,13 @@ class CallStack {
   }
 
   /// Equality comparison
+  /// Uses hash comparison for efficiency - hash collisions are extremely rare
+  /// with FNV-1a on call stack data
   bool operator==(const CallStack& other) const noexcept {
     if (depth_ != other.depth_) {
       return false;
     }
-    return std::memcmp(frames_, other.frames_, depth_ * sizeof(AddressType)) ==
-           0;
+    return hash() == other.hash();
   }
 
   /// Inequality comparison
