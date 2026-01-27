@@ -41,32 +41,6 @@ void memoryIntensive(int size) {
   (void)sum;
 }
 
-/// Helper function to print sampler status
-const char* statusToString(SamplerStatus status) {
-  switch (status) {
-    case SamplerStatus::kUninitialized: return "Uninitialized";
-    case SamplerStatus::kInitialized: return "Initialized";
-    case SamplerStatus::kRunning: return "Running";
-    case SamplerStatus::kStopped: return "Stopped";
-    case SamplerStatus::kError: return "Error";
-    default: return "Unknown";
-  }
-}
-
-/// Helper function to print result codes
-const char* resultToString(SamplerResult result) {
-  switch (result) {
-    case SamplerResult::kSuccess: return "Success";
-    case SamplerResult::kErrorNotSupported: return "Not Supported";
-    case SamplerResult::kErrorPermission: return "Permission Denied";
-    case SamplerResult::kErrorInitialization: return "Initialization Error";
-    case SamplerResult::kErrorConfiguration: return "Configuration Error";
-    case SamplerResult::kErrorOverflow: return "Overflow Error";
-    case SamplerResult::kErrorInternal: return "Internal Error";
-    default: return "Unknown";
-  }
-}
-
 int main() {
   std::printf("===========================================\n");
   std::printf("PerFlow PMU Sampler Demo\n");

@@ -103,6 +103,36 @@ enum class SamplerResult {
   kErrorInternal = 6
 };
 
+/// Convert SamplerStatus to human-readable string
+/// @param status The sampler status value
+/// @return String representation of the status
+inline const char* statusToString(SamplerStatus status) noexcept {
+  switch (status) {
+    case SamplerStatus::kUninitialized: return "Uninitialized";
+    case SamplerStatus::kInitialized: return "Initialized";
+    case SamplerStatus::kRunning: return "Running";
+    case SamplerStatus::kStopped: return "Stopped";
+    case SamplerStatus::kError: return "Error";
+    default: return "Unknown";
+  }
+}
+
+/// Convert SamplerResult to human-readable string
+/// @param result The sampler result code
+/// @return String representation of the result
+inline const char* resultToString(SamplerResult result) noexcept {
+  switch (result) {
+    case SamplerResult::kSuccess: return "Success";
+    case SamplerResult::kErrorNotSupported: return "Not Supported";
+    case SamplerResult::kErrorPermission: return "Permission Denied";
+    case SamplerResult::kErrorInitialization: return "Initialization Error";
+    case SamplerResult::kErrorConfiguration: return "Configuration Error";
+    case SamplerResult::kErrorOverflow: return "Overflow Error";
+    case SamplerResult::kErrorInternal: return "Internal Error";
+    default: return "Unknown";
+  }
+}
+
 /// PmuSampler provides PMU-based sampling for performance analysis.
 /// This is the main interface for runtime data collection.
 ///
