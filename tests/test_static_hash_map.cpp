@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 
+#include "sampling/call_stack.h"
 #include "sampling/static_hash_map.h"
 
 using namespace perflow::sampling;
@@ -252,4 +253,219 @@ TEST_F(StaticHashMapTest, ConstFind) {
   const int* val = const_map.find(SimpleKey(1));
   ASSERT_NE(val, nullptr);
   EXPECT_EQ(*val, 100);
+}
+
+// ============================================================================
+// Tests using CallStack as Key and uint64_t as Value
+// ============================================================================
+
+class CallStackHashMapTest : public ::testing::Test {
+ protected:
+  void SetUp() override {}
+  void TearDown() override {}
+};
+
+TEST_F(CallStackHashMapTest, InsertAndFind) {
+  StaticHashMap<CallStack<16>, uint64_t, 32> map;
+
+  uintptr_t addrs1[] = {0x1000, 0x2000, 0x3000};
+  uintptr_t addrs2[] = {0x4000, 0x5000};
+  uintptr_t addrs3[] = {0x6000, 0x7000, 0x8000, 0x9000};
+
+  CallStack<16> stack1(addrs1, 3);
+  CallStack<16> stack2(addrs2, 2);
+  CallStack<16> stack3(addrs3, 4);
+
+  EXPECT_TRUE(map.insert(stack1, 100));
+  EXPECT_TRUE(map.insert(stack2, 200));
+  EXPECT_TRUE(map.insert(stack3, 300));
+
+  EXPECT_EQ(map.size(), 3u);
+
+  uint64_t* val1 = map.find(stack1);
+  uint64_t* val2 = map.find(stack2);
+  uint64_t* val3 = map.find(stack3);
+
+  ASSERT_NE(val1, nullptr);
+  ASSERT_NE(val2, nullptr);
+  ASSERT_NE(val3, nullptr);
+
+  EXPECT_EQ(*val1, 100u);
+  EXPECT_EQ(*val2, 200u);
+  EXPECT_EQ(*val3, 300u);
+}
+
+TEST_F(CallStackHashMapTest, FindNonExistent) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  uintptr_t addrs1[] = {0x1000, 0x2000};
+  uintptr_t addrs2[] = {0x3000, 0x4000};
+
+  CallStack<16> stack1(addrs1, 2);
+  CallStack<16> stack2(addrs2, 2);
+
+  map.insert(stack1, 100);
+
+  EXPECT_NE(map.find(stack1), nullptr);
+  EXPECT_EQ(map.find(stack2), nullptr);
+}
+
+TEST_F(CallStackHashMapTest, UpdateExisting) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  uintptr_t addrs[] = {0x1000, 0x2000, 0x3000};
+  CallStack<16> stack(addrs, 3);
+
+  EXPECT_TRUE(map.insert(stack, 100));
+  EXPECT_EQ(map.size(), 1u);
+
+  EXPECT_TRUE(map.insert(stack, 200));  // Update
+  EXPECT_EQ(map.size(), 1u);  // Size should not change
+
+  uint64_t* val = map.find(stack);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(*val, 200u);
+}
+
+TEST_F(CallStackHashMapTest, Increment) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  uintptr_t addrs[] = {0x1000, 0x2000};
+  CallStack<16> stack(addrs, 2);
+
+  EXPECT_TRUE(map.increment(stack));
+  EXPECT_EQ(map.size(), 1u);
+
+  uint64_t* val = map.find(stack);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(*val, 1u);
+
+  EXPECT_TRUE(map.increment(stack));
+  EXPECT_TRUE(map.increment(stack));
+  EXPECT_EQ(*val, 3u);
+}
+
+TEST_F(CallStackHashMapTest, Add) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  uintptr_t addrs[] = {0x1000, 0x2000, 0x3000};
+  CallStack<16> stack(addrs, 3);
+
+  EXPECT_TRUE(map.add(stack, 10));
+  uint64_t* val = map.find(stack);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(*val, 10u);
+
+  EXPECT_TRUE(map.add(stack, 5));
+  EXPECT_EQ(*val, 15u);
+}
+
+TEST_F(CallStackHashMapTest, MultipleStacksWithSameDepth) {
+  StaticHashMap<CallStack<16>, uint64_t, 64> map;
+
+  // Create multiple stacks with same depth but different addresses
+  for (int i = 0; i < 10; ++i) {
+    uintptr_t addrs[] = {
+        static_cast<uintptr_t>(0x1000 + i * 0x100),
+        static_cast<uintptr_t>(0x2000 + i * 0x100),
+        static_cast<uintptr_t>(0x3000 + i * 0x100)
+    };
+    CallStack<16> stack(addrs, 3);
+    EXPECT_TRUE(map.insert(stack, i * 100));
+  }
+
+  EXPECT_EQ(map.size(), 10u);
+
+  // Verify all can be found
+  for (int i = 0; i < 10; ++i) {
+    uintptr_t addrs[] = {
+        static_cast<uintptr_t>(0x1000 + i * 0x100),
+        static_cast<uintptr_t>(0x2000 + i * 0x100),
+        static_cast<uintptr_t>(0x3000 + i * 0x100)
+    };
+    CallStack<16> stack(addrs, 3);
+    uint64_t* val = map.find(stack);
+    ASSERT_NE(val, nullptr) << "Stack " << i << " not found";
+    EXPECT_EQ(*val, static_cast<uint64_t>(i * 100));
+  }
+}
+
+TEST_F(CallStackHashMapTest, EmptyCallStack) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  CallStack<16> empty_stack;
+  EXPECT_TRUE(map.insert(empty_stack, 42));
+
+  uint64_t* val = map.find(empty_stack);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(*val, 42u);
+}
+
+TEST_F(CallStackHashMapTest, FullDepthCallStack) {
+  StaticHashMap<CallStack<8>, uint64_t, 16> map;
+
+  uintptr_t addrs[] = {0x1000, 0x2000, 0x3000, 0x4000, 0x5000, 0x6000, 0x7000, 0x8000};
+  CallStack<8> full_stack(addrs, 8);
+
+  EXPECT_TRUE(map.insert(full_stack, 999));
+
+  uint64_t* val = map.find(full_stack);
+  ASSERT_NE(val, nullptr);
+  EXPECT_EQ(*val, 999u);
+}
+
+TEST_F(CallStackHashMapTest, ForEachWithCallStack) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  uintptr_t addrs1[] = {0x1000};
+  uintptr_t addrs2[] = {0x2000};
+  uintptr_t addrs3[] = {0x3000};
+
+  map.insert(CallStack<16>(addrs1, 1), 100);
+  map.insert(CallStack<16>(addrs2, 1), 200);
+  map.insert(CallStack<16>(addrs3, 1), 300);
+
+  uint64_t sum = 0;
+  int count = 0;
+  map.for_each([&sum, &count](const CallStack<16>& stack, uint64_t& value) {
+    (void)stack;
+    sum += value;
+    ++count;
+  });
+
+  EXPECT_EQ(count, 3);
+  EXPECT_EQ(sum, 600u);
+}
+
+TEST_F(CallStackHashMapTest, EraseCallStack) {
+  StaticHashMap<CallStack<16>, uint64_t, 16> map;
+
+  uintptr_t addrs1[] = {0x1000, 0x2000};
+  uintptr_t addrs2[] = {0x3000, 0x4000};
+
+  CallStack<16> stack1(addrs1, 2);
+  CallStack<16> stack2(addrs2, 2);
+
+  map.insert(stack1, 100);
+  map.insert(stack2, 200);
+  EXPECT_EQ(map.size(), 2u);
+
+  EXPECT_TRUE(map.erase(stack1));
+  EXPECT_EQ(map.size(), 1u);
+  EXPECT_EQ(map.find(stack1), nullptr);
+  EXPECT_NE(map.find(stack2), nullptr);
+}
+
+TEST_F(CallStackHashMapTest, ClearWithCallStacks) {
+  StaticHashMap<CallStack<16>, uint64_t, 32> map;
+
+  for (int i = 0; i < 5; ++i) {
+    uintptr_t addrs[] = {static_cast<uintptr_t>(0x1000 * (i + 1))};
+    map.insert(CallStack<16>(addrs, 1), i * 10);
+  }
+  EXPECT_EQ(map.size(), 5u);
+
+  map.clear();
+  EXPECT_EQ(map.size(), 0u);
+  EXPECT_TRUE(map.empty());
 }
