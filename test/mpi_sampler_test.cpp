@@ -148,8 +148,7 @@ double do_vector_operations(int rank) {
 /**
  * @brief Perform MPI collective operations
  */
-void do_collective_operations(int rank, int size) {
-  (void)size;  // Unused parameter
+void do_collective_operations(int rank) {
   std::vector<double> data(1000);
   std::vector<double> reduced(1000);
 
@@ -212,7 +211,7 @@ int main(int argc, char* argv[]) {
   // Perform workload
   do_matrix_operations(rank);
   double vec_result = do_vector_operations(rank);
-  do_collective_operations(rank, size);
+  do_collective_operations(rank);
 
   // Use result to prevent optimization
   if (vec_result < -1e10) {

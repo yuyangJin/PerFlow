@@ -41,7 +41,8 @@ endif()
 
 # Add test target to run with LD_PRELOAD dynamic instrumentation
 # This shows how to use the sampler with any MPI program
-if(PAPI_FOUND)
+# Only available when the sampler library was built
+if(TARGET perflow_sampler)
   add_custom_target(run_mpi_sampler_test
     COMMAND ${CMAKE_COMMAND} -E env 
             "PERFLOW_ENABLE_SAMPLING=1"
@@ -80,8 +81,8 @@ set_tests_properties(mpi_test_basic PROPERTIES
   ENVIRONMENT "OMP_NUM_THREADS=1"
 )
 
-# Test with LD_PRELOAD instrumentation (requires PAPI)
-if(PAPI_FOUND)
+# Test with LD_PRELOAD instrumentation (requires sampler library)
+if(TARGET perflow_sampler)
   add_test(
     NAME mpi_test_instrumented
     COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
