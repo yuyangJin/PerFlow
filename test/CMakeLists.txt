@@ -5,91 +5,91 @@ cmake_minimum_required(VERSION 3.14)
 
 # Find required packages
 find_package(MPI REQUIRED)
-find_package(Threads REQUIRED)
 
-# Find PAPI library
-find_path(PAPI_INCLUDE_DIR papi.h
-  HINTS ENV PAPI_DIR
-  PATH_SUFFIXES include
-  PATHS /usr /usr/local /opt/papi
+# Include directories
+include_directories(
+  ${CMAKE_SOURCE_DIR}/include
+  ${MPI_CXX_INCLUDE_PATH}
 )
 
-find_library(PAPI_LIBRARY
-  NAMES papi
-  HINTS ENV PAPI_DIR
-  PATH_SUFFIXES lib lib64
-  PATHS /usr /usr/local /opt/papi
+# MPI Test Program - A simple MPI workload for testing dynamic instrumentation
+# This program does NOT link against the sampler - it is instrumented via LD_PRELOAD
+add_executable(mpi_sampler_test
+  mpi_sampler_test.cpp
 )
 
-if(PAPI_INCLUDE_DIR AND PAPI_LIBRARY)
-  set(PAPI_FOUND TRUE)
-  message(STATUS "Found PAPI: ${PAPI_LIBRARY}")
-else()
-  message(WARNING "PAPI not found. MPI sampler tests will not be built.")
-  set(PAPI_FOUND FALSE)
+# Link libraries (only MPI, no PAPI or sampler - instrumentation is via LD_PRELOAD)
+target_link_libraries(mpi_sampler_test
+  ${MPI_CXX_LIBRARIES}
+)
+
+# Set compile flags
+target_compile_features(mpi_sampler_test PRIVATE cxx_std_14)
+target_compile_options(mpi_sampler_test PRIVATE -Wall -Wextra -O2)
+
+# Add MPI compile flags
+if(MPI_CXX_COMPILE_FLAGS)
+  target_compile_options(mpi_sampler_test PRIVATE ${MPI_CXX_COMPILE_FLAGS})
 endif()
 
-# Only build tests if PAPI is found
+# Add MPI link flags
+if(MPI_CXX_LINK_FLAGS)
+  set_target_properties(mpi_sampler_test PROPERTIES
+    LINK_FLAGS "${MPI_CXX_LINK_FLAGS}"
+  )
+endif()
+
+# Add test target to run with LD_PRELOAD dynamic instrumentation
+# This shows how to use the sampler with any MPI program
 if(PAPI_FOUND)
-  # Include directories
-  include_directories(
-    ${CMAKE_SOURCE_DIR}/include
-    ${PAPI_INCLUDE_DIR}
-    ${MPI_CXX_INCLUDE_PATH}
-  )
-
-  # MPI Sampler Test executable
-  add_executable(mpi_sampler_test
-    mpi_sampler_test.cpp
-    ${CMAKE_SOURCE_DIR}/src/sampler/mpi_sampler.cpp
-    ${CMAKE_SOURCE_DIR}/src/sampler/call_stack.cpp
-    ${CMAKE_SOURCE_DIR}/src/sampler/data_collection.cpp
-  )
-
-  # Link libraries
-  target_link_libraries(mpi_sampler_test
-    ${PAPI_LIBRARY}
-    ${MPI_CXX_LIBRARIES}
-    Threads::Threads
-    dl
-  )
-
-  # Set compile flags
-  target_compile_features(mpi_sampler_test PRIVATE cxx_std_14)
-  target_compile_options(mpi_sampler_test PRIVATE -Wall -Wextra -O2)
-
-  # Add MPI compile flags
-  if(MPI_CXX_COMPILE_FLAGS)
-    target_compile_options(mpi_sampler_test PRIVATE ${MPI_CXX_COMPILE_FLAGS})
-  endif()
-
-  # Add MPI link flags
-  if(MPI_CXX_LINK_FLAGS)
-    set_target_properties(mpi_sampler_test PROPERTIES
-      LINK_FLAGS "${MPI_CXX_LINK_FLAGS}"
-    )
-  endif()
-
-  # Add test target to run with 4 MPI processes
   add_custom_target(run_mpi_sampler_test
+    COMMAND ${CMAKE_COMMAND} -E env 
+            "PERFLOW_ENABLE_SAMPLING=1"
+            "PERFLOW_SAMPLING_FREQ=1000"
+            "PERFLOW_OUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/samples"
+            "LD_PRELOAD=$<TARGET_FILE:perflow_sampler>"
+            ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
+            ${MPIEXEC_PREFLAGS} $<TARGET_FILE:mpi_sampler_test> ${MPIEXEC_POSTFLAGS}
+    DEPENDS mpi_sampler_test perflow_sampler
+    WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
+    COMMENT "Running MPI test with dynamic instrumentation (LD_PRELOAD)"
+  )
+
+  # Add a target to run without instrumentation for comparison
+  add_custom_target(run_mpi_test_uninstrumented
     COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:mpi_sampler_test> ${MPIEXEC_POSTFLAGS}
     DEPENDS mpi_sampler_test
     WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}
-    COMMENT "Running MPI sampler test with 4 processes"
+    COMMENT "Running MPI test without instrumentation"
   )
+endif()
 
-  # Enable testing
-  enable_testing()
+# Enable testing
+enable_testing()
+
+# Test without instrumentation (basic functionality)
+add_test(
+  NAME mpi_test_basic
+  COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
+          ${MPIEXEC_PREFLAGS} $<TARGET_FILE:mpi_sampler_test> ${MPIEXEC_POSTFLAGS}
+)
+
+set_tests_properties(mpi_test_basic PROPERTIES
+  TIMEOUT 60
+  ENVIRONMENT "OMP_NUM_THREADS=1"
+)
+
+# Test with LD_PRELOAD instrumentation (requires PAPI)
+if(PAPI_FOUND)
   add_test(
-    NAME mpi_sampler_test
+    NAME mpi_test_instrumented
     COMMAND ${MPIEXEC_EXECUTABLE} ${MPIEXEC_NUMPROC_FLAG} 4
             ${MPIEXEC_PREFLAGS} $<TARGET_FILE:mpi_sampler_test> ${MPIEXEC_POSTFLAGS}
   )
 
-  # Set test properties
-  set_tests_properties(mpi_sampler_test PROPERTIES
+  set_tests_properties(mpi_test_instrumented PROPERTIES
     TIMEOUT 60
-    ENVIRONMENT "OMP_NUM_THREADS=1"
+    ENVIRONMENT "PERFLOW_ENABLE_SAMPLING=1;PERFLOW_SAMPLING_FREQ=1000;PERFLOW_OUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/samples;LD_PRELOAD=$<TARGET_FILE:perflow_sampler>;OMP_NUM_THREADS=1"
   )
 endif()

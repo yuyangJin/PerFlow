@@ -3,29 +3,31 @@
 
 /**
  * @file mpi_sampler_test.cpp
- * @brief Test application for MPI Performance Sampler
+ * @brief Test application for MPI Performance Sampler (Dynamic Instrumentation)
  *
- * This test program validates the MPI sampler by performing:
+ * This is a simple MPI program that performs computational workloads.
+ * It does NOT contain any instrumentation code - instead, it is designed
+ * to be profiled using the LD_PRELOAD mechanism with libperflow_sampler.so.
+ *
+ * Usage with dynamic instrumentation:
+ *   export PERFLOW_ENABLE_SAMPLING=1
+ *   export PERFLOW_SAMPLING_FREQ=1000
+ *   export PERFLOW_OUTPUT_PATH=./samples
+ *   mpirun -np 4 -x LD_PRELOAD=/path/to/libperflow_sampler.so ./mpi_sampler_test
+ *
+ * The test performs:
  * - Matrix multiplication (100x100)
  * - Vector operations
  * - Collective operations (MPI_Bcast, MPI_Reduce)
- *
- * The test should be run with 4 MPI processes:
- *   mpirun -np 4 ./mpi_sampler_test
  */
 
 #include <mpi.h>
-#include <papi.h>
-
-#include "sampling/perflow_sampler.h"
 
 #include <algorithm>
 #include <chrono>
 #include <cmath>
 #include <cstdlib>
-#include <cstring>
 #include <iostream>
-#include <numeric>
 #include <vector>
 
 constexpr int MATRIX_SIZE = 100;
@@ -147,6 +149,7 @@ double do_vector_operations(int rank) {
  * @brief Perform MPI collective operations
  */
 void do_collective_operations(int rank, int size) {
+  (void)size;  // Unused parameter
   std::vector<double> data(1000);
   std::vector<double> reduced(1000);
 
@@ -182,32 +185,6 @@ void do_collective_operations(int rank, int size) {
   }
 }
 
-/**
- * @brief Validate sampler results
- */
-bool validate_results(void* sampler, int rank) {
-  size_t sample_count = perflow_sampler_get_sample_count(sampler);
-
-  std::cout << "Rank " << rank << ": Collected " << sample_count << " samples"
-            << std::endl;
-
-  // Check that we got at least some samples
-  if (sample_count == 0) {
-    std::cerr << "Rank " << rank << ": ERROR - No samples collected!"
-              << std::endl;
-    return false;
-  }
-
-  // Check that sample count is reasonable (not too few, not too many)
-  // With 1000 Hz sampling and ~1 second of work, expect 100-10000 samples
-  if (sample_count < 10) {
-    std::cerr << "Rank " << rank << ": WARNING - Very few samples collected"
-              << std::endl;
-  }
-
-  return true;
-}
-
 int main(int argc, char* argv[]) {
   // Initialize MPI
   MPI_Init(&argc, &argv);
@@ -217,41 +194,16 @@ int main(int argc, char* argv[]) {
   MPI_Comm_size(MPI_COMM_WORLD, &size);
 
   if (rank == 0) {
-    std::cout << "=== MPI Sampler Test ===" << std::endl;
+    std::cout << "=== MPI Test Program ===" << std::endl;
     std::cout << "Running with " << size << " processes" << std::endl;
+    std::cout << "This program is designed to be profiled with LD_PRELOAD" << std::endl;
+    std::cout << std::endl;
   }
 
-  // Create and initialize sampler
-  void* sampler = perflow_sampler_create();
-  if (sampler == nullptr) {
-    std::cerr << "Rank " << rank << ": Failed to create sampler" << std::endl;
-    MPI_Finalize();
-    return 1;
-  }
-
-  int ret = perflow_sampler_init(sampler, 1000, "./test_output");
-  if (ret != 0) {
-    std::cerr << "Rank " << rank << ": Failed to initialize sampler: " << ret
-              << std::endl;
-    perflow_sampler_destroy(sampler);
-    MPI_Finalize();
-    return 1;
-  }
-
-  // Synchronize before starting
+  // Synchronize before starting workload
   MPI_Barrier(MPI_COMM_WORLD);
 
   auto start_time = std::chrono::high_resolution_clock::now();
-
-  // Start sampling
-  ret = perflow_sampler_start(sampler);
-  if (ret != 0) {
-    std::cerr << "Rank " << rank << ": Failed to start sampler: " << ret
-              << std::endl;
-    perflow_sampler_destroy(sampler);
-    MPI_Finalize();
-    return 1;
-  }
 
   if (rank == 0) {
     std::cout << "Starting workload..." << std::endl;
@@ -267,13 +219,6 @@ int main(int argc, char* argv[]) {
     std::cout << "Unexpected vector result" << std::endl;
   }
 
-  // Stop sampling
-  ret = perflow_sampler_stop(sampler);
-  if (ret != 0) {
-    std::cerr << "Rank " << rank << ": Failed to stop sampler: " << ret
-              << std::endl;
-  }
-
   auto end_time = std::chrono::high_resolution_clock::now();
   auto duration = std::chrono::duration_cast<std::chrono::milliseconds>(
                       end_time - start_time)
@@ -284,37 +229,9 @@ int main(int argc, char* argv[]) {
 
   if (rank == 0) {
     std::cout << "Workload completed in " << duration << " ms" << std::endl;
-  }
-
-  // Validate results
-  bool valid = validate_results(sampler, rank);
-
-  // Gather validation results
-  int local_valid = valid ? 1 : 0;
-  int global_valid = 0;
-  MPI_Reduce(&local_valid, &global_valid, 1, MPI_INT, MPI_MIN, 0,
-             MPI_COMM_WORLD);
-
-  // Write output
-  ret = perflow_sampler_write_output(sampler);
-  if (ret != 0) {
-    std::cerr << "Rank " << rank << ": Failed to write output: " << ret
-              << std::endl;
-  }
-
-  // Cleanup
-  perflow_sampler_destroy(sampler);
-
-  MPI_Barrier(MPI_COMM_WORLD);
-
-  if (rank == 0) {
-    if (global_valid == 1) {
-      std::cout << "=== Test PASSED ===" << std::endl;
-    } else {
-      std::cout << "=== Test FAILED ===" << std::endl;
-    }
+    std::cout << "=== Test Complete ===" << std::endl;
   }
 
   MPI_Finalize();
-  return (global_valid == 1) ? 0 : 1;
+  return 0;
 }

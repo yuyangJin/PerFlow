@@ -2,10 +2,22 @@
 
 ## Overview
 
-The MPI Performance Sampler is a high-performance sampling-based profiler for MPI programs using the PAPI (Performance Application Programming Interface) library. It collects hardware performance counter data at configurable intervals using PAPI's overflow mechanism.
+The MPI Performance Sampler is a **dynamic instrumentation** profiler for MPI programs using the PAPI (Performance Application Programming Interface) library. It is designed to be used with `LD_PRELOAD` to collect hardware performance counter data from **any MPI program without source code modifications**.
+
+## Key Concept: Dynamic Instrumentation
+
+This sampler uses the `LD_PRELOAD` mechanism to inject profiling code into any MPI program at runtime. The sampler is built as a shared library (`libperflow_sampler.so`) that automatically:
+
+1. Initializes when loaded via `LD_PRELOAD`
+2. Starts sampling when enabled via environment variables
+3. Collects performance data during program execution
+4. Writes output files when the program exits
+
+**No changes to your application source code are required.**
 
 ## Features
 
+- **Dynamic instrumentation via LD_PRELOAD**: Profile any MPI program without recompilation
 - **Configurable sampling frequency** (default: 1000 Hz)
 - **Multiple hardware events**: Tracks PAPI_TOT_CYC (cycles), PAPI_TOT_INS (instructions), PAPI_L1_DCM (L1 data cache misses)
 - **Call stack capture**: Optional call stack sampling for context
@@ -28,81 +40,64 @@ cmake ..
 make
 ```
 
+This will produce `libperflow_sampler.so` in the build directory.
+
 ## Usage
 
-### Automatic Sampling (Recommended)
+### Dynamic Instrumentation with LD_PRELOAD (Recommended)
 
-The sampler can be automatically enabled by setting environment variables:
+Profile any MPI program by setting environment variables and using `LD_PRELOAD`:
 
 ```bash
+# Set environment variables for the sampler
 export PERFLOW_ENABLE_SAMPLING=1
-export PERFLOW_SAMPLING_FREQ=1000      # Hz
-export PERFLOW_OUTPUT_PATH=./samples   # Output prefix
+export PERFLOW_SAMPLING_FREQ=1000      # Sampling frequency in Hz
+export PERFLOW_OUTPUT_PATH=./samples   # Output file prefix
 export PERFLOW_CALLSTACK=1             # Enable call stack (1=yes, 0=no)
 export PERFLOW_COMPRESS=0              # Compress output (1=yes, 0=no)
 
-mpirun -np 4 ./my_mpi_program
+# Run your MPI program with LD_PRELOAD
+mpirun -np 4 -x LD_PRELOAD=/path/to/libperflow_sampler.so ./my_mpi_program
 ```
 
-The sampler will automatically start when the program loads and write output when it exits.
+The sampler will:
+1. Automatically start when the library is loaded
+2. Collect performance samples during execution
+3. Write output files when the program exits (one per MPI rank)
 
-### Programmatic API (C)
+### OpenMPI Example
 
-```c
-#include <perflow_sampler.h>
+```bash
+export PERFLOW_ENABLE_SAMPLING=1
+export PERFLOW_OUTPUT_PATH=./profile_data
 
-// Create sampler
-void* sampler = perflow_sampler_create();
-
-// Initialize (frequency in Hz, output path prefix)
-int ret = perflow_sampler_init(sampler, 1000, "./my_output");
-
-// Start sampling
-ret = perflow_sampler_start(sampler);
-
-// ... run your code ...
-
-// Stop sampling
-ret = perflow_sampler_stop(sampler);
-
-// Get sample count
-size_t count = perflow_sampler_get_sample_count(sampler);
-
-// Write output files
-ret = perflow_sampler_write_output(sampler);
-
-// Cleanup
-perflow_sampler_destroy(sampler);
+mpirun -np 4 \
+  -x PERFLOW_ENABLE_SAMPLING \
+  -x PERFLOW_OUTPUT_PATH \
+  -x LD_PRELOAD=/path/to/libperflow_sampler.so \
+  ./my_mpi_program
 ```
 
-### C++ API
+### MPICH Example
 
-```cpp
-#include "sampling/sampler.h"
+```bash
+export PERFLOW_ENABLE_SAMPLING=1
+export PERFLOW_OUTPUT_PATH=./profile_data
+export LD_PRELOAD=/path/to/libperflow_sampler.so
 
-using namespace perflow::sampling;
+mpiexec -np 4 -env LD_PRELOAD $LD_PRELOAD ./my_mpi_program
+```
 
-// Create sampler
-auto sampler = std::make_unique<MPISampler>();
+### CMake Test Target
 
-// Configure
-SamplerConfig config;
-config.sampling_frequency = 1000;    // 1000 Hz
-config.enable_call_stack = true;
-config.output_path = "./my_output";
+If you build the project, you can use the provided test targets:
 
-// Initialize and start
-sampler->Initialize(config);
-sampler->Start();
+```bash
+# Run test with dynamic instrumentation
+make run_mpi_sampler_test
 
-// ... run your code ...
-
-// Stop and get results
-sampler->Stop();
-const auto& samples = sampler->GetSamples();
-
-// Write output
-sampler->WriteOutput();
+# Run test without instrumentation (for comparison)
+make run_mpi_test_uninstrumented
 ```
 
 ## Output Format
