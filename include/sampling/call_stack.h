@@ -7,6 +7,8 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
+#include <vector>
 
 namespace perflow {
 namespace sampling {
@@ -206,6 +208,70 @@ struct CallStackEqual {
                   const CallStack<MaxDepth>& rhs) const noexcept {
     return lhs == rhs;
   }
+};
+
+/// RawCallStack stores raw runtime addresses along with metadata for post-processing.
+/// This structure enables address resolution during the analysis phase instead of
+/// at runtime, minimizing performance overhead during sampling.
+///
+/// Memory Layout:
+/// - addresses: Raw addresses captured at runtime (library base + offset)
+/// - timestamp: Nanosecond timestamp when the stack was captured
+/// - map_id: Identifies which library map snapshot to use for resolution
+template <size_t MaxDepth = kDefaultMaxStackDepth>
+struct RawCallStack {
+  CallStack<MaxDepth> addresses;  ///< Raw runtime addresses
+  int64_t timestamp;              ///< Capture time in nanoseconds since epoch
+  uint32_t map_id;                ///< Library map snapshot identifier
+
+  /// Default constructor
+  RawCallStack() noexcept : addresses(), timestamp(0), map_id(0) {}
+
+  /// Constructor with parameters
+  /// @param stack Call stack with raw addresses
+  /// @param ts Timestamp in nanoseconds
+  /// @param mid Map snapshot ID
+  RawCallStack(const CallStack<MaxDepth>& stack, int64_t ts, uint32_t mid) noexcept
+      : addresses(stack), timestamp(ts), map_id(mid) {}
+
+  /// Copy constructor
+  RawCallStack(const RawCallStack& other) noexcept
+      : addresses(other.addresses), timestamp(other.timestamp), map_id(other.map_id) {}
+
+  /// Copy assignment operator
+  RawCallStack& operator=(const RawCallStack& other) noexcept {
+    if (this != &other) {
+      addresses = other.addresses;
+      timestamp = other.timestamp;
+      map_id = other.map_id;
+    }
+    return *this;
+  }
+};
+
+/// ResolvedFrame represents a single stack frame resolved to (library, offset) pair
+struct ResolvedFrame {
+  std::string library_name;  ///< Name of the library/binary (e.g., "/lib/libc.so.6")
+  uintptr_t offset;          ///< Offset within the library
+  uintptr_t raw_address;     ///< Original raw address
+
+  ResolvedFrame() noexcept : library_name(), offset(0), raw_address(0) {}
+
+  ResolvedFrame(std::string lib, uintptr_t off, uintptr_t raw) noexcept
+      : library_name(std::move(lib)), offset(off), raw_address(raw) {}
+};
+
+/// ResolvedCallStack stores a call stack with addresses resolved to (library, offset) pairs.
+/// This is the output of the post-processing conversion step.
+struct ResolvedCallStack {
+  std::vector<ResolvedFrame> frames;  ///< Resolved stack frames
+  int64_t timestamp;                  ///< Original capture timestamp
+  uint32_t map_id;                    ///< Library map snapshot used for resolution
+
+  ResolvedCallStack() noexcept : frames(), timestamp(0), map_id(0) {}
+
+  ResolvedCallStack(int64_t ts, uint32_t mid) noexcept
+      : frames(), timestamp(ts), map_id(mid) {}
 };
 
 }  // namespace sampling

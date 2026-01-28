@@ -22,6 +22,7 @@ add_executable(perflow_tests
     test_data_export.cpp
     test_pmu_sampler.cpp
     test_library_map.cpp
+    test_offset_converter.cpp
 )
 
 target_link_libraries(perflow_tests
