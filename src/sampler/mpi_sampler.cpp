@@ -245,19 +245,35 @@ static void initialize_sampler() {
         return;
     }
     
-    // Add events to monitor
-    int events[kNumEvents] = {
-        PAPI_TOT_CYC,  // Total cycles
+    // Add events to monitor - add them individually for better error handling
+    int events_to_add[] = {
+        PAPI_TOT_CYC,  // Total cycles (required for overflow)
         PAPI_TOT_INS,  // Total instructions
         PAPI_L1_DCM    // L1 data cache misses
     };
     
-    retval = PAPI_add_events(g_event_set, events, kNumEvents);
-    if (!check_papi(retval, PAPI_OK, "PAPI_add_events")) {
+    int events_added = 0;
+    for (int i = 0; i < kNumEvents; ++i) {
+        retval = PAPI_add_event(g_event_set, events_to_add[i]);
+        if (retval == PAPI_OK) {
+            events_added++;
+            fprintf(stderr, "[MPI Sampler] Added event 0x%x\n", events_to_add[i]);
+        } else {
+            fprintf(stderr, "[MPI Sampler] Warning: Could not add event 0x%x: %s\n",
+                    events_to_add[i], PAPI_strerror(retval));
+        }
+    }
+    
+    // We need at least PAPI_TOT_CYC for overflow sampling
+    if (events_added == 0) {
+        fprintf(stderr, "[MPI Sampler] Error: No events could be added\n");
         PAPI_destroy_eventset(&g_event_set);
         g_module_initialized = false;
         return;
     }
+    
+    fprintf(stderr, "[MPI Sampler] Successfully added %d/%d events\n",
+            events_added, kNumEvents);
     
     // Set up overflow handler for PAPI_TOT_CYC
     retval = PAPI_overflow(g_event_set, PAPI_TOT_CYC, g_overflow_threshold, 0,
