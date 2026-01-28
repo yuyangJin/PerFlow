@@ -56,7 +56,7 @@ class OffsetConverter {
   /// Convert a raw call stack to a resolved call stack
   /// @param raw Raw call stack with runtime addresses
   /// @return Resolved call stack with (library, offset) pairs
-  /// @throws std::runtime_error if map_id is not found in snapshots
+  /// @note If map_id is not found in snapshots, frames are marked as "[unknown]"
   template <size_t MaxDepth = sampling::kDefaultMaxStackDepth>
   sampling::ResolvedCallStack convert(const sampling::RawCallStack<MaxDepth>& raw) const {
     sampling::ResolvedCallStack resolved(raw.timestamp, raw.map_id);

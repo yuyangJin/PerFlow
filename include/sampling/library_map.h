@@ -48,7 +48,10 @@ class LibraryMap {
   /// Useful for testing or analyzing other processes
   /// @param maps_file_path Path to the maps file to parse
   /// @return true if parsing succeeded, false on error
+  /// @note This function clears existing libraries before parsing
   bool parse_maps_file(const std::string& maps_file_path) {
+    libraries_.clear();
+    
     std::ifstream maps_file(maps_file_path);
     if (!maps_file.is_open()) {
       return false;

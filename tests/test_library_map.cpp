@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include <cstdio>
+#include <unistd.h>
 
 #include "sampling/library_map.h"
 

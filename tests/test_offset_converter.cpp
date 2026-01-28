@@ -4,6 +4,7 @@
 #include <gtest/gtest.h>
 #include <fstream>
 #include <cstdio>
+#include <unistd.h>
 
 #include "analysis/offset_converter.h"
 #include "sampling/call_stack.h"

@@ -159,7 +159,7 @@ RawCallStack<> raw(stack, timestamp, new_map_id);
 - **Runtime Overhead**: < 0.5% (only stores raw addresses + small metadata)
 - **Library Capacity**: Handles 1000+ loaded libraries efficiently
 - **Memory Usage**: O(n) where n is number of executable regions
-- **Resolution Time**: O(m × log(n)) for batch conversion where m is number of stacks
+- **Resolution Time**: O(m × n) for batch conversion where m is number of stacks and n is number of libraries (uses linear search)
 
 ## Testing
 
@@ -195,7 +195,7 @@ See `examples/offset_converter_example.cpp` for a complete working example demon
 ## Future Enhancements
 
 Possible improvements for future versions:
+- **Binary search optimization**: Replace linear search in `LibraryMap::resolve()` with binary search for O(log n) lookup
 - Compressed storage format for map snapshots
 - Incremental map updates (delta encoding)
-- Binary search optimization for address resolution
 - Integration with existing symbol resolvers (addr2line, etc.)
