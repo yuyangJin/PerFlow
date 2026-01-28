@@ -424,8 +424,8 @@ static void finalize_sampler() {
     // Use the rank captured during MPI_Init
     // Note: MPI_Finalize() may have been called already, so we can't call MPI_Comm_rank here
     if (g_mpi_rank < 0) {
-        g_mpi_rank = -1;  // Default to rank 0 if rank was never captured
-        fprintf(stderr, "[MPI Sampler] Warning: MPI rank was not captured, using rank 0\n");
+        g_mpi_rank = -1;  // Default to rank -1 if rank was never captured
+        fprintf(stderr, "[MPI Sampler] Warning: MPI rank was not captured, using rank -1\n");
     }
     
     // Stop counting - allocate array based on actual events added
