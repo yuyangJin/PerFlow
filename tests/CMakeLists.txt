@@ -68,6 +68,7 @@ if(PAPI_FOUND AND MPI_FOUND)
         perflow_sampling
         ${PAPI_LIBRARIES}
         ${MPI_CXX_LIBRARIES}
+        unwind
     )
     
     # Add PAPI library directories

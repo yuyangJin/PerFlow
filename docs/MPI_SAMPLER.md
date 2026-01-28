@@ -11,7 +11,9 @@ The MPI Performance Sampler is a performance profiling tool for MPI applications
 1. **src/sampler/mpi_sampler.cpp** - Main sampler implementation
    - PAPI initialization and event setup
    - Overflow-based sampling using hardware performance counters
-   - Call stack capture using frame pointer unwinding
+   - **Call stack capture** with two available methods:
+     - **Method 1 (default)**: libunwind-based unwinding (from `demo/sampling/sampler.cpp`)
+     - **Method 2 (alternative)**: Frame pointer unwinding (from `include/sampling/pmu_sampler.h`)
    - Data export in PerFlow binary format
 
 2. **tests/mpi_sampler_test.cpp** - Test application
@@ -35,7 +37,7 @@ The MPI Performance Sampler is a performance profiling tool for MPI applications
 ### Prerequisites
 
 ```bash
-sudo apt-get install libpapi-dev libopenmpi-dev
+sudo apt-get install libpapi-dev libopenmpi-dev libunwind-dev
 ```
 
 ### Build Commands
@@ -112,6 +114,34 @@ The sampler uses PAPI's overflow mechanism:
 2. PAPI triggers signal when counter overflows
 3. Signal handler captures call stack and records sample
 4. Counter automatically resets and sampling continues
+
+### Call Stack Capture Methods
+
+The sampler provides two methods for capturing call stacks:
+
+#### Method 1: libunwind (Default, Recommended)
+
+Based on `GetBacktrace()` and `my_backtrace()` from `demo/sampling/sampler.cpp`:
+- Uses the libunwind library for safe and reliable stack unwinding
+- Signal-safe and works correctly in signal handler context
+- No segmentation faults
+- Captures deeper call stacks (up to kMaxCallStackDepth frames)
+- Requires `libunwind-dev` package
+
+This is the **default method** and is automatically selected when building.
+
+#### Method 2: Frame Pointer Unwinding (Alternative)
+
+Based on `captureCallStack()` from `include/sampling/pmu_sampler.h`:
+- Uses `__builtin_frame_address()` and `__builtin_return_address()`
+- Limited to compile-time constant depth (up to 16 frames)
+- **WARNING**: Can cause segmentation faults in some contexts
+- Only recommended for testing or specific use cases
+
+To switch to Method 2, define `USE_PMU_SAMPLER_CALLSTACK` before compiling:
+```bash
+cmake .. -DCMAKE_CXX_FLAGS="-DUSE_PMU_SAMPLER_CALLSTACK"
+```
 
 ### Signal Safety
 

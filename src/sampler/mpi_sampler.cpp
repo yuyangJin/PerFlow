@@ -20,9 +20,26 @@
 #include <signal.h>
 #include <unistd.h>
 
+// libunwind for safe call stack capture
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+
 #include "sampling/sampling.h"
 
 using namespace perflow::sampling;
+
+// ============================================================================
+// Call Stack Capture Method Selection
+// ============================================================================
+// Two methods are available:
+// 1. LIBUNWIND method (default, recommended) - uses libunwind library
+// 2. PMU_SAMPLER method - uses captureCallStack from pmu_sampler.h
+//
+// To switch methods, define USE_PMU_SAMPLER_CALLSTACK before including this file
+// or change the default here.
+#ifndef USE_PMU_SAMPLER_CALLSTACK
+#define USE_LIBUNWIND_CALLSTACK
+#endif
 
 // ============================================================================
 // Configuration Constants
@@ -103,14 +120,56 @@ static bool check_papi(int retval, int expected, const char* message) {
 // Call Stack Capture
 // ============================================================================
 
-/// Capture current call stack using frame pointer unwinding
+#ifdef USE_LIBUNWIND_CALLSTACK
+/// Capture current call stack using libunwind (Method 1 - Recommended)
+/// This is based on GetBacktrace() and my_backtrace() from demo/sampling/sampler.cpp
+/// @param stack Output call stack
+/// @param max_depth Maximum stack depth to capture
+/// @return Number of frames captured
+static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
+    stack.clear();
+    
+    unw_cursor_t cursor;
+    unw_context_t context;
+    
+    // Initialize cursor to current frame for local unwinding
+    unw_getcontext(&context);
+    unw_init_local(&cursor, &context);
+    
+    // Unwind frames one by one, going up the frame stack
+    size_t depth = 0;
+    uintptr_t addresses[kMaxCallStackDepth];
+    
+    while (unw_step(&cursor) > 0 && depth < max_depth && depth < kMaxCallStackDepth) {
+        unw_word_t pc;
+        unw_get_reg(&cursor, UNW_REG_IP, &pc);
+        if (pc == 0) {
+            break;
+        }
+        // Store address (subtract 2 for return address adjustment as in demo code)
+        addresses[depth] = (uintptr_t)pc - 2;
+        depth++;
+    }
+    
+    // Push captured frames onto stack (skip first frame which is this function)
+    for (size_t i = 1; i < depth; ++i) {
+        if (addresses[i] != 0) {
+            stack.push(addresses[i]);
+        }
+    }
+    
+    return depth > 0 ? depth - 1 : 0;
+}
+
+#elif defined(USE_PMU_SAMPLER_CALLSTACK)
+/// Capture current call stack using PMU sampler approach (Method 2 - Alternative)
+/// This uses the captureCallStack() method from include/sampling/pmu_sampler.h
 /// @param stack Output call stack
 /// @param max_depth Maximum stack depth to capture
 /// @return Number of frames captured
 /// 
-/// NOTE: This implementation uses __builtin_frame_address which is limited
-/// to a compile-time constant depth. Currently captures up to 8 frames.
-/// For deeper call stacks, consider using libunwind or backtrace().
+/// WARNING: This method uses __builtin_frame_address which can cause
+/// segmentation faults in some contexts. Use libunwind method instead.
 static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
     stack.clear();
     
@@ -118,9 +177,6 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
     // Note: This requires -fno-omit-frame-pointer for accurate results
     void* frame_ptrs[kMaxCallStackDepth];
     size_t depth = 0;
-    
-    // Manual frame pointer walking for signal safety
-    // We can't use backtrace() in signal handlers reliably
     
 #define CAPTURE_FRAME(N) \
     do { \
@@ -142,6 +198,14 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
     CAPTURE_FRAME(5);
     CAPTURE_FRAME(6);
     CAPTURE_FRAME(7);
+    CAPTURE_FRAME(8);
+    CAPTURE_FRAME(9);
+    CAPTURE_FRAME(10);
+    CAPTURE_FRAME(11);
+    CAPTURE_FRAME(12);
+    CAPTURE_FRAME(13);
+    CAPTURE_FRAME(14);
+    CAPTURE_FRAME(15);
     
 #undef CAPTURE_FRAME
     
@@ -152,6 +216,10 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
     
     return depth;
 }
+
+#else
+#error "No call stack capture method defined. Define either USE_LIBUNWIND_CALLSTACK or USE_PMU_SAMPLER_CALLSTACK"
+#endif
 
 // ============================================================================
 // PAPI Overflow Handler
