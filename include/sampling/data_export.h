@@ -175,6 +175,96 @@ class DataExporter {
     return result;
   }
 
+  /// Export call stack data in human-readable text format
+  /// @tparam MaxDepth Maximum stack depth
+  /// @tparam Capacity Hash map capacity
+  /// @param data Hash map containing call stacks and counts
+  /// @return Result code
+  template <size_t MaxDepth, size_t Capacity>
+  DataResult exportDataText(
+      const StaticHashMap<CallStack<MaxDepth>, uint64_t, Capacity>& data)
+      noexcept {
+    if (filepath_[0] == '\0') {
+      return DataResult::kErrorFileOpen;
+    }
+
+    // Build text file path by replacing extension
+    char text_filepath[kMaxPathLength];
+    std::strcpy(text_filepath, filepath_);
+    
+    // Replace .pflw or .pflw.gz with .txt
+    char* ext = std::strrchr(text_filepath, '.');
+    if (ext != nullptr) {
+      if (std::strcmp(ext, ".gz") == 0) {
+        // Handle .pflw.gz case
+        *ext = '\0';
+        ext = std::strrchr(text_filepath, '.');
+      }
+      if (ext != nullptr) {
+        std::strcpy(ext, ".txt");
+      }
+    } else {
+      std::strcat(text_filepath, ".txt");
+    }
+
+    file_ = std::fopen(text_filepath, "w");
+    if (file_ == nullptr) {
+      return DataResult::kErrorFileOpen;
+    }
+
+    // Write header information
+    std::fprintf(file_, "# PerFlow Performance Data (Text Format)\n");
+    std::fprintf(file_, "# Generated: %llu\n", 
+                 static_cast<unsigned long long>(std::time(nullptr)));
+    std::fprintf(file_, "# Entry count: %zu\n", data.size());
+    std::fprintf(file_, "# Max stack depth: %zu\n", MaxDepth);
+    std::fprintf(file_, "#\n");
+    std::fprintf(file_, "# Format: [Sample Count] Call Stack (depth: N)\n");
+    std::fprintf(file_, "#   Address1\n");
+    std::fprintf(file_, "#   Address2\n");
+    std::fprintf(file_, "#   ...\n");
+    std::fprintf(file_, "#\n\n");
+
+    // Write entries
+    DataResult result = DataResult::kSuccess;
+    size_t entry_num = 0;
+    
+    data.for_each([this, &result, &entry_num](const CallStack<MaxDepth>& stack,
+                                               const uint64_t& count) {
+      if (result != DataResult::kSuccess) {
+        return;
+      }
+
+      entry_num++;
+      
+      // Write entry header with count and depth
+      if (std::fprintf(file_, "[%llu] Call Stack (depth: %zu)\n",
+                       static_cast<unsigned long long>(count),
+                       stack.depth()) < 0) {
+        result = DataResult::kErrorFileWrite;
+        return;
+      }
+
+      // Write stack frames as hex addresses
+      for (size_t i = 0; i < stack.depth(); ++i) {
+        if (std::fprintf(file_, "  0x%016lx\n",
+                         static_cast<unsigned long>(stack.frames()[i])) < 0) {
+          result = DataResult::kErrorFileWrite;
+          return;
+        }
+      }
+
+      // Add blank line between entries for readability
+      if (std::fprintf(file_, "\n") < 0) {
+        result = DataResult::kErrorFileWrite;
+        return;
+      }
+    });
+
+    close();
+    return result;
+  }
+
   /// Get the output file path
   const char* filepath() const noexcept { return filepath_; }
 
