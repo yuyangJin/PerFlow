@@ -269,30 +269,82 @@ static void papi_overflow_handler(int event_set, void* address,
 // Original MPI_Init function pointer
 static int (*real_MPI_Init)(int*, char***) = nullptr;
 
-// Flag to track if PAPI has been initialized
-static bool g_papi_initialized = false;
+/// Intercepted MPI_Init to capture rank early
+extern "C" int MPI_Init(int* argc, char*** argv) {
+    // Call the real MPI_Init if we have the pointer
+    if (real_MPI_Init == nullptr) {
+        // Get the real MPI_Init function
+        real_MPI_Init = (int (*)(int*, char***))dlsym(RTLD_NEXT, "MPI_Init");
+        if (real_MPI_Init == nullptr) {
+            fprintf(stderr, "[MPI Sampler] Error: Could not find real MPI_Init\n");
+            return -1;
+        }
+    }
+    
+    // Call real MPI_Init
+    int result = real_MPI_Init(argc, argv);
+    
+    // If successful, get our rank
+    if (result == 0) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
+        fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d\n", g_mpi_rank);
+    }
+    
+    return result;
+}
 
-/// Initialize PAPI after MPI is ready
-static void initialize_papi_post_mpi() {
-    if (g_papi_initialized) {
+// ============================================================================
+// Initialization and Cleanup
+// ============================================================================
+
+/// Initialize PAPI and set up sampling
+/// Called automatically via constructor attribute
+static void initialize_sampler() __attribute__((constructor));
+
+/// Cleanup PAPI and export data
+/// Called automatically via destructor attribute
+static void finalize_sampler() __attribute__((destructor));
+
+/// Initialize the sampler
+static void initialize_sampler() {
+    if (g_module_initialized) {
         return;  // Already initialized
     }
     
-    g_papi_initialized = true;
+    // Mark as initialized early to prevent re-entry
+    g_module_initialized = true;
     
-    fprintf(stderr, "[MPI Sampler] Rank %d - Initializing PAPI with frequency %d Hz (threshold: %lld cycles)\n",
-            g_mpi_rank, g_sampling_frequency, g_overflow_threshold);
+    // Get MPI rank (must be called after MPI_Init)
+    // Since we use constructor, MPI may not be initialized yet
+    // We'll defer MPI rank retrieval until finalization
+    g_mpi_rank = -1;
+    
+    // Check for environment variable to override sampling frequency
+    const char* freq_env = std::getenv("PERFLOW_SAMPLING_FREQ");
+    if (freq_env != nullptr) {
+        g_sampling_frequency = std::atoi(freq_env);
+        if (g_sampling_frequency <= 0) {
+            g_sampling_frequency = kLocalDefaultSamplingFreq;
+        }
+    }
+    
+    // Compute overflow threshold
+    g_overflow_threshold = compute_overflow_threshold(g_sampling_frequency);
+    
+    fprintf(stderr, "[MPI Sampler] Initializing with frequency %d Hz (threshold: %lld cycles)\n",
+            g_sampling_frequency, g_overflow_threshold);
     
     // Initialize PAPI library
     int retval = PAPI_library_init(PAPI_VER_CURRENT);
     if (retval != PAPI_VER_CURRENT) {
-        fprintf(stderr, "[MPI Sampler] Rank %d - PAPI library init failed: %s\n",
-                g_mpi_rank, PAPI_strerror(retval));
+        fprintf(stderr, "[MPI Sampler] PAPI library init failed: %s\n",
+                PAPI_strerror(retval));
         g_module_initialized = false;
         return;
     }
     
     // Initialize thread support
+    // Note: pthread_self without () is correct - we pass the function pointer
     retval = PAPI_thread_init((unsigned long (*)(void))pthread_self);
     if (!check_papi(retval, PAPI_OK, "PAPI_thread_init")) {
         g_module_initialized = false;
@@ -307,7 +359,7 @@ static void initialize_papi_post_mpi() {
         return;
     }
     
-    // Add events to monitor
+    // Add events to monitor - add them individually for better error handling
     int events_to_add[] = {
         PAPI_TOT_CYC,  // Total cycles (required for overflow)
         PAPI_TOT_INS,  // Total instructions
@@ -319,23 +371,23 @@ static void initialize_papi_post_mpi() {
         retval = PAPI_add_event(g_event_set, events_to_add[i]);
         if (retval == PAPI_OK) {
             g_events_added++;
-            fprintf(stderr, "[MPI Sampler] Rank %d - Added event 0x%x\n", g_mpi_rank, events_to_add[i]);
+            fprintf(stderr, "[MPI Sampler] Added event 0x%x\n", events_to_add[i]);
         } else {
-            fprintf(stderr, "[MPI Sampler] Rank %d - Warning: Could not add event 0x%x: %s\n",
-                    g_mpi_rank, events_to_add[i], PAPI_strerror(retval));
+            fprintf(stderr, "[MPI Sampler] Warning: Could not add event 0x%x: %s\n",
+                    events_to_add[i], PAPI_strerror(retval));
         }
     }
     
     // We need at least PAPI_TOT_CYC for overflow sampling
     if (g_events_added == 0) {
-        fprintf(stderr, "[MPI Sampler] Rank %d - Error: No events could be added\n", g_mpi_rank);
+        fprintf(stderr, "[MPI Sampler] Error: No events could be added\n");
         PAPI_destroy_eventset(&g_event_set);
         g_module_initialized = false;
         return;
     }
     
-    fprintf(stderr, "[MPI Sampler] Rank %d - Successfully added %d/%d events\n",
-            g_mpi_rank, g_events_added, kNumEvents);
+    fprintf(stderr, "[MPI Sampler] Successfully added %d/%d events\n",
+            g_events_added, kNumEvents);
     
     // Set up overflow handler for PAPI_TOT_CYC
     retval = PAPI_overflow(g_event_set, PAPI_TOT_CYC, g_overflow_threshold, 0,
@@ -358,84 +410,16 @@ static void initialize_papi_post_mpi() {
         return;
     }
     
-    fprintf(stderr, "[MPI Sampler] Rank %d - PAPI initialization successful\n", g_mpi_rank);
-}
-
-/// Intercepted MPI_Init to capture rank early and initialize PAPI
-extern "C" int MPI_Init(int* argc, char*** argv) {
-    // Call the real MPI_Init if we have the pointer
-    if (real_MPI_Init == nullptr) {
-        // Get the real MPI_Init function
-        real_MPI_Init = (int (*)(int*, char***))dlsym(RTLD_NEXT, "MPI_Init");
-        if (real_MPI_Init == nullptr) {
-            fprintf(stderr, "[MPI Sampler] Error: Could not find real MPI_Init\n");
-            return -1;
-        }
-    }
-    
-    // Call real MPI_Init
-    int result = real_MPI_Init(argc, argv);
-    
-    // If successful, get our rank and initialize PAPI
-    if (result == 0) {
-        MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
-        fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d\n", g_mpi_rank);
-        
-        // Now initialize PAPI for this rank
-        initialize_papi_post_mpi();
-    }
-    
-    return result;
-}
-
-// ============================================================================
-// Initialization and Cleanup
-// ============================================================================
-
-/// Initialize PAPI and set up sampling
-/// Called automatically via constructor attribute
-static void initialize_sampler() __attribute__((constructor));
-
-/// Cleanup PAPI and export data
-/// Called automatically via destructor attribute
-static void finalize_sampler() __attribute__((destructor));
-
-/// Initialize the sampler (pre-MPI setup only)
-static void initialize_sampler() {
-    if (g_module_initialized) {
-        return;  // Already initialized
-    }
-    
-    // Mark as initialized early to prevent re-entry
-    g_module_initialized = true;
-    
-    // Get MPI rank (must be called after MPI_Init)
-    // Since we use constructor, MPI may not be initialized yet
-    // We'll defer MPI rank retrieval until MPI_Init hook
-    g_mpi_rank = -1;
-    
-    // Check for environment variable to override sampling frequency
-    const char* freq_env = std::getenv("PERFLOW_SAMPLING_FREQ");
-    if (freq_env != nullptr) {
-        g_sampling_frequency = std::atoi(freq_env);
-        if (g_sampling_frequency <= 0) {
-            g_sampling_frequency = kLocalDefaultSamplingFreq;
-        }
-    }
-    
-    // Compute overflow threshold
-    g_overflow_threshold = compute_overflow_threshold(g_sampling_frequency);
-    
-    fprintf(stderr, "[MPI Sampler] Pre-initialization complete, waiting for MPI_Init\n");
+    fprintf(stderr, "[MPI Sampler] Initialization successful\n");
 }
 
 /// Finalize the sampler and export data
 static void finalize_sampler() {
-    if (!g_module_initialized || !g_papi_initialized) {
+    if (!g_module_initialized) {
         return;  // Not initialized
     }
     
-    fprintf(stderr, "[MPI Sampler] Rank %d - Finalizing sampler\n", g_mpi_rank);
+    fprintf(stderr, "[MPI Sampler] Finalizing sampler\n");
     
     // Use the rank captured during MPI_Init
     // Note: MPI_Finalize() may have been called already, so we can't call MPI_Comm_rank here
