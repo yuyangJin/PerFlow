@@ -474,6 +474,17 @@ static void finalize_sampler() {
             fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export data\n",
                     g_mpi_rank);
         }
+        
+        // Also export in human-readable text format
+        DataResult text_result = exporter.exportDataText(*g_samples);
+        
+        if (text_result == DataResult::kSuccess) {
+            fprintf(stderr, "[MPI Sampler] Rank %d - Human-readable data exported to text file\n",
+                    g_mpi_rank);
+        } else {
+            fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable data\n",
+                    g_mpi_rank);
+        }
     }
     
     // Clean up PAPI
