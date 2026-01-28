@@ -82,6 +82,7 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
                     LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
                     PERFLOW_OUTPUT_DIR=/tmp
                     ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 
+                    --allow-run-as-root --oversubscribe
                     ${CMAKE_BINARY_DIR}/tests/${test_prog}
             DEPENDS perflow_mpi_sampler ${test_prog}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
