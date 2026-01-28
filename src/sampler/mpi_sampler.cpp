@@ -19,6 +19,7 @@
 #include <memory>
 #include <signal.h>
 #include <unistd.h>
+#include <dlfcn.h>
 
 // libunwind for safe call stack capture
 #define UNW_LOCAL_ONLY
@@ -75,6 +76,9 @@ static int g_sampling_frequency = kLocalDefaultSamplingFreq;
 
 /// Overflow threshold (cycles between samples)
 static long long g_overflow_threshold = 0;
+
+/// Number of events actually added successfully
+static int g_events_added = 0;
 
 /// Type aliases for sampling data structures
 using SampleCallStack = CallStack<kMaxCallStackDepth>;
@@ -259,6 +263,37 @@ static void papi_overflow_handler(int event_set, void* address,
 }
 
 // ============================================================================
+// MPI Function Interception
+// ============================================================================
+
+// Original MPI_Init function pointer
+static int (*real_MPI_Init)(int*, char***) = nullptr;
+
+/// Intercepted MPI_Init to capture rank early
+extern "C" int MPI_Init(int* argc, char*** argv) {
+    // Call the real MPI_Init if we have the pointer
+    if (real_MPI_Init == nullptr) {
+        // Get the real MPI_Init function
+        real_MPI_Init = (int (*)(int*, char***))dlsym(RTLD_NEXT, "MPI_Init");
+        if (real_MPI_Init == nullptr) {
+            fprintf(stderr, "[MPI Sampler] Error: Could not find real MPI_Init\n");
+            return -1;
+        }
+    }
+    
+    // Call real MPI_Init
+    int result = real_MPI_Init(argc, argv);
+    
+    // If successful, get our rank
+    if (result == 0) {
+        MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
+        fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d\n", g_mpi_rank);
+    }
+    
+    return result;
+}
+
+// ============================================================================
 // Initialization and Cleanup
 // ============================================================================
 
@@ -331,11 +366,11 @@ static void initialize_sampler() {
         PAPI_L1_DCM    // L1 data cache misses
     };
     
-    int events_added = 0;
+    g_events_added = 0;
     for (int i = 0; i < kNumEvents; ++i) {
         retval = PAPI_add_event(g_event_set, events_to_add[i]);
         if (retval == PAPI_OK) {
-            events_added++;
+            g_events_added++;
             fprintf(stderr, "[MPI Sampler] Added event 0x%x\n", events_to_add[i]);
         } else {
             fprintf(stderr, "[MPI Sampler] Warning: Could not add event 0x%x: %s\n",
@@ -344,7 +379,7 @@ static void initialize_sampler() {
     }
     
     // We need at least PAPI_TOT_CYC for overflow sampling
-    if (events_added == 0) {
+    if (g_events_added == 0) {
         fprintf(stderr, "[MPI Sampler] Error: No events could be added\n");
         PAPI_destroy_eventset(&g_event_set);
         g_module_initialized = false;
@@ -352,7 +387,7 @@ static void initialize_sampler() {
     }
     
     fprintf(stderr, "[MPI Sampler] Successfully added %d/%d events\n",
-            events_added, kNumEvents);
+            g_events_added, kNumEvents);
     
     // Set up overflow handler for PAPI_TOT_CYC
     retval = PAPI_overflow(g_event_set, PAPI_TOT_CYC, g_overflow_threshold, 0,
@@ -386,33 +421,27 @@ static void finalize_sampler() {
     
     fprintf(stderr, "[MPI Sampler] Finalizing sampler\n");
     
-    // Try to get MPI rank if not already obtained
+    // Use the rank captured during MPI_Init
+    // Note: MPI_Finalize() may have been called already, so we can't call MPI_Comm_rank here
     if (g_mpi_rank < 0) {
-        int initialized = 0;
-        MPI_Initialized(&initialized);
-        if (initialized) {
-            MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
-        } else {
-            g_mpi_rank = 0;  // Default to rank 0 if MPI not initialized
-        }
+        g_mpi_rank = 0;  // Default to rank 0 if rank was never captured
+        fprintf(stderr, "[MPI Sampler] Warning: MPI rank was not captured, using rank 0\n");
     }
     
-    // Stop counting
-    long long values[kNumEvents] = {0};
+    // Stop counting - allocate array based on actual events added
+    long long* values = new long long[g_events_added > 0 ? g_events_added : 1]();
     int retval = PAPI_stop(g_event_set, values);
     check_papi(retval, PAPI_OK, "PAPI_stop");
     
-    // Print final counter values (only for events that were added)
-    fprintf(stderr, "[MPI Sampler] Rank %d - Final counters:\n", g_mpi_rank);
-    if (values[0] != 0) {
-        fprintf(stderr, "  Counter 0 (TOT_CYC):  %lld\n", values[0]);
+    // Print final counter values (only for events that were actually added)
+    fprintf(stderr, "[MPI Sampler] Rank %d - Final counters (%d events):\n", 
+            g_mpi_rank, g_events_added);
+    const char* event_names[] = {"TOT_CYC", "TOT_INS", "L1_DCM"};
+    for (int i = 0; i < g_events_added && i < kNumEvents; ++i) {
+        fprintf(stderr, "  Counter %d (%s): %lld\n", i, event_names[i], values[i]);
     }
-    if (values[1] != 0) {
-        fprintf(stderr, "  Counter 1 (TOT_INS):  %lld\n", values[1]);
-    }
-    if (values[2] != 0) {
-        fprintf(stderr, "  Counter 2 (L1_DCM):   %lld\n", values[2]);
-    }
+    
+    delete[] values;
     
     // Print sample statistics
     if (g_samples != nullptr) {

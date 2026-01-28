@@ -94,6 +94,7 @@ if(PAPI_FOUND AND MPI_FOUND)
         ${PAPI_LIBRARIES}
         ${MPI_CXX_LIBRARIES}
         unwind
+        dl
     )
     
     # Add PAPI library directories
