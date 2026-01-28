@@ -32,7 +32,7 @@ using namespace perflow::sampling;
 constexpr int kNumEvents = 3;
 
 /// Default sampling frequency in Hz (local to this file)
-constexpr int kMpiSamplerDefaultFrequency = 1000;
+constexpr int kLocalDefaultSamplingFreq = 1000;
 
 /// Maximum call stack depth to capture
 constexpr size_t kMaxCallStackDepth = 100;
@@ -54,7 +54,7 @@ static bool g_module_initialized = false;
 static int g_event_set = PAPI_NULL;
 
 /// Sampling frequency (samples per second)
-static int g_sampling_frequency = kMpiSamplerDefaultFrequency;
+static int g_sampling_frequency = kLocalDefaultSamplingFreq;
 
 /// Overflow threshold (cycles between samples)
 static long long g_overflow_threshold = 0;
@@ -82,7 +82,7 @@ static long long compute_overflow_threshold(int freq) {
     if (freq > 0) {
         return static_cast<long long>(cpu_freq_hz / freq);
     }
-    return static_cast<long long>(cpu_freq_hz / kMpiSamplerDefaultFrequency);
+    return static_cast<long long>(cpu_freq_hz / kLocalDefaultSamplingFreq);
 }
 
 /// Check PAPI return code and print error if failed
@@ -107,6 +107,10 @@ static bool check_papi(int retval, int expected, const char* message) {
 /// @param stack Output call stack
 /// @param max_depth Maximum stack depth to capture
 /// @return Number of frames captured
+/// 
+/// NOTE: This implementation uses __builtin_frame_address which is limited
+/// to a compile-time constant depth. Currently captures up to 8 frames.
+/// For deeper call stacks, consider using libunwind or backtrace().
 static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
     stack.clear();
     
@@ -155,6 +159,11 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
 
 /// PAPI overflow handler - called when performance counter overflows
 /// This function must be signal-safe (no dynamic allocation, no stdio, etc.)
+/// 
+/// WARNING: PAPI_stop/PAPI_start are called here, which may not be fully
+/// signal-safe. In production code, consider using a lock-free mechanism
+/// to defer the actual stack capture to a safe context.
+/// 
 /// @param event_set PAPI event set
 /// @param address Instruction pointer where overflow occurred
 /// @param overflow_vector Bit vector indicating which events overflowed
@@ -163,6 +172,7 @@ static void papi_overflow_handler(int event_set, void* address,
                                    long long overflow_vector, void* context) {
     (void)address;  // Unused
     (void)context;  // Unused
+    (void)overflow_vector;  // Could be used to identify which event overflowed
     
     // Stop counting to handle the overflow
     PAPI_stop(event_set, nullptr);
@@ -211,7 +221,7 @@ static void initialize_sampler() {
     if (freq_env != nullptr) {
         g_sampling_frequency = std::atoi(freq_env);
         if (g_sampling_frequency <= 0) {
-            g_sampling_frequency = kMpiSamplerDefaultFrequency;
+            g_sampling_frequency = kLocalDefaultSamplingFreq;
         }
     }
     
@@ -231,7 +241,8 @@ static void initialize_sampler() {
     }
     
     // Initialize thread support
-    retval = PAPI_thread_init(pthread_self);
+    // Note: pthread_self without () is correct - we pass the function pointer
+    retval = PAPI_thread_init((unsigned long (*)(void))pthread_self);
     if (!check_papi(retval, PAPI_OK, "PAPI_thread_init")) {
         g_module_initialized = false;
         return;
@@ -319,15 +330,21 @@ static void finalize_sampler() {
     }
     
     // Stop counting
-    long long values[kNumEvents];
+    long long values[kNumEvents] = {0};
     int retval = PAPI_stop(g_event_set, values);
     check_papi(retval, PAPI_OK, "PAPI_stop");
     
-    // Print final counter values
+    // Print final counter values (only for events that were added)
     fprintf(stderr, "[MPI Sampler] Rank %d - Final counters:\n", g_mpi_rank);
-    fprintf(stderr, "  Total Cycles:        %lld\n", values[0]);
-    fprintf(stderr, "  Total Instructions:  %lld\n", values[1]);
-    fprintf(stderr, "  L1 Data Cache Misses: %lld\n", values[2]);
+    if (values[0] != 0) {
+        fprintf(stderr, "  Counter 0 (TOT_CYC):  %lld\n", values[0]);
+    }
+    if (values[1] != 0) {
+        fprintf(stderr, "  Counter 1 (TOT_INS):  %lld\n", values[1]);
+    }
+    if (values[2] != 0) {
+        fprintf(stderr, "  Counter 2 (L1_DCM):   %lld\n", values[2]);
+    }
     
     // Print sample statistics
     if (g_samples != nullptr) {
