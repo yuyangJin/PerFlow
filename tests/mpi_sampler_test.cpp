@@ -19,8 +19,8 @@
 // Configuration
 // ============================================================================
 
-constexpr int kMatrixSize = 100;
-constexpr int kVectorSize = 10000;
+constexpr int kMatrixSize = 1000;
+constexpr int kVectorSize = 100000;
 constexpr int kNumIterations = 10;
 
 // ============================================================================

@@ -47,7 +47,7 @@ using namespace perflow::sampling;
 // ============================================================================
 
 /// Number of PAPI events to monitor
-constexpr int kNumEvents = 3;
+constexpr int kNumEvents = 1;
 
 /// Default sampling frequency in Hz (local to this file)
 constexpr int kLocalDefaultSamplingFreq = 1000;
@@ -424,7 +424,7 @@ static void finalize_sampler() {
     // Use the rank captured during MPI_Init
     // Note: MPI_Finalize() may have been called already, so we can't call MPI_Comm_rank here
     if (g_mpi_rank < 0) {
-        g_mpi_rank = 0;  // Default to rank 0 if rank was never captured
+        g_mpi_rank = -1;  // Default to rank 0 if rank was never captured
         fprintf(stderr, "[MPI Sampler] Warning: MPI rank was not captured, using rank 0\n");
     }
     
