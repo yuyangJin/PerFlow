@@ -56,9 +56,9 @@ void init_matrix(double* matrix, int size, int seed) {
 
 /// Test matrix multiplication workload
 /// @param rank MPI rank
-void test_matrix_multiplication(int rank) {
-    printf("[Rank %d] Testing matrix multiplication (%dx%d)...\n",
-           rank, kMatrixSize, kMatrixSize);
+/// @return Elapsed time in seconds
+double test_matrix_multiplication(int rank) {
+    double start_time = MPI_Wtime();
     
     std::vector<double> A(kMatrixSize * kMatrixSize);
     std::vector<double> B(kMatrixSize * kMatrixSize);
@@ -73,14 +73,19 @@ void test_matrix_multiplication(int rank) {
         matrix_multiply(A.data(), B.data(), C.data(), kMatrixSize);
     }
     
-    // Verify result (sanity check)
-    double sum = 0.0;
-    for (int i = 0; i < kMatrixSize * kMatrixSize; ++i) {
-        sum += C[i];
+    double elapsed = MPI_Wtime() - start_time;
+    
+    // Verify result (sanity check) - only print on rank 0 to reduce output
+    if (rank == 0) {
+        double sum = 0.0;
+        for (int i = 0; i < kMatrixSize * kMatrixSize; ++i) {
+            sum += C[i];
+        }
+        printf("[Rank %d] Matrix multiplication complete in %.4f seconds (checksum: %.2f)\n",
+               rank, elapsed, sum);
     }
     
-    printf("[Rank %d] Matrix multiplication complete (checksum: %.6f)\n",
-           rank, sum);
+    return elapsed;
 }
 
 // ============================================================================
@@ -124,9 +129,9 @@ void vector_scale(const double* a, double* b, double alpha, int size) {
 
 /// Test vector operations workload
 /// @param rank MPI rank
-void test_vector_operations(int rank) {
-    printf("[Rank %d] Testing vector operations (size %d)...\n",
-           rank, kVectorSize);
+/// @return Elapsed time in seconds
+double test_vector_operations(int rank) {
+    double start_time = MPI_Wtime();
     
     std::vector<double> a(kVectorSize);
     std::vector<double> b(kVectorSize);
@@ -147,8 +152,15 @@ void test_vector_operations(int rank) {
         dot_result += vector_dot_product(a.data(), c.data(), kVectorSize);
     }
     
-    printf("[Rank %d] Vector operations complete (dot product sum: %.6f)\n",
-           rank, dot_result);
+    double elapsed = MPI_Wtime() - start_time;
+    
+    // Only print on rank 0 to reduce output
+    if (rank == 0) {
+        printf("[Rank %d] Vector operations complete in %.4f seconds (result: %.2f)\n",
+               rank, elapsed, dot_result);
+    }
+    
+    return elapsed;
 }
 
 // ============================================================================
@@ -158,8 +170,9 @@ void test_vector_operations(int rank) {
 /// Test MPI collective operations
 /// @param rank MPI rank
 /// @param size Number of MPI processes
-void test_mpi_collectives(int rank, int size) {
-    printf("[Rank %d] Testing MPI collective operations...\n", rank);
+/// @return Elapsed time in seconds
+double test_mpi_collectives(int rank, int size) {
+    double start_time = MPI_Wtime();
     
     // Test MPI_Bcast
     std::vector<double> bcast_data(1000);
@@ -225,14 +238,16 @@ void test_mpi_collectives(int rank, int size) {
                     0, MPI_COMM_WORLD);
     }
     
-    // Verify some results
+    MPI_Barrier(MPI_COMM_WORLD);
+    double elapsed = MPI_Wtime() - start_time;
+    
+    // Only print on rank 0 to reduce output
     if (rank == 0) {
-        printf("[Rank %d] MPI collectives complete (global sum: %.6f)\n",
-               rank, global_sum);
+        printf("[Rank %d] MPI collectives complete in %.4f seconds (global sum: %.1f)\n",
+               rank, elapsed, global_sum);
     }
     
-    MPI_Barrier(MPI_COMM_WORLD);
-    printf("[Rank %d] MPI collective operations complete\n", rank);
+    return elapsed;
 }
 
 // ============================================================================
@@ -247,25 +262,44 @@ int main(int argc, char** argv) {
     MPI_Comm_rank(MPI_COMM_WORLD, &rank);
     MPI_Comm_size(MPI_COMM_WORLD, &size);
     
-    printf("[Rank %d] MPI Sampler Test Started (total processes: %d)\n",
-           rank, size);
+    if (rank == 0) {
+        printf("[Rank %d] MPI Sampler Test Started (total processes: %d)\n",
+               rank, size);
+        printf("[Rank %d] Testing matrix multiplication (%dx%d)...\n",
+               rank, kMatrixSize, kMatrixSize);
+    }
     
     // Give the sampler time to initialize
     MPI_Barrier(MPI_COMM_WORLD);
     
-    // Run tests
-    test_matrix_multiplication(rank);
+    // Run tests and collect timing
+    double matrix_time = test_matrix_multiplication(rank);
     MPI_Barrier(MPI_COMM_WORLD);
     
-    test_vector_operations(rank);
-    MPI_Barrier(MPI_COMM_WORLD);
-    
-    test_mpi_collectives(rank, size);
-    MPI_Barrier(MPI_COMM_WORLD);
-    
-    // Final synchronization
     if (rank == 0) {
-        printf("\n[Rank 0] All tests completed successfully!\n");
+        printf("[Rank %d] Testing vector operations (size %d)...\n",
+               rank, kVectorSize);
+    }
+    double vector_time = test_vector_operations(rank);
+    MPI_Barrier(MPI_COMM_WORLD);
+    
+    if (rank == 0) {
+        printf("[Rank %d] Testing MPI collective operations...\n", rank);
+    }
+    double collective_time = test_mpi_collectives(rank, size);
+    MPI_Barrier(MPI_COMM_WORLD);
+    
+    // Print timing summary
+    if (rank == 0) {
+        double total_time = matrix_time + vector_time + collective_time;
+        printf("\n[Rank 0] ============================================\n");
+        printf("[Rank 0] Test Timing Summary:\n");
+        printf("[Rank 0]   Matrix multiplication: %.4f seconds\n", matrix_time);
+        printf("[Rank 0]   Vector operations:     %.4f seconds\n", vector_time);
+        printf("[Rank 0]   MPI collectives:       %.4f seconds\n", collective_time);
+        printf("[Rank 0]   Total:                 %.4f seconds\n", total_time);
+        printf("[Rank 0] ============================================\n");
+        printf("[Rank 0] All tests completed successfully!\n");
         printf("[Rank 0] Check output files: /tmp/perflow_mpi_rank_*.pflw\n");
     }
     

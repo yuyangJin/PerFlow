@@ -35,51 +35,15 @@ include(GoogleTest)
 gtest_discover_tests(perflow_tests)
 
 # ============================================================================
-# MPI Sampler Library and Test
+# MPI Sampler Test
 # ============================================================================
 
-# Find PAPI library
-find_package(PkgConfig QUIET)
-if(PkgConfig_FOUND)
-    pkg_check_modules(PAPI QUIET papi)
-endif()
-
-# Find MPI
+# Find MPI (needed for test executable)
 find_package(MPI QUIET)
 
-# Only build MPI sampler if both PAPI and MPI are available
-if(PAPI_FOUND AND MPI_FOUND)
-    message(STATUS "PAPI and MPI found - building MPI sampler")
-    
-    # Build MPI sampler as a shared library for LD_PRELOAD
-    add_library(perflow_mpi_sampler SHARED
-        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_sampler.cpp
-    )
-    
-    target_include_directories(perflow_mpi_sampler
-        PRIVATE
-        ${CMAKE_SOURCE_DIR}/include
-        ${PAPI_INCLUDE_DIRS}
-        ${MPI_CXX_INCLUDE_DIRS}
-    )
-    
-    target_link_libraries(perflow_mpi_sampler
-        PRIVATE
-        perflow_sampling
-        ${PAPI_LIBRARIES}
-        ${MPI_CXX_LIBRARIES}
-        unwind
-    )
-    
-    # Add PAPI library directories
-    if(PAPI_LIBRARY_DIRS)
-        target_link_directories(perflow_mpi_sampler PRIVATE ${PAPI_LIBRARY_DIRS})
-    endif()
-    
-    # Set output directory
-    set_target_properties(perflow_mpi_sampler PROPERTIES
-        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
-    )
+# Only build MPI sampler test if MPI is available and sampler was built
+if(TARGET perflow_mpi_sampler AND MPI_FOUND)
+    message(STATUS "Building MPI sampler test")
     
     # Build MPI sampler test executable
     add_executable(mpi_sampler_test
@@ -113,13 +77,5 @@ if(PAPI_FOUND AND MPI_FOUND)
         COMMENT "Running MPI sampler test with 4 processes"
     )
     
-else()
-    if(NOT PAPI_FOUND)
-        message(STATUS "PAPI not found - skipping MPI sampler build")
-        message(STATUS "  Install PAPI: sudo apt-get install libpapi-dev")
-    endif()
-    if(NOT MPI_FOUND)
-        message(STATUS "MPI not found - skipping MPI sampler build")
-        message(STATUS "  Install MPI: sudo apt-get install libopenmpi-dev")
-    endif()
 endif()
+

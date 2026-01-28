@@ -59,6 +59,64 @@ endif()
 find_package(Threads REQUIRED)
 target_link_libraries(perflow_sampling INTERFACE Threads::Threads)
 
+# ============================================================================
+# MPI Sampler Library
+# ============================================================================
+
+# Find PAPI library
+find_package(PkgConfig QUIET)
+if(PkgConfig_FOUND)
+    pkg_check_modules(PAPI QUIET papi)
+endif()
+
+# Find MPI
+find_package(MPI QUIET)
+
+# Only build MPI sampler if both PAPI and MPI are available
+if(PAPI_FOUND AND MPI_FOUND)
+    message(STATUS "PAPI and MPI found - building MPI sampler")
+    
+    # Build MPI sampler as a shared library for LD_PRELOAD
+    add_library(perflow_mpi_sampler SHARED
+        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_sampler.cpp
+    )
+    
+    target_include_directories(perflow_mpi_sampler
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${PAPI_INCLUDE_DIRS}
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+    
+    target_link_libraries(perflow_mpi_sampler
+        PRIVATE
+        perflow_sampling
+        ${PAPI_LIBRARIES}
+        ${MPI_CXX_LIBRARIES}
+        unwind
+    )
+    
+    # Add PAPI library directories
+    if(PAPI_LIBRARY_DIRS)
+        target_link_directories(perflow_mpi_sampler PRIVATE ${PAPI_LIBRARY_DIRS})
+    endif()
+    
+    # Set output directory
+    set_target_properties(perflow_mpi_sampler PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    )
+    
+else()
+    if(NOT PAPI_FOUND)
+        message(STATUS "PAPI not found - skipping MPI sampler build")
+        message(STATUS "  Install PAPI: sudo apt-get install libpapi-dev")
+    endif()
+    if(NOT MPI_FOUND)
+        message(STATUS "MPI not found - skipping MPI sampler build")
+        message(STATUS "  Install MPI: sudo apt-get install libopenmpi-dev")
+    endif()
+endif()
+
 # Tests
 if(PERFLOW_BUILD_TESTS)
     enable_testing()
