@@ -43,39 +43,64 @@ find_package(MPI QUIET)
 
 # Only build MPI sampler test if MPI is available and sampler was built
 if(TARGET perflow_mpi_sampler AND MPI_FOUND)
-    message(STATUS "Building MPI sampler test")
+    message(STATUS "Building MPI sampler tests")
     
-    # Build MPI sampler test executable
-    add_executable(mpi_sampler_test
-        mpi_sampler_test.cpp
+    # List of all MPI test programs
+    set(MPI_TEST_PROGRAMS
+        mpi_sampler_test
+        test_compute_intensive
+        test_comm_intensive
+        test_memory_intensive
+        test_hybrid
+        test_stress
     )
     
-    target_include_directories(mpi_sampler_test
-        PRIVATE
-        ${MPI_CXX_INCLUDE_DIRS}
+    # Build each MPI test executable
+    foreach(test_prog ${MPI_TEST_PROGRAMS})
+        add_executable(${test_prog}
+            ${test_prog}.cpp
+        )
+        
+        target_include_directories(${test_prog}
+            PRIVATE
+            ${MPI_CXX_INCLUDE_DIRS}
+        )
+        
+        target_link_libraries(${test_prog}
+            PRIVATE
+            ${MPI_CXX_LIBRARIES}
+        )
+        
+        # Set output directory for test executable
+        set_target_properties(${test_prog} PROPERTIES
+            RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+        )
+        
+        # Add custom test target that uses LD_PRELOAD
+        add_custom_target(run_${test_prog}
+            COMMAND ${CMAKE_COMMAND} -E make_directory 
+                    ${CMAKE_BINARY_DIR}/mpi_sampler_output/${test_prog}
+            COMMAND ${CMAKE_COMMAND} -E env 
+                    LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
+                    PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/${test_prog}
+                    srun -n 4 -p ja 
+                    ${CMAKE_BINARY_DIR}/tests/${test_prog}
+            DEPENDS perflow_mpi_sampler ${test_prog}
+            WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+            COMMENT "Running ${test_prog} with 4 processes"
+        )
+    endforeach()
+    
+    # Add a target to run all MPI tests
+    add_custom_target(run_all_mpi_tests
+        DEPENDS ${MPI_TEST_PROGRAMS}
+        COMMENT "Running all MPI sampler tests"
     )
     
-    target_link_libraries(mpi_sampler_test
-        PRIVATE
-        ${MPI_CXX_LIBRARIES}
-    )
-    
-    # Set output directory for test executable
-    set_target_properties(mpi_sampler_test PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
-    )
-    
-    # Add custom test target that uses LD_PRELOAD
-    add_custom_target(run_mpi_sampler_test
-        COMMAND ${CMAKE_COMMAND} -E env 
-                LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
-                PERFLOW_OUTPUT_DIR=/tmp
-                ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 
-                ${CMAKE_BINARY_DIR}/tests/mpi_sampler_test
-        DEPENDS perflow_mpi_sampler mpi_sampler_test
-        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
-        COMMENT "Running MPI sampler test with 4 processes"
-    )
+    # Add individual test runs as dependencies
+    foreach(test_prog ${MPI_TEST_PROGRAMS})
+        add_dependencies(run_all_mpi_tests run_${test_prog})
+    endforeach()
     
 endif()
 
