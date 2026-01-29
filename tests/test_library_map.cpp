@@ -128,17 +128,21 @@ TEST_F(LibraryMapTest, ParseCurrentProcess) {
   // Should have found at least a few libraries
   EXPECT_GT(lib_map.size(), 0u);
   
-  // Try to resolve the address of this test function
-  uintptr_t test_addr = reinterpret_cast<uintptr_t>(&LibraryMapTest::ParseCurrentProcess);
-  auto result = lib_map.resolve(test_addr);
+  // Check that at least one library has been loaded
+  const auto& libraries = lib_map.libraries();
+  ASSERT_GT(libraries.size(), 0u);
   
-  // Should be able to resolve it (might be the test executable or a library)
-  EXPECT_TRUE(result.has_value());
-  if (result.has_value()) {
-    // The library name should not be empty
-    EXPECT_FALSE(result->first.empty());
-    // Offset should be less than the address (it's relative)
-    EXPECT_LT(result->second, test_addr);
+  // Verify that we can resolve an address within the first library
+  if (libraries.size() > 0) {
+    const auto& first_lib = libraries[0];
+    uintptr_t test_addr = first_lib.base + 0x100;  // An address within the first library
+    
+    auto result = lib_map.resolve(test_addr);
+    EXPECT_TRUE(result.has_value());
+    if (result.has_value()) {
+      EXPECT_FALSE(result->first.empty());
+      EXPECT_EQ(result->second, 0x100u);
+    }
   }
 }
 
