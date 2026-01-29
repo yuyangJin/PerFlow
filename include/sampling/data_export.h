@@ -421,6 +421,142 @@ class DataImporter {
   }
 };
 
+// ============================================================================
+// Library Map Export/Import
+// ============================================================================
+
+/// Magic number for library map files
+constexpr uint32_t kLibMapMagic = 0x504C4D50;  // "PLMP"
+
+/// Library map file header
+struct __attribute__((packed)) LibMapFileHeader {
+  uint32_t magic;            // Magic number (kLibMapMagic)
+  uint16_t version;          // Format version
+  uint16_t reserved1;        // Reserved for alignment
+  uint32_t process_id;       // Process ID or rank
+  uint32_t library_count;    // Number of libraries in the map
+  uint64_t timestamp;        // Unix timestamp when map was captured
+  uint8_t reserved2[40];     // Reserved space for future metadata
+
+  LibMapFileHeader() noexcept
+      : magic(kLibMapMagic),
+        version(kDataFormatVersion),
+        reserved1(0),
+        process_id(0),
+        library_count(0),
+        timestamp(0) {
+    std::memset(reserved2, 0, sizeof(reserved2));
+  }
+};
+
+static_assert(sizeof(LibMapFileHeader) == 64, "LibMap header must be 64 bytes");
+
+/// Library entry header in map file
+struct __attribute__((packed)) LibMapEntryHeader {
+  uintptr_t base;         // Base address
+  uintptr_t end;          // End address
+  uint8_t executable;     // Whether region is executable
+  uint8_t reserved1[7];   // Reserved for alignment
+  uint32_t name_length;   // Length of library name
+  uint32_t reserved2;     // Reserved for future use
+
+  LibMapEntryHeader() noexcept
+      : base(0), end(0), executable(0), reserved1{0}, name_length(0), reserved2(0) {}
+};
+
+static_assert(sizeof(LibMapEntryHeader) == 32, "LibMap entry header must be 32 bytes");
+
+/// LibraryMapExporter handles writing library maps to files
+class LibraryMapExporter {
+ public:
+  /// Constructor
+  /// @param directory Output directory path
+  /// @param filename Base filename (without extension)
+  LibraryMapExporter(const char* directory, const char* filename) noexcept
+      : file_(nullptr) {
+    size_t dir_len = std::strlen(directory);
+    size_t file_len = std::strlen(filename);
+
+    if (dir_len + file_len + 16 < kMaxPathLength) {
+      std::strcpy(filepath_, directory);
+      if (dir_len > 0 && filepath_[dir_len - 1] != '/') {
+        filepath_[dir_len++] = '/';
+      }
+      std::strcpy(filepath_ + dir_len, filename);
+      std::strcat(filepath_, ".libmap");
+    } else {
+      filepath_[0] = '\0';
+    }
+  }
+
+  /// Destructor - closes file if open
+  ~LibraryMapExporter() noexcept { close(); }
+
+  /// Export library map to file
+  /// @param lib_map Library map to export
+  /// @param process_id Process ID or rank
+  /// @return Result code
+  DataResult exportMap(const class LibraryMap& lib_map,
+                       uint32_t process_id) noexcept;
+
+  /// Get the output file path
+  const char* filepath() const noexcept { return filepath_; }
+
+ private:
+  static constexpr size_t kMaxPathLength = 4096;
+
+  FILE* file_;
+  char filepath_[kMaxPathLength];
+
+  void close() noexcept {
+    if (file_ != nullptr) {
+      std::fclose(file_);
+      file_ = nullptr;
+    }
+  }
+};
+
+/// LibraryMapImporter handles reading library maps from files
+class LibraryMapImporter {
+ public:
+  /// Constructor
+  /// @param filepath Full path to the library map file
+  explicit LibraryMapImporter(const char* filepath) noexcept : file_(nullptr) {
+    size_t len = std::strlen(filepath);
+    if (len < kMaxPathLength) {
+      std::strcpy(filepath_, filepath);
+    } else {
+      filepath_[0] = '\0';
+    }
+  }
+
+  /// Destructor - closes file if open
+  ~LibraryMapImporter() noexcept { close(); }
+
+  /// Import library map from file
+  /// @param lib_map Library map to populate
+  /// @param process_id Output parameter for process ID
+  /// @return Result code
+  DataResult importMap(class LibraryMap& lib_map,
+                       uint32_t* process_id) noexcept;
+
+  /// Get the input file path
+  const char* filepath() const noexcept { return filepath_; }
+
+ private:
+  static constexpr size_t kMaxPathLength = 4096;
+
+  FILE* file_;
+  char filepath_[kMaxPathLength];
+
+  void close() noexcept {
+    if (file_ != nullptr) {
+      std::fclose(file_);
+      file_ = nullptr;
+    }
+  }
+};
+
 }  // namespace sampling
 }  // namespace perflow
 

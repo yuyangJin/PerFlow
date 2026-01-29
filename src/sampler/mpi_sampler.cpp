@@ -26,6 +26,7 @@
 #include <libunwind.h>
 
 #include "sampling/sampling.h"
+#include "sampling/library_map.h"
 
 using namespace perflow::sampling;
 
@@ -86,6 +87,9 @@ using SampleHashMap = StaticHashMap<SampleCallStack, uint64_t, kSampleMapCapacit
 
 /// Sample storage
 static std::unique_ptr<SampleHashMap> g_samples = nullptr;
+
+/// Library map for address resolution
+static std::unique_ptr<LibraryMap> g_library_map = nullptr;
 
 // ============================================================================
 // Helper Functions
@@ -401,6 +405,15 @@ static void initialize_sampler() {
     // Allocate sample storage
     g_samples = std::make_unique<SampleHashMap>();
     
+    // Capture library map snapshot
+    g_library_map = std::make_unique<LibraryMap>();
+    if (!g_library_map->parse_current_process()) {
+        fprintf(stderr, "[MPI Sampler] Warning: Failed to parse library map\n");
+    } else {
+        fprintf(stderr, "[MPI Sampler] Captured %zu library mappings\n",
+                g_library_map->size());
+    }
+    
     // Start counting
     retval = PAPI_start(g_event_set);
     if (!check_papi(retval, PAPI_OK, "PAPI_start")) {
@@ -485,6 +498,21 @@ static void finalize_sampler() {
             fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable data\n",
                     g_mpi_rank);
         }
+        
+        // Export library map if available
+        if (g_library_map != nullptr && !g_library_map->empty()) {
+            LibraryMapExporter map_exporter(output_dir, output_filename);
+            DataResult map_result = map_exporter.exportMap(*g_library_map,
+                                                           static_cast<uint32_t>(g_mpi_rank));
+            
+            if (map_result == DataResult::kSuccess) {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Library map exported to %s\n",
+                        g_mpi_rank, map_exporter.filepath());
+            } else {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export library map\n",
+                        g_mpi_rank);
+            }
+        }
     }
     
     // Clean up PAPI
@@ -493,6 +521,9 @@ static void finalize_sampler() {
     
     // Clean up sample storage
     g_samples.reset();
+    
+    // Clean up library map
+    g_library_map.reset();
     
     fprintf(stderr, "[MPI Sampler] Rank %d - Finalization complete\n", g_mpi_rank);
 }

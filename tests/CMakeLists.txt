@@ -21,6 +21,10 @@ add_executable(perflow_tests
     test_static_hash_map.cpp
     test_data_export.cpp
     test_pmu_sampler.cpp
+    test_library_map.cpp
+    test_offset_converter.cpp
+    test_library_map_export.cpp
+    ${CMAKE_SOURCE_DIR}/src/sampling/library_map_io.cpp
 )
 
 target_link_libraries(perflow_tests
