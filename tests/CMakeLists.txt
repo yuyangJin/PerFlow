@@ -78,11 +78,12 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
         
         # Add custom test target that uses LD_PRELOAD
         add_custom_target(run_${test_prog}
+            COMMAND ${CMAKE_COMMAND} -E make_directory 
+                    ${CMAKE_BINARY_DIR}/mpi_sampler_output/${test_prog}
             COMMAND ${CMAKE_COMMAND} -E env 
                     LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
-                    PERFLOW_OUTPUT_DIR=/tmp
-                    ${MPIEXEC} ${MPIEXEC_NUMPROC_FLAG} 4 
-                    --allow-run-as-root --oversubscribe
+                    PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/${test_prog}
+                    srun -n 4 -p ja 
                     ${CMAKE_BINARY_DIR}/tests/${test_prog}
             DEPENDS perflow_mpi_sampler ${test_prog}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
