@@ -104,16 +104,19 @@ class LibraryMap {
  private:
   std::vector<LibraryInfo> libraries_;
 
+  /// Maximum pathname length for safety
+  static constexpr size_t kMaxPathnameLength = 2047;  // 2048 - 1 for null terminator
+
   /// Parse a single line from /proc/self/maps
   /// Format: address perms offset dev inode pathname
   /// Example: 7f8a1c000000-7f8a1c021000 r-xp 00000000 08:01 12345 /lib/libc.so.6
   /// @param line Line to parse
-  /// @return true if parsed successfully, false otherwise
+  /// @return true if line was successfully parsed and handled, false if malformed
   bool parse_maps_line(const char* line) noexcept {
     uintptr_t start_addr = 0;
     uintptr_t end_addr = 0;
     char perms[8] = {0};
-    char pathname[2048] = {0};
+    char pathname[kMaxPathnameLength + 1] = {0};
 
     // Parse the address range and permissions
     // Format: start-end perms offset dev inode pathname
@@ -127,9 +130,9 @@ class LibraryMap {
     // Check if executable permission is set
     bool executable = (perms[2] == 'x');
 
-    // Only store executable regions for now (these are the relevant ones for stack traces)
+    // Only store executable regions (relevant for stack traces)
     if (!executable) {
-      return true;  // Skip non-executable regions
+      return true;  // Line was valid but skipped (non-executable)
     }
 
     // Extract library name from pathname

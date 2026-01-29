@@ -5,6 +5,7 @@
 #include "sampling/library_map.h"
 
 #include <ctime>
+#include <vector>
 
 namespace perflow {
 namespace sampling {
@@ -101,24 +102,23 @@ DataResult LibraryMapImporter::importMap(LibraryMap& lib_map,
       return DataResult::kErrorFileRead;
     }
 
-    // Read library name
+    // Read library name using vector for automatic memory management
     std::string lib_name;
     if (entry_header.name_length > 0) {
       // Limit name length to reasonable size to prevent memory issues
-      if (entry_header.name_length > 4096) {
+      constexpr uint32_t kMaxLibraryNameLength = 4096;
+      if (entry_header.name_length > kMaxLibraryNameLength) {
         close();
         return DataResult::kErrorIntegrity;
       }
 
-      char* name_buffer = new char[entry_header.name_length + 1];
-      if (std::fread(name_buffer, entry_header.name_length, 1, file_) != 1) {
-        delete[] name_buffer;
+      std::vector<char> name_buffer(entry_header.name_length + 1);
+      if (std::fread(name_buffer.data(), entry_header.name_length, 1, file_) != 1) {
         close();
         return DataResult::kErrorFileRead;
       }
       name_buffer[entry_header.name_length] = '\0';
-      lib_name = name_buffer;
-      delete[] name_buffer;
+      lib_name = name_buffer.data();
     }
 
     // Add library to map

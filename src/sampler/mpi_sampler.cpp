@@ -27,6 +27,7 @@
 
 #include "sampling/sampling.h"
 #include "sampling/library_map.h"
+#include "sampling/data_export.h"
 
 using namespace perflow::sampling;
 

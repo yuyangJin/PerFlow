@@ -477,7 +477,7 @@ class LibraryMapExporter {
     size_t dir_len = std::strlen(directory);
     size_t file_len = std::strlen(filename);
 
-    if (dir_len + file_len + 16 < kMaxPathLength) {
+    if (dir_len + file_len + 8 < kMaxPathLength) {  // 8 for "/.libmap\0"
       std::strcpy(filepath_, directory);
       if (dir_len > 0 && filepath_[dir_len - 1] != '/') {
         filepath_[dir_len++] = '/';
