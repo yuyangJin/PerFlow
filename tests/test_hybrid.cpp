@@ -107,17 +107,18 @@ double test_overlapped_comp_comm(int rank, int size) {
         send_buffer[i] = static_cast<double>(rank * 1000 + i);
     }
     
-    int partner = (rank + 1) % size;
+    int next_rank = (rank + 1) % size;
+    int prev_rank = (rank - 1 + size) % size;
     
     double start_time = MPI_Wtime();
     
     for (int phase = 0; phase < kNumPhases; ++phase) {
         MPI_Request send_req, recv_req;
         
-        // Post non-blocking communication
-        MPI_Irecv(recv_buffer.data(), kMessageSize, MPI_DOUBLE, partner,
+        // Post non-blocking communication (ring pattern)
+        MPI_Irecv(recv_buffer.data(), kMessageSize, MPI_DOUBLE, prev_rank,
                  phase, MPI_COMM_WORLD, &recv_req);
-        MPI_Isend(send_buffer.data(), kMessageSize, MPI_DOUBLE, partner,
+        MPI_Isend(send_buffer.data(), kMessageSize, MPI_DOUBLE, next_rank,
                  phase, MPI_COMM_WORLD, &send_req);
         
         // Do computation while communication is in progress

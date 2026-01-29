@@ -51,7 +51,8 @@ void fast_communicate(int rank, int size, int iterations) {
         send_buf[i] = static_cast<double>(rank + i);
     }
     
-    int partner = (rank + 1) % size;
+    int next_rank = (rank + 1) % size;
+    int prev_rank = (rank - 1 + size) % size;
     
     for (int iter = 0; iter < iterations; ++iter) {
         double local_value = static_cast<double>(rank + iter);
@@ -61,10 +62,10 @@ void fast_communicate(int rank, int size, int iterations) {
         MPI_Allreduce(&local_value, &global_value, 1, MPI_DOUBLE,
                      MPI_SUM, MPI_COMM_WORLD);
         
-        // Quick sendrecv
+        // Quick sendrecv (ring pattern: send to next, receive from previous)
         if (iter % 5 == 0) {
-            MPI_Sendrecv(send_buf.data(), kMessageSize, MPI_DOUBLE, partner, 0,
-                        recv_buf.data(), kMessageSize, MPI_DOUBLE, partner, 0,
+            MPI_Sendrecv(send_buf.data(), kMessageSize, MPI_DOUBLE, next_rank, 0,
+                        recv_buf.data(), kMessageSize, MPI_DOUBLE, prev_rank, 0,
                         MPI_COMM_WORLD, MPI_STATUS_IGNORE);
         }
     }
