@@ -9,9 +9,11 @@
 #include <cstdio>
 #include <cstring>
 #include <ctime>
+#include <vector>
 
 #include "sampling/call_stack.h"
 #include "sampling/static_hash_map.h"
+#include "sampling/library_map.h"
 
 namespace perflow {
 namespace sampling {
@@ -406,6 +408,261 @@ class DataImporter {
 
     return DataResult::kSuccess;
   }
+
+ private:
+  static constexpr size_t kMaxPathLength = 4096;
+
+  FILE* file_;
+  char filepath_[kMaxPathLength];
+
+  void close() noexcept {
+    if (file_ != nullptr) {
+      std::fclose(file_);
+      file_ = nullptr;
+    }
+  }
+};
+
+// ============================================================================
+// Library Map Export/Import
+// ============================================================================
+
+/// Magic number for library map files
+constexpr uint32_t kLibMapMagic = 0x504C4D50;  // "PLMP"
+
+/// Library map file header
+struct __attribute__((packed)) LibMapFileHeader {
+  uint32_t magic;            // Magic number (kLibMapMagic)
+  uint16_t version;          // Format version
+  uint16_t reserved1;        // Reserved for alignment
+  uint32_t process_id;       // Process ID or rank
+  uint32_t library_count;    // Number of libraries in the map
+  uint64_t timestamp;        // Unix timestamp when map was captured
+  uint8_t reserved2[40];     // Reserved space for future metadata
+
+  LibMapFileHeader() noexcept
+      : magic(kLibMapMagic),
+        version(kDataFormatVersion),
+        reserved1(0),
+        process_id(0),
+        library_count(0),
+        timestamp(0) {
+    std::memset(reserved2, 0, sizeof(reserved2));
+  }
+};
+
+static_assert(sizeof(LibMapFileHeader) == 64, "LibMap header must be 64 bytes");
+
+/// Library entry header in map file
+struct __attribute__((packed)) LibMapEntryHeader {
+  uintptr_t base;         // Base address
+  uintptr_t end;          // End address
+  uint8_t executable;     // Whether region is executable
+  uint8_t reserved1[7];   // Reserved for alignment
+  uint32_t name_length;   // Length of library name
+  uint32_t reserved2;     // Reserved for future use
+
+  LibMapEntryHeader() noexcept
+      : base(0), end(0), executable(0), reserved1{0}, name_length(0), reserved2(0) {}
+};
+
+static_assert(sizeof(LibMapEntryHeader) == 32, "LibMap entry header must be 32 bytes");
+
+/// LibraryMapExporter handles writing library maps to files
+class LibraryMapExporter {
+ public:
+  /// Constructor
+  /// @param directory Output directory path
+  /// @param filename Base filename (without extension)
+  LibraryMapExporter(const char* directory, const char* filename) noexcept
+      : file_(nullptr) {
+    size_t dir_len = std::strlen(directory);
+    size_t file_len = std::strlen(filename);
+
+    if (dir_len + file_len + 8 < kMaxPathLength) {  // 8 for "/.libmap\0"
+      std::strcpy(filepath_, directory);
+      if (dir_len > 0 && filepath_[dir_len - 1] != '/') {
+        filepath_[dir_len++] = '/';
+      }
+      std::strcpy(filepath_ + dir_len, filename);
+      std::strcat(filepath_, ".libmap");
+    } else {
+      filepath_[0] = '\0';
+    }
+  }
+
+  /// Destructor - closes file if open
+  ~LibraryMapExporter() noexcept { close(); }
+
+  /// Export library map to file
+  /// @param lib_map Library map to export
+  /// @param process_id Process ID or rank
+  /// @return Result code
+  DataResult exportMap(const LibraryMap& lib_map,
+                       uint32_t process_id) noexcept {
+    if (filepath_[0] == '\0') {
+      return DataResult::kErrorFileOpen;
+    }
+
+    file_ = std::fopen(filepath_, "wb");
+    if (file_ == nullptr) {
+      return DataResult::kErrorFileOpen;
+    }
+
+    // Prepare header
+    LibMapFileHeader header;
+    header.process_id = process_id;
+    header.library_count = static_cast<uint32_t>(lib_map.size());
+    header.timestamp = static_cast<uint64_t>(std::time(nullptr));
+
+    // Write header
+    if (std::fwrite(&header, sizeof(header), 1, file_) != 1) {
+      close();
+      return DataResult::kErrorFileWrite;
+    }
+
+    // Write each library entry
+    for (const auto& lib : lib_map.libraries()) {
+      LibMapEntryHeader entry_header;
+      entry_header.base = lib.base;
+      entry_header.end = lib.end;
+      entry_header.executable = lib.executable ? 1 : 0;
+      entry_header.name_length = static_cast<uint32_t>(lib.name.length());
+
+      if (std::fwrite(&entry_header, sizeof(entry_header), 1, file_) != 1) {
+        close();
+        return DataResult::kErrorFileWrite;
+      }
+
+      // Write library name
+      if (entry_header.name_length > 0) {
+        if (std::fwrite(lib.name.c_str(), entry_header.name_length, 1, file_) != 1) {
+          close();
+          return DataResult::kErrorFileWrite;
+        }
+      }
+    }
+
+    close();
+    return DataResult::kSuccess;
+  }
+
+  /// Get the output file path
+  const char* filepath() const noexcept { return filepath_; }
+
+ private:
+  static constexpr size_t kMaxPathLength = 4096;
+
+  FILE* file_;
+  char filepath_[kMaxPathLength];
+
+  void close() noexcept {
+    if (file_ != nullptr) {
+      std::fclose(file_);
+      file_ = nullptr;
+    }
+  }
+};
+
+/// LibraryMapImporter handles reading library maps from files
+class LibraryMapImporter {
+ public:
+  /// Constructor
+  /// @param filepath Full path to the library map file
+  explicit LibraryMapImporter(const char* filepath) noexcept : file_(nullptr) {
+    size_t len = std::strlen(filepath);
+    if (len < kMaxPathLength) {
+      std::strcpy(filepath_, filepath);
+    } else {
+      filepath_[0] = '\0';
+    }
+  }
+
+  /// Destructor - closes file if open
+  ~LibraryMapImporter() noexcept { close(); }
+
+  /// Import library map from file
+  /// @param lib_map Library map to populate
+  /// @param process_id Output parameter for process ID
+  /// @return Result code
+  DataResult importMap(LibraryMap& lib_map,
+                       uint32_t* process_id) noexcept {
+    if (filepath_[0] == '\0') {
+      return DataResult::kErrorFileOpen;
+    }
+
+    file_ = std::fopen(filepath_, "rb");
+    if (file_ == nullptr) {
+      return DataResult::kErrorFileOpen;
+    }
+
+    // Read and validate header
+    LibMapFileHeader header;
+    if (std::fread(&header, sizeof(header), 1, file_) != 1) {
+      close();
+      return DataResult::kErrorFileRead;
+    }
+
+    if (header.magic != kLibMapMagic) {
+      close();
+      return DataResult::kErrorInvalidFormat;
+    }
+
+    if (header.version > kDataFormatVersion) {
+      close();
+      return DataResult::kErrorVersionMismatch;
+    }
+
+    if (process_id != nullptr) {
+      *process_id = header.process_id;
+    }
+
+    // Clear existing library map
+    lib_map.clear();
+
+    // Read library entries
+    for (uint32_t i = 0; i < header.library_count; ++i) {
+      LibMapEntryHeader entry_header;
+      if (std::fread(&entry_header, sizeof(entry_header), 1, file_) != 1) {
+        close();
+        return DataResult::kErrorFileRead;
+      }
+
+      // Read library name using vector for automatic memory management
+      std::string lib_name;
+      if (entry_header.name_length > 0) {
+        // Limit name length to reasonable size to prevent memory issues
+        constexpr uint32_t kMaxLibraryNameLength = 4096;
+        if (entry_header.name_length > kMaxLibraryNameLength) {
+          close();
+          return DataResult::kErrorIntegrity;
+        }
+
+        std::vector<char> name_buffer(entry_header.name_length + 1);
+        if (std::fread(name_buffer.data(), entry_header.name_length, 1, file_) != 1) {
+          close();
+          return DataResult::kErrorFileRead;
+        }
+        name_buffer[entry_header.name_length] = '\0';
+        lib_name = name_buffer.data();
+      }
+
+      // Add library to map
+      LibraryMap::LibraryInfo lib_info(
+          lib_name,
+          entry_header.base,
+          entry_header.end,
+          entry_header.executable != 0
+      );
+      lib_map.add_library(lib_info);
+    }
+
+    close();
+    return DataResult::kSuccess;
+  }
+
+  /// Get the input file path
+  const char* filepath() const noexcept { return filepath_; }
 
  private:
   static constexpr size_t kMaxPathLength = 4096;

@@ -5,7 +5,8 @@
 #define PERFLOW_SAMPLING_LIBRARY_MAP_H_
 
 #include <cstdint>
-#include <fstream>
+#include <cstdio>
+#include <cstring>
 #include <optional>
 #include <string>
 #include <vector>
@@ -13,168 +14,147 @@
 namespace perflow {
 namespace sampling {
 
-/// LibraryMap parses and stores information about loaded libraries from /proc/self/maps.
-/// This enables conversion of runtime addresses to static library offsets.
-///
-/// Thread Safety: Not thread-safe. External synchronization required if used from multiple threads.
+/// LibraryMap parses and stores memory mappings from /proc/self/maps
+/// This is used to convert absolute addresses to library-relative offsets
 class LibraryMap {
  public:
-  /// Information about a single loaded library or memory region
+  /// Information about a loaded library/region
   struct LibraryInfo {
-    std::string name;      ///< Library name (e.g., "libc.so.6", "[stack]", "[heap]")
-    uintptr_t base;        ///< Start address of the memory region
-    uintptr_t end;         ///< End address of the memory region
-    bool is_executable;    ///< Whether this region has execute permissions
-
-    LibraryInfo() noexcept
-        : name(), base(0), end(0), is_executable(false) {}
-
-    LibraryInfo(std::string lib_name, uintptr_t start, uintptr_t finish, bool executable) noexcept
-        : name(std::move(lib_name)), base(start), end(finish), is_executable(executable) {}
+    std::string name;     // Library name or path (e.g., "/lib/libc.so.6")
+    uintptr_t base;       // Start address of the mapping
+    uintptr_t end;        // End address of the mapping
+    bool executable;      // Whether the region is executable
+    
+    LibraryInfo() noexcept : name(), base(0), end(0), executable(false) {}
+    
+    LibraryInfo(const std::string& n, uintptr_t b, uintptr_t e, bool exec) noexcept
+        : name(n), base(b), end(e), executable(exec) {}
   };
 
   /// Default constructor
-  LibraryMap() noexcept = default;
+  LibraryMap() noexcept : libraries_() {}
 
-  /// Parse library mappings from the current process
-  /// Reads and parses /proc/self/maps to build the library map
-  /// @return true if parsing succeeded, false on error
-  bool parse_current_process() {
-    libraries_.clear();
+  /// Parse /proc/self/maps for the current process
+  /// @return true if successful, false on error
+  bool parse_current_process() noexcept {
     return parse_maps_file("/proc/self/maps");
   }
 
-  /// Parse library mappings from a specific maps file
-  /// Useful for testing or analyzing other processes
-  /// @param maps_file_path Path to the maps file to parse
-  /// @return true if parsing succeeded, false on error
-  /// @note This function clears existing libraries before parsing
-  bool parse_maps_file(const std::string& maps_file_path) {
+  /// Parse a specific maps file (useful for testing or analyzing other processes)
+  /// @param filepath Path to the maps file
+  /// @return true if successful, false on error
+  bool parse_maps_file(const char* filepath) noexcept {
     libraries_.clear();
-    
-    std::ifstream maps_file(maps_file_path);
-    if (!maps_file.is_open()) {
+
+    FILE* maps_file = std::fopen(filepath, "r");
+    if (maps_file == nullptr) {
       return false;
     }
 
-    std::string line;
-    while (std::getline(maps_file, line)) {
+    char line[4096];
+    while (std::fgets(line, sizeof(line), maps_file) != nullptr) {
       if (!parse_maps_line(line)) {
         // Continue parsing even if one line fails
         continue;
       }
     }
 
-    return !libraries_.empty();
+    std::fclose(maps_file);
+    return true;
   }
 
-  /// Resolve an address to its library name and offset
-  /// @param addr Runtime address to resolve
-  /// @return Optional pair of (library_name, offset) if address is found
-  std::optional<std::pair<std::string, uintptr_t>> resolve(uintptr_t addr) const {
+  /// Resolve an address to a library and offset
+  /// @param addr Address to resolve
+  /// @return Optional pair of (library_name, offset) if found
+  std::optional<std::pair<std::string, uintptr_t>> resolve(
+      uintptr_t addr) const noexcept {
+    // Search for the library containing this address
     for (const auto& lib : libraries_) {
       if (addr >= lib.base && addr < lib.end) {
-        uintptr_t offset = addr - lib.base;
-        return std::make_pair(lib.name, offset);
+        // Only return executable regions for meaningful stack traces
+        if (lib.executable) {
+          uintptr_t offset = addr - lib.base;
+          return std::make_pair(lib.name, offset);
+        }
       }
     }
     return std::nullopt;
   }
 
-  /// Get the number of loaded libraries/regions
+  /// Get all loaded libraries
+  const std::vector<LibraryInfo>& libraries() const noexcept {
+    return libraries_;
+  }
+
+  /// Get number of loaded libraries
   size_t size() const noexcept { return libraries_.size(); }
 
-  /// Check if the map is empty
+  /// Check if map is empty
   bool empty() const noexcept { return libraries_.empty(); }
-
-  /// Get all libraries
-  const std::vector<LibraryInfo>& libraries() const noexcept { return libraries_; }
 
   /// Clear all library information
   void clear() noexcept { libraries_.clear(); }
 
- private:
-  /// Parse a single line from /proc/self/maps
-  /// Format: address permissions offset device inode pathname
-  /// Example: 7f8a4c000000-7f8a4c021000 r-xp 00000000 08:01 1234567 /lib/x86_64-linux-gnu/libc.so.6
-  /// @param line Line to parse
-  /// @return true if parsing succeeded, false otherwise
-  bool parse_maps_line(const std::string& line) {
-    if (line.empty()) {
-      return false;
-    }
-
-    // Parse address range
-    size_t dash_pos = line.find('-');
-    if (dash_pos == std::string::npos) {
-      return false;
-    }
-
-    size_t space_pos = line.find(' ', dash_pos);
-    if (space_pos == std::string::npos) {
-      return false;
-    }
-
-    // Extract addresses
-    std::string start_str = line.substr(0, dash_pos);
-    std::string end_str = line.substr(dash_pos + 1, space_pos - dash_pos - 1);
-
-    uintptr_t start_addr = 0;
-    uintptr_t end_addr = 0;
-
-    try {
-      start_addr = std::stoull(start_str, nullptr, 16);
-      end_addr = std::stoull(end_str, nullptr, 16);
-    } catch (...) {
-      return false;
-    }
-
-    // Parse permissions (second field)
-    size_t perm_start = space_pos + 1;
-    size_t perm_end = line.find(' ', perm_start);
-    if (perm_end == std::string::npos || perm_end - perm_start < 4) {
-      return false;
-    }
-
-    std::string permissions = line.substr(perm_start, 4);
-    bool is_executable = (permissions[2] == 'x');
-
-    // Only store executable regions to reduce memory usage
-    if (!is_executable) {
-      return false;
-    }
-
-    // Parse pathname (last field, may be empty for anonymous mappings)
-    size_t pathname_pos = line.find('/');
-    std::string pathname;
-
-    if (pathname_pos != std::string::npos) {
-      pathname = line.substr(pathname_pos);
-      // Remove trailing whitespace
-      size_t end = pathname.find_last_not_of(" \t\r\n");
-      if (end != std::string::npos) {
-        pathname = pathname.substr(0, end + 1);
-      }
-    } else {
-      // Check for special regions like [stack], [heap], [vdso]
-      size_t bracket_pos = line.find('[');
-      if (bracket_pos != std::string::npos) {
-        size_t bracket_end = line.find(']', bracket_pos);
-        if (bracket_end != std::string::npos) {
-          pathname = line.substr(bracket_pos, bracket_end - bracket_pos + 1);
-        }
-      } else {
-        // Anonymous mapping without a name
-        pathname = "[anon]";
-      }
-    }
-
-    // Add to libraries list
-    libraries_.emplace_back(pathname, start_addr, end_addr, is_executable);
-    return true;
+  /// Add a library entry manually (used for importing from files)
+  /// @param lib Library information to add
+  void add_library(const LibraryInfo& lib) {
+    libraries_.push_back(lib);
   }
 
-  std::vector<LibraryInfo> libraries_;  ///< List of loaded libraries
+ private:
+  std::vector<LibraryInfo> libraries_;
+
+  /// Maximum pathname length for safety
+  static constexpr size_t kMaxPathnameLength = 2047;  // 2048 - 1 for null terminator
+
+  /// Parse a single line from /proc/self/maps
+  /// Format: address perms offset dev inode pathname
+  /// Example: 7f8a1c000000-7f8a1c021000 r-xp 00000000 08:01 12345 /lib/libc.so.6
+  /// @param line Line to parse
+  /// @return true if line was successfully parsed and handled, false if malformed
+  bool parse_maps_line(const char* line) noexcept {
+    uintptr_t start_addr = 0;
+    uintptr_t end_addr = 0;
+    char perms[8] = {0};
+    char pathname[kMaxPathnameLength + 1] = {0};
+
+    // Parse the address range and permissions
+    // Format: start-end perms offset dev inode pathname
+    int fields = std::sscanf(line, "%lx-%lx %7s %*x %*x:%*x %*d %2047[^\n]",
+                             &start_addr, &end_addr, perms, pathname);
+
+    if (fields < 3) {
+      return false;  // Invalid line format
+    }
+
+    // Check if executable permission is set
+    bool executable = (perms[2] == 'x');
+
+    // Only store executable regions (relevant for stack traces)
+    if (!executable) {
+      return true;  // Line was valid but skipped (non-executable)
+    }
+
+    // Extract library name from pathname
+    std::string lib_name;
+    if (fields >= 4 && pathname[0] != '\0') {
+      // Trim leading/trailing whitespace
+      const char* start = pathname;
+      while (*start == ' ' || *start == '\t') ++start;
+      
+      const char* end = start + std::strlen(start) - 1;
+      while (end > start && (*end == ' ' || *end == '\t' || *end == '\n')) --end;
+      
+      lib_name = std::string(start, end - start + 1);
+    } else {
+      // Anonymous mapping or special region
+      lib_name = "[anonymous]";
+    }
+
+    // Add the library to our list
+    libraries_.emplace_back(lib_name, start_addr, end_addr, executable);
+    return true;
+  }
 };
 
 }  // namespace sampling
