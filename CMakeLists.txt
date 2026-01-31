@@ -142,6 +142,11 @@ install(DIRECTORY include/sampling
     FILES_MATCHING PATTERN "*.h"
 )
 
+install(DIRECTORY include/analysis
+    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    FILES_MATCHING PATTERN "*.h"
+)
+
 install(EXPORT PerFlowTargets
     FILE PerFlowTargets.cmake
     NAMESPACE PerFlow::

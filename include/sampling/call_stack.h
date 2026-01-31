@@ -7,12 +7,32 @@
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
+#include <string>
 
 namespace perflow {
 namespace sampling {
 
 /// Default maximum call stack depth
 constexpr size_t kDefaultMaxStackDepth = 128;
+
+/// ResolvedFrame represents a single resolved stack frame with symbol information
+/// This is used in post-processing to convert raw addresses to symbolic information
+struct ResolvedFrame {
+  uintptr_t raw_address;        // Original raw address
+  uintptr_t offset;             // Offset within the library/binary
+  std::string library_name;     // Library or binary name (e.g., "/lib/libc.so.6")
+  std::string function_name;    // Function name (if available, empty otherwise)
+  std::string filename;         // Source file name (if available, empty otherwise)
+  uint32_t line_number;         // Line number (if available, 0 otherwise)
+  
+  ResolvedFrame() noexcept
+      : raw_address(0), offset(0), library_name(), function_name(),
+        filename(), line_number(0) {}
+  
+  ResolvedFrame(uintptr_t raw_addr, uintptr_t off, const std::string& lib) noexcept
+      : raw_address(raw_addr), offset(off), library_name(lib), function_name(),
+        filename(), line_number(0) {}
+};
 
 /// CallStack represents a function call stack as a sequence of return addresses.
 /// The structure is designed for cache locality and efficient hashing.
