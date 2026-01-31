@@ -29,6 +29,8 @@ class OnlineAnalysis {
     monitor_ = std::make_unique<DirectoryMonitor>(directory, poll_interval_ms);
     
     // Set up callback to handle new files
+    // TODO(Issue #TBD): Implement file handling logic for automatic tree building
+    // Should process new .pflw files and update tree incrementally
     monitor_->set_callback([this](const std::string& path, FileType type,
                                   bool is_new) { handle_file(path, type, is_new); });
   }
@@ -92,11 +94,14 @@ class OnlineAnalysis {
  private:
   void handle_file(const std::string& path, FileType type, bool is_new) {
     // Handle different file types
-    // This is a placeholder for more sophisticated handling
+    // TODO(Issue #TBD): Implement automatic file processing
+    // - For .pflw files: Extract process ID from filename and call builder.build_from_file()
+    // - For .libmap files: Load library map with builder.load_library_maps()
+    // - For .ptree files: Could be used for loading pre-built trees
+    // Returns: void currently, but could return bool for success/failure status
     (void)path;
     (void)type;
     (void)is_new;
-    // TODO: Implement file handling logic
   }
 
   TreeBuilder builder_;

@@ -313,10 +313,11 @@ The online analysis module is designed to work with PerFlow's MPI sampler:
 ## Limitations and Future Work
 
 ### Current Limitations:
-- Tree builder file I/O needs additional debugging for some edge cases
+- **TreeBuilder File I/O**: Lambda capture issue in `data.for_each()` causes segfaults when building trees from files. The issue is related to capturing member variables through references. Workaround: Manual tree construction works fine. See TODO in `tests/test_tree_builder.cpp`.
 - No Python bindings yet (C++ only)
 - No web-based real-time visualization
 - Plugin architecture not yet implemented
+- Directory monitoring callback `handle_file()` is a placeholder (automatic file processing not implemented)
 
 ### Planned Features:
 - Python bindings using pybind11
