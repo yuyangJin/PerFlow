@@ -55,6 +55,28 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
     DataResult map_result = map_importer.importMap(lib_map, &process_id);
     if (map_result != DataResult::kSuccess) {
         std::cerr << "Failed to import library map for rank " << rank << "\n";
+        std::cerr << "  File: " << libmap_file << "\n";
+        std::cerr << "  Error code: " << static_cast<int>(map_result) << "\n";
+        
+        // Provide helpful error messages based on error code
+        switch (map_result) {
+            case DataResult::kErrorFileOpen:
+                std::cerr << "  Reason: File not found or cannot be opened\n";
+                std::cerr << "  Hint: Make sure you have run the MPI sampler first to generate .libmap files\n";
+                break;
+            case DataResult::kErrorFileRead:
+                std::cerr << "  Reason: Error reading file\n";
+                break;
+            case DataResult::kErrorInvalidFormat:
+                std::cerr << "  Reason: Invalid file format or magic number\n";
+                break;
+            case DataResult::kErrorVersionMismatch:
+                std::cerr << "  Reason: File version mismatch\n";
+                break;
+            default:
+                std::cerr << "  Reason: Unknown error\n";
+                break;
+        }
         return;
     }
     
@@ -72,6 +94,31 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
     DataResult data_result = data_importer.importData(call_stacks);
     if (data_result != DataResult::kSuccess) {
         std::cerr << "Failed to import call stack data for rank " << rank << "\n";
+        std::cerr << "  File: " << data_file << "\n";
+        std::cerr << "  Error code: " << static_cast<int>(data_result) << "\n";
+        
+        // Provide helpful error messages based on error code
+        switch (data_result) {
+            case DataResult::kErrorFileOpen:
+                std::cerr << "  Reason: File not found or cannot be opened\n";
+                std::cerr << "  Hint: Make sure you have run the MPI sampler first to generate .pflw files\n";
+                break;
+            case DataResult::kErrorFileRead:
+                std::cerr << "  Reason: Error reading file\n";
+                break;
+            case DataResult::kErrorInvalidFormat:
+                std::cerr << "  Reason: Invalid file format or magic number\n";
+                break;
+            case DataResult::kErrorVersionMismatch:
+                std::cerr << "  Reason: File version mismatch\n";
+                break;
+            case DataResult::kErrorMemory:
+                std::cerr << "  Reason: Out of memory or capacity exceeded\n";
+                break;
+            default:
+                std::cerr << "  Reason: Unknown error\n";
+                break;
+        }
         return;
     }
     
@@ -194,22 +241,46 @@ void find_hot_paths(const char* data_dir, uint32_t rank, size_t top_n) {
 
 /// Main function - demonstrates different usage patterns
 int main(int argc, char* argv[]) {
+    std::cout << "PerFlow Post-Analysis Example\n";
+    std::cout << "==============================\n\n";
+    
+    const char* data_dir = "/tmp";
+    
+    // Allow user to specify data directory
+    if (argc > 1) {
+        data_dir = argv[1];
+    }
+    
+    std::cout << "Data directory: " << data_dir << "\n";
+    std::cout << "Looking for files:\n";
+    std::cout << "  - perflow_mpi_rank_N.pflw (sample data)\n";
+    std::cout << "  - perflow_mpi_rank_N.libmap (library maps)\n\n";
+    
     // Example 1: Process a single rank
     std::cout << "=== Example 1: Process Single Rank ===\n\n";
-    process_rank_data("/tmp", 0);
+    process_rank_data(data_dir, 0);
     
     std::cout << "\n" << std::string(60, '=') << "\n\n";
     
     // Example 2: Process all ranks
     std::cout << "=== Example 2: Process All Ranks ===\n\n";
-    // process_all_ranks("/tmp", 4);  // Uncomment if you have data from 4 ranks
+    std::cout << "Uncomment in source to process multiple ranks\n";
+    // process_all_ranks(data_dir, 4);  // Uncomment if you have data from 4 ranks
+    
+    std::cout << "\n" << std::string(60, '=') << "\n\n";
     
     // Example 3: Find hot paths
     std::cout << "=== Example 3: Find Hot Paths ===\n\n";
-    // find_hot_paths("/tmp", 0, 5);  // Uncomment to find top 5 hot paths
+    std::cout << "Uncomment in source to find hot call paths\n";
+    // find_hot_paths(data_dir, 0, 5);  // Uncomment to find top 5 hot paths
     
-    std::cout << "\nNote: This is a demonstration. Uncomment the examples above\n";
-    std::cout << "      after running the MPI sampler to generate actual data.\n";
+    std::cout << "\n" << std::string(60, '=') << "\n\n";
+    std::cout << "Usage: " << (argc > 0 ? argv[0] : "post_analysis_example") 
+              << " [data_directory]\n";
+    std::cout << "\nTo generate sample data, run:\n";
+    std::cout << "  LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \\\n";
+    std::cout << "  PERFLOW_OUTPUT_DIR=" << data_dir << " \\\n";
+    std::cout << "  mpirun -n 4 ./your_mpi_app\n\n";
     
     return 0;
 }
