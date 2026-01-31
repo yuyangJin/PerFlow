@@ -113,21 +113,28 @@ class OnlineAnalysis {
 
  private:
   void handle_file(const std::string& path, FileType type, bool is_new) {
-    std::lock_guard<std::mutex> lock(mutex_);
+    // Make a local copy of the path to avoid reference issues
+    std::string path_copy = path;
     
-    // Track which files we've processed
-    if (processed_files_.find(path) != processed_files_.end() && is_new) {
-      return;  // Already processed this file
+    // Check if already processed (with lock)
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (processed_files_.find(path_copy) != processed_files_.end() && is_new) {
+        return;  // Already processed this file
+      }
     }
     
     switch (type) {
       case FileType::kLibraryMap: {
         // Extract rank ID from filename (e.g., "perflow_mpi_rank_0.libmap")
-        uint32_t rank_id = extract_rank_from_filename(path);
+        uint32_t rank_id = extract_rank_from_filename(path_copy);
         if (rank_id != UINT32_MAX) {
-          pending_libmaps_[rank_id] = path;
+          {
+            std::lock_guard<std::mutex> lock(mutex_);
+            pending_libmaps_[rank_id] = path_copy;
+          }
           if (file_callback_) {
-            file_callback_(path, type, is_new);
+            file_callback_(path_copy, type, is_new);
           }
         }
         break;
@@ -135,23 +142,39 @@ class OnlineAnalysis {
       
       case FileType::kSampleData: {
         // Extract rank ID from filename (e.g., "perflow_mpi_rank_0.pflw")
-        uint32_t rank_id = extract_rank_from_filename(path);
+        uint32_t rank_id = extract_rank_from_filename(path_copy);
         if (rank_id != UINT32_MAX) {
-          // Load library map for this rank if available
-          auto libmap_it = pending_libmaps_.find(rank_id);
-          if (libmap_it != pending_libmaps_.end()) {
-            std::vector<std::pair<std::string, uint32_t>> libmaps = {{libmap_it->second, rank_id}};
-            builder_.load_library_maps(libmaps);
-            pending_libmaps_.erase(libmap_it);
+          // Check for library map and prepare data (with lock)
+          std::string libmap_path;
+          bool has_libmap = false;
+          {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto libmap_it = pending_libmaps_.find(rank_id);
+            if (libmap_it != pending_libmaps_.end()) {
+              libmap_path = libmap_it->second;
+              has_libmap = true;
+              pending_libmaps_.erase(libmap_it);
+            }
           }
           
-          // Build tree from this sample file
-          std::vector<std::pair<std::string, uint32_t>> files = {{path, rank_id}};
+          // Load library map if available (without lock - I/O operation)
+          if (has_libmap) {
+            std::vector<std::pair<std::string, uint32_t>> libmaps = {{libmap_path, rank_id}};
+            builder_.load_library_maps(libmaps);
+          }
+          
+          // Build tree from this sample file (without lock - I/O operation)
+          std::vector<std::pair<std::string, uint32_t>> files = {{path_copy, rank_id}};
           builder_.build_from_files(files, 1000.0);
-          processed_files_.insert(path);
+          
+          // Mark as processed (with lock)
+          {
+            std::lock_guard<std::mutex> lock(mutex_);
+            processed_files_.insert(path_copy);
+          }
           
           if (file_callback_) {
-            file_callback_(path, type, is_new);
+            file_callback_(path_copy, type, is_new);
           }
         }
         break;
@@ -160,7 +183,7 @@ class OnlineAnalysis {
       case FileType::kPerformanceTree:
         // Could be used for loading pre-built trees in the future
         if (file_callback_) {
-          file_callback_(path, type, is_new);
+          file_callback_(path_copy, type, is_new);
         }
         break;
         
