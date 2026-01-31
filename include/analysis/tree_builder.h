@@ -5,6 +5,7 @@
 #define PERFLOW_ANALYSIS_TREE_BUILDER_H_
 
 #include <cstdint>
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -50,11 +51,10 @@ class TreeBuilder {
             size_t Capacity = 1048576>
   bool build_from_file(const char* sample_file, uint32_t process_id,
                        double time_per_sample = 1000.0) {
-    // Import sample data
-    sampling::StaticHashMap<sampling::CallStack<MaxDepth>, uint64_t, Capacity>
-        data;
+    // Import sample data - allocate on heap to avoid stack overflow
+    auto data = std::make_unique<sampling::StaticHashMap<sampling::CallStack<MaxDepth>, uint64_t, Capacity>>();
     sampling::DataImporter importer(sample_file);
-    auto result = importer.importData(data);
+    auto result = importer.importData(*data);
 
     if (result != sampling::DataResult::kSuccess) {
       return false;
@@ -67,7 +67,7 @@ class TreeBuilder {
     PerformanceTree& tree_ref = tree_;
     OffsetConverter& converter_ref = converter_;
 
-    data.for_each([&tree_ref, &converter_ref, process_id, time_per_sample, has_converter](
+    data->for_each([&tree_ref, &converter_ref, process_id, time_per_sample, has_converter](
                       const sampling::CallStack<MaxDepth>& stack,
                       const uint64_t& count) {
       std::vector<sampling::ResolvedFrame> frames;
