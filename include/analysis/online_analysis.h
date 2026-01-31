@@ -31,7 +31,7 @@ class OnlineAnalysis {
   /// Constructor
   OnlineAnalysis() noexcept : builder_(), monitor_(nullptr), monitor_directory_(),
                                pending_libmaps_(), processed_files_(),
-                               file_callback_(), mutex_() {}
+                               file_callback_(), mutex_(), builder_mutex_() {}
 
   /// Set the directory to monitor
   /// @param directory Directory path
@@ -70,44 +70,56 @@ class OnlineAnalysis {
   /// Get the monitored directory
   const std::string& monitor_directory() const { return monitor_directory_; }
 
-  /// Get the tree builder
-  TreeBuilder& builder() noexcept { return builder_; }
+  /// Get the tree builder (thread-safe access)
+  TreeBuilder& builder() noexcept {
+    // Note: Caller is responsible for thread safety when modifying builder
+    return builder_;
+  }
   const TreeBuilder& builder() const noexcept { return builder_; }
 
-  /// Get the performance tree
-  PerformanceTree& tree() noexcept { return builder_.tree(); }
+  /// Get the performance tree (thread-safe access)
+  PerformanceTree& tree() noexcept {
+    // Note: Caller is responsible for thread safety when modifying tree
+    return builder_.tree();
+  }
   const PerformanceTree& tree() const noexcept { return builder_.tree(); }
 
-  /// Perform balance analysis
+  /// Perform balance analysis (thread-safe)
   BalanceAnalysisResult analyze_balance() const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
     return BalanceAnalyzer::analyze(tree());
   }
 
-  /// Find performance hotspots
+  /// Find performance hotspots (thread-safe)
   std::vector<HotspotInfo> find_hotspots(size_t top_n = 10) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
     return HotspotAnalyzer::find_hotspots(tree(), top_n);
   }
 
-  /// Find self-time hotspots
+  /// Find self-time hotspots (thread-safe)
   std::vector<HotspotInfo> find_self_hotspots(size_t top_n = 10) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
     return HotspotAnalyzer::find_self_hotspots(tree(), top_n);
   }
 
-  /// Export tree visualization
+  /// Export tree visualization (thread-safe)
   bool export_visualization(const char* output_pdf,
                            ColorScheme scheme = ColorScheme::kHeatmap,
                            size_t max_depth = 0) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
     return TreeVisualizer::generate_pdf(tree(), output_pdf, scheme, max_depth);
   }
 
-  /// Export tree data
+  /// Export tree data (thread-safe)
   bool export_tree(const char* directory, const char* filename,
                   bool compressed = false) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
     return TreeSerializer::export_tree(tree(), directory, filename, compressed);
   }
 
-  /// Export tree as text
+  /// Export tree as text (thread-safe)
   bool export_tree_text(const char* directory, const char* filename) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
     return TreeSerializer::export_tree_text(tree(), directory, filename);
   }
 
@@ -157,15 +169,20 @@ class OnlineAnalysis {
             }
           }
           
-          // Load library map if available (without lock - I/O operation)
-          if (has_libmap) {
-            std::vector<std::pair<std::string, uint32_t>> libmaps = {{libmap_path, rank_id}};
-            builder_.load_library_maps(libmaps);
+          // Load library map and build tree with builder mutex protection
+          {
+            std::lock_guard<std::mutex> lock(builder_mutex_);
+            
+            // Load library map if available
+            if (has_libmap) {
+              std::vector<std::pair<std::string, uint32_t>> libmaps = {{libmap_path, rank_id}};
+              builder_.load_library_maps(libmaps);
+            }
+            
+            // Build tree from this sample file
+            std::vector<std::pair<std::string, uint32_t>> files = {{path_copy, rank_id}};
+            builder_.build_from_files(files, 1000.0);
           }
-          
-          // Build tree from this sample file (without lock - I/O operation)
-          std::vector<std::pair<std::string, uint32_t>> files = {{path_copy, rank_id}};
-          builder_.build_from_files(files, 1000.0);
           
           // Mark as processed (with lock)
           {
@@ -225,7 +242,8 @@ class OnlineAnalysis {
   std::unordered_map<uint32_t, std::string> pending_libmaps_;
   std::unordered_set<std::string> processed_files_;
   FileProcessCallback file_callback_;
-  mutable std::mutex mutex_;
+  mutable std::mutex mutex_;  // For general state
+  mutable std::mutex builder_mutex_;  // For builder access
 };
 
 }  // namespace analysis
