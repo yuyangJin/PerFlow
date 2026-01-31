@@ -4,6 +4,7 @@
 #ifndef PERFLOW_ANALYSIS_TREE_VISUALIZER_H_
 #define PERFLOW_ANALYSIS_TREE_VISUALIZER_H_
 
+#include <cmath>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>

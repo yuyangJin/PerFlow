@@ -43,24 +43,39 @@ Demonstrates library mapping and address-to-offset conversion.
 - Simulates call stack addresses
 - Converts addresses to resolved frames
 
-### 3. Post Analysis Example (`post_analysis_example`)
+### 3. Post Analysis Example (`post_analysis_example`) - **With PDF Visualization**
 
-Demonstrates post-processing of collected sample data.
+Demonstrates post-processing of collected sample data with tree visualization.
 
-**Purpose**: Shows how to import and analyze sample data after collection.
+**Purpose**: Shows how to import and analyze sample data after collection with PDF visualization output.
 
 **Usage**:
 ```bash
 # Assuming you have sample data from MPI sampler
+./build/examples/post_analysis_example [data_directory]
+```
+
+**Example**:
+```bash
+# Use default directory (/tmp)
 ./build/examples/post_analysis_example
+
+# Or specify custom directory
+./build/examples/post_analysis_example /path/to/sample/data
 ```
 
 **What it does**:
 - Loads library maps (.libmap files)
 - Imports call stack data (.pflw files)
 - Converts raw addresses to resolved frames
+- **Builds performance tree from call stacks**
+- **Generates PDF visualization of the call tree** 🎨
 - Analyzes hotness by library
 - Identifies hot call paths
+
+**Output**:
+- `performance_tree_rank_N.pdf` - Visual tree diagram (requires GraphViz)
+- Library hotness statistics (console output)
 
 ### 4. Online Analysis Example (`online_analysis_example`) - **Analyzer**
 

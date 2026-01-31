@@ -8,7 +8,9 @@
 /// 1. Import library maps from files
 /// 2. Import call stack data from sampling files
 /// 3. Use OffsetConverter to convert raw addresses to resolved frames
-/// 4. Process and analyze the resolved frames
+/// 4. Build performance trees from the data
+/// 5. Generate PDF visualizations of the call tree
+/// 6. Process and analyze the resolved frames
 ///
 /// Usage:
 ///   // Assuming you have collected data with the MPI sampler
@@ -18,6 +20,7 @@
 ///   //   - perflow_mpi_rank_0.txt (human-readable data)
 ///
 ///   // This example shows how to process them in post-analysis
+///   // and generate PDF visualizations
 
 #include <iostream>
 #include <vector>
@@ -29,6 +32,8 @@
 #include "sampling/library_map.h"
 #include "sampling/static_hash_map.h"
 #include "analysis/offset_converter.h"
+#include "analysis/performance_tree.h"
+#include "analysis/tree_visualizer.h"
 
 using namespace perflow::sampling;
 using namespace perflow::analysis;
@@ -128,7 +133,39 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
     OffsetConverter converter;
     converter.add_map_snapshot(rank, lib_map);
     
-    // 4. Process each call stack
+    // 4. Build performance tree for visualization
+    std::cout << "\nBuilding performance tree...\n";
+    PerformanceTree tree;
+    tree.set_process_count(1);  // Single rank analysis
+    
+    call_stacks.for_each([&](const CallStackType& stack, const uint64_t& count) {
+        // Convert raw addresses to resolved frames
+        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank);
+        
+        // Insert into tree (frames are already in bottom-to-top order)
+        tree.insert_call_stack(resolved, rank, count, count * 1000.0);  // Assume 1ms per sample
+    });
+    
+    std::cout << "  Tree built with " << tree.total_samples() << " total samples\n";
+    
+    // 5. Generate PDF visualization
+    std::cout << "\nGenerating PDF visualization...\n";
+    
+    char pdf_path[512];
+    std::snprintf(pdf_path, sizeof(pdf_path), "%s/performance_tree_rank_%u.pdf", 
+                  data_dir, rank);
+    
+    bool viz_success = TreeVisualizer::generate_pdf(tree, pdf_path, 
+                                                     ColorScheme::kHeatmap, 15);
+    
+    if (viz_success) {
+        std::cout << "  PDF saved to: " << pdf_path << "\n";
+    } else {
+        std::cout << "  PDF generation failed (GraphViz may not be installed)\n";
+        std::cout << "  Install with: sudo apt-get install graphviz\n";
+    }
+    
+    // 6. Process statistics
     std::cout << "\nConverting raw addresses to offsets...\n";
     
     // Count statistics
@@ -281,6 +318,11 @@ int main(int argc, char* argv[]) {
     std::cout << "  LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \\\n";
     std::cout << "  PERFLOW_OUTPUT_DIR=" << data_dir << " \\\n";
     std::cout << "  mpirun -n 4 ./your_mpi_app\n\n";
+    std::cout << "Output:\n";
+    std::cout << "  - Performance tree PDF: " << data_dir << "/performance_tree_rank_N.pdf\n";
+    std::cout << "  - Library hotness statistics (console output)\n\n";
+    std::cout << "Note: PDF generation requires GraphViz to be installed\n";
+    std::cout << "      Install with: sudo apt-get install graphviz\n\n";
     
     return 0;
 }
