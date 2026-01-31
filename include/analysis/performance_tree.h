@@ -16,6 +16,18 @@
 namespace perflow {
 namespace analysis {
 
+/// TreeBuildMode defines how call stacks are aggregated into a tree
+enum class TreeBuildMode {
+  /// Calling-context-free: Nodes with the same function are merged
+  /// regardless of their calling context (call path)
+  kContextFree = 0,
+  
+  /// Calling-context-aware: Nodes are distinguished by their full
+  /// calling context (call path), creating separate nodes for the
+  /// same function called from different contexts
+  kContextAware = 1
+};
+
 /// TreeNode represents a vertex in the performance tree
 /// Each node corresponds to a function/program structure
 class TreeNode {
@@ -86,11 +98,26 @@ class TreeNode {
   }
 
   /// Find a child by frame information (function name and library)
+  /// Context-free mode: Only checks function and library names
   std::shared_ptr<TreeNode> find_child(
       const sampling::ResolvedFrame& frame) const {
     for (const auto& child : children_) {
       if (child->frame_.function_name == frame.function_name &&
           child->frame_.library_name == frame.library_name) {
+        return child;
+      }
+    }
+    return nullptr;
+  }
+  
+  /// Find a child by full frame information including calling context
+  /// Context-aware mode: Checks all frame attributes including offset
+  std::shared_ptr<TreeNode> find_child_context_aware(
+      const sampling::ResolvedFrame& frame) const {
+    for (const auto& child : children_) {
+      if (child->frame_.function_name == frame.function_name &&
+          child->frame_.library_name == frame.library_name &&
+          child->frame_.offset == frame.offset) {
         return child;
       }
     }
@@ -124,8 +151,9 @@ class TreeNode {
 /// Thread-safe for concurrent insertions
 class PerformanceTree {
  public:
-  /// Constructor
-  PerformanceTree() noexcept : root_(nullptr), process_count_(0), mutex_() {
+  /// Constructor with optional build mode
+  explicit PerformanceTree(TreeBuildMode mode = TreeBuildMode::kContextFree) noexcept 
+      : root_(nullptr), process_count_(0), build_mode_(mode), mutex_() {
     // Create a virtual root node
     sampling::ResolvedFrame root_frame;
     root_frame.function_name = "[root]";
@@ -145,6 +173,15 @@ class PerformanceTree {
 
   /// Get the number of processes
   size_t process_count() const noexcept { return process_count_; }
+  
+  /// Get the tree build mode
+  TreeBuildMode build_mode() const noexcept { return build_mode_; }
+  
+  /// Set the tree build mode (must be called before inserting call stacks)
+  void set_build_mode(TreeBuildMode mode) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    build_mode_ = mode;
+  }
 
   /// Insert a call stack into the tree
   /// @param frames Resolved frames from bottom (main) to top (leaf)
@@ -173,7 +210,14 @@ class PerformanceTree {
     // Traverse from bottom to top (forward iteration since frames are already bottom-to-top)
     for (const auto& frame : frames) {
       // Try to find existing child with this frame
-      auto child = current->find_child(frame);
+      // Use context-aware or context-free search based on build mode
+      std::shared_ptr<TreeNode> child;
+      if (build_mode_ == TreeBuildMode::kContextAware) {
+        child = current->find_child_context_aware(frame);
+      } else {
+        child = current->find_child(frame);
+      }
+      
       if (!child) {
         // Create new child node
         child = std::make_shared<TreeNode>(frame);
@@ -217,6 +261,7 @@ class PerformanceTree {
 
   std::shared_ptr<TreeNode> root_;
   size_t process_count_;
+  TreeBuildMode build_mode_;  // Tree building mode
   mutable std::mutex mutex_;
 };
 

@@ -36,9 +36,21 @@ node.add_sample(0, 100, 10000.0);  // Process 0: 100 samples, 10ms
 #### PerformanceTree
 Thread-safe tree structure for aggregating call stack samples.
 
+**Tree Build Modes:**
+- **Context-Free (default)**: Nodes with the same function name and library are merged, regardless of their calling context. This produces a more compact tree showing aggregate behavior.
+- **Context-Aware**: Nodes are distinguished by their full calling context, including the specific call site (offset). Same functions called from different locations create separate tree nodes.
+
 **Key Methods:**
 ```cpp
-PerformanceTree tree;
+// Create tree with context-free mode (default)
+PerformanceTree tree_free;
+
+// Create tree with context-aware mode
+PerformanceTree tree_aware(TreeBuildMode::kContextAware);
+
+// Or set mode after construction
+tree.set_build_mode(TreeBuildMode::kContextAware);
+
 tree.set_process_count(4);
 
 // Insert a call stack (frames from bottom to top: main -> compute -> kernel)
@@ -47,6 +59,20 @@ tree.insert_call_stack(frames, process_id, sample_count, execution_time_us);
 
 // Get total samples
 uint64_t total = tree.total_samples();
+```
+
+**Context-Free vs Context-Aware Example:**
+```cpp
+// Two call stacks: main->func@0x2000 and main->func@0x3000
+// (same function "func", different call sites)
+
+// Context-Free: Creates 1 node for "func" (merged)
+//   [root] -> main -> func (total: 15 samples)
+
+// Context-Aware: Creates 2 separate nodes (not merged)
+//   [root] -> main -> func@0x2000 (10 samples)
+//                  -> func@0x3000 (5 samples)
+```
 
 // Access root node
 auto root = tree.root();
@@ -60,7 +86,14 @@ Constructs performance trees from sample data files.
 ```cpp
 #include "analysis/tree_builder.h"
 
+// Create builder with context-free mode (default)
 TreeBuilder builder;
+
+// Or create with context-aware mode
+TreeBuilder builder_aware(TreeBuildMode::kContextAware);
+
+// Can also set mode after construction
+builder.set_build_mode(TreeBuildMode::kContextAware);
 
 // Load library maps for address resolution
 std::vector<std::pair<std::string, uint32_t>> libmaps = {
@@ -68,6 +101,23 @@ std::vector<std::pair<std::string, uint32_t>> libmaps = {
     {"/path/to/rank1.libmap", 1}
 };
 builder.load_library_maps(libmaps);
+
+// Build tree from sample files
+std::vector<std::pair<std::string, uint32_t>> samples = {
+    {"/path/to/rank0.pflw", 0},
+    {"/path/to/rank1.pflw", 1}
+};
+size_t loaded = builder.build_from_files(samples, 1000.0);  // 1ms per sample
+
+// Access the tree
+const PerformanceTree& tree = builder.tree();
+```
+
+**When to Use Context-Aware Mode:**
+- Analyzing recursive functions with different call paths
+- Identifying performance variations based on calling context
+- Debugging performance issues where the same function behaves differently depending on how it's called
+- Building more detailed calling-context trees for advanced analysis
 
 // Build tree from sample files
 std::vector<std::pair<std::string, uint32_t>> samples = {

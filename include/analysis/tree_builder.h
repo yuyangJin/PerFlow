@@ -19,8 +19,9 @@ namespace analysis {
 /// TreeBuilder constructs performance trees from sample data
 class TreeBuilder {
  public:
-  /// Constructor
-  TreeBuilder() noexcept : converter_(), tree_() {}
+  /// Constructor with optional build mode
+  explicit TreeBuilder(TreeBuildMode mode = TreeBuildMode::kContextFree) noexcept 
+      : converter_(), tree_(mode) {}
 
   /// Get the performance tree
   PerformanceTree& tree() noexcept { return tree_; }
@@ -29,6 +30,16 @@ class TreeBuilder {
   /// Get the offset converter
   OffsetConverter& converter() noexcept { return converter_; }
   const OffsetConverter& converter() const noexcept { return converter_; }
+  
+  /// Set the tree build mode (must be called before building)
+  void set_build_mode(TreeBuildMode mode) {
+    tree_.set_build_mode(mode);
+  }
+  
+  /// Get the tree build mode
+  TreeBuildMode build_mode() const noexcept {
+    return tree_.build_mode();
+  }
 
   /// Build tree from a sample data file
   /// @param sample_file Path to sample data file (.pflw)

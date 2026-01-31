@@ -194,3 +194,48 @@ TEST(TreeNodeTest, CallCounts) {
   parent.increment_call_count(child, 3);
   EXPECT_EQ(parent.get_call_count(child), 8);
 }
+
+// Test context-aware vs context-free tree building modes
+TEST(PerformanceTreeTest, ContextAwareMode) {
+  // Create test frames
+  ResolvedFrame main_frame, func_a, func_b;
+  main_frame.function_name = "main";
+  main_frame.library_name = "test";
+  main_frame.offset = 0x1000;
+  
+  func_a.function_name = "func";
+  func_a.library_name = "test";
+  func_a.offset = 0x2000;
+  
+  func_b.function_name = "func";  // Same function name and library
+  func_b.library_name = "test";
+  func_b.offset = 0x3000;          // Different offset (different call site)
+  
+  // Test context-free mode (default) - should merge nodes with same function name
+  PerformanceTree tree_free(TreeBuildMode::kContextFree);
+  tree_free.set_process_count(1);
+  
+  std::vector<ResolvedFrame> stack1 = {main_frame, func_a};
+  tree_free.insert_call_stack(stack1, 0, 10);
+  
+  std::vector<ResolvedFrame> stack2 = {main_frame, func_b};
+  tree_free.insert_call_stack(stack2, 0, 5);
+  
+  EXPECT_EQ(tree_free.root()->children().size(), 1);  // Only main
+  auto main_node = tree_free.root()->children()[0];
+  EXPECT_EQ(main_node->children().size(), 1);  // func merged
+  EXPECT_EQ(main_node->children()[0]->total_samples(), 15);  // 10 + 5
+  
+  // Test context-aware mode - should keep separate nodes for different offsets
+  PerformanceTree tree_aware(TreeBuildMode::kContextAware);
+  tree_aware.set_process_count(1);
+  
+  tree_aware.insert_call_stack(stack1, 0, 10);
+  tree_aware.insert_call_stack(stack2, 0, 5);
+  
+  EXPECT_EQ(tree_aware.root()->children().size(), 1);  // Only main
+  auto main_node_aware = tree_aware.root()->children()[0];
+  EXPECT_EQ(main_node_aware->children().size(), 2);  // func@0x2000 and func@0x3000
+  EXPECT_EQ(main_node_aware->children()[0]->total_samples(), 10);
+  EXPECT_EQ(main_node_aware->children()[1]->total_samples(), 5);
+}
