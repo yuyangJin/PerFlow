@@ -6,6 +6,15 @@ _codeql_detected_source_root
 /tmp/perflow_test_results/
 *.pflw
 *.txt.perflow
+*.libmap
+*.ptree
+*.ptree.gz
+*.ptree.txt
+*.libmap.txt
+
+# Visualization outputs
+*.dot
+*.pdf
 
 # Temporary files
 *.tmp
