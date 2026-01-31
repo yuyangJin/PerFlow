@@ -52,14 +52,18 @@ class TreeBuilder {
     // Convert and insert each call stack
     bool has_converter = converter_.has_snapshot(process_id);
 
-    data.for_each([this, process_id, time_per_sample, has_converter](
+    // Store references to avoid issues in lambda
+    PerformanceTree& tree_ref = tree_;
+    OffsetConverter& converter_ref = converter_;
+
+    data.for_each([&tree_ref, &converter_ref, process_id, time_per_sample, has_converter](
                       const sampling::CallStack<MaxDepth>& stack,
                       const uint64_t& count) {
       std::vector<sampling::ResolvedFrame> frames;
 
       if (has_converter) {
         // Convert using offset converter
-        frames = converter_.convert(stack, process_id);
+        frames = converter_ref.convert(stack, process_id);
       } else {
         // Create basic frames with raw addresses
         for (size_t i = 0; i < stack.depth(); ++i) {
@@ -74,7 +78,7 @@ class TreeBuilder {
 
       // Insert into tree
       double total_time = count * time_per_sample;
-      tree_.insert_call_stack(frames, process_id, count, total_time);
+      tree_ref.insert_call_stack(frames, process_id, count, total_time);
     });
 
     return true;

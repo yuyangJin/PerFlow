@@ -80,13 +80,16 @@ class BalanceAnalyzer {
     const auto& counts = root->sampling_counts();
     result.process_samples.resize(process_count);
 
+    // If counts is smaller than process_count, some processes have 0 samples
+    size_t counts_size = counts.size();
+
     // Calculate statistics
     double sum = 0;
     result.min_samples = std::numeric_limits<double>::max();
     result.max_samples = 0;
 
     for (size_t i = 0; i < process_count; ++i) {
-      double count = static_cast<double>(counts[i]);
+      double count = (i < counts_size) ? static_cast<double>(counts[i]) : 0.0;
       result.process_samples[i] = count;
       sum += count;
 

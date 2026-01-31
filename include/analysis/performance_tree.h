@@ -165,12 +165,13 @@ class PerformanceTree {
       set_process_count_nolock(process_id + 1);
     }
 
+    // Add samples to root
+    root_->add_sample(process_id, count, time_us);
+
     std::shared_ptr<TreeNode> current = root_;
 
-    // Traverse from bottom to top (reverse iteration for top-down tree)
-    for (auto it = frames.rbegin(); it != frames.rend(); ++it) {
-      const auto& frame = *it;
-
+    // Traverse from bottom to top (forward iteration since frames are already bottom-to-top)
+    for (const auto& frame : frames) {
       // Try to find existing child with this frame
       auto child = current->find_child(frame);
       if (!child) {
