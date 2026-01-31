@@ -513,6 +513,18 @@ static void finalize_sampler() {
                 fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export library map\n",
                         g_mpi_rank);
             }
+            
+            // Also export in human-readable text format
+            DataResult text_map_result = map_exporter.exportMapText(*g_library_map,
+                                                                     static_cast<uint32_t>(g_mpi_rank));
+            
+            if (text_map_result == DataResult::kSuccess) {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Human-readable library map exported to text file\n",
+                        g_mpi_rank);
+            } else {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable library map\n",
+                        g_mpi_rank);
+            }
         }
     }
     

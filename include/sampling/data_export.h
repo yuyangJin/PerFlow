@@ -547,6 +547,61 @@ class LibraryMapExporter {
     return DataResult::kSuccess;
   }
 
+  /// Export library map in human-readable text format
+  /// @param lib_map Library map to export
+  /// @param process_id Process ID or rank
+  /// @return Result code
+  DataResult exportMapText(const LibraryMap& lib_map,
+                           uint32_t process_id) noexcept {
+    if (filepath_[0] == '\0') {
+      return DataResult::kErrorFileOpen;
+    }
+
+    // Build text file path by replacing extension
+    char text_filepath[kMaxPathLength];
+    std::strcpy(text_filepath, filepath_);
+    
+    // Replace .libmap with .libmap.txt
+    char* ext = std::strrchr(text_filepath, '.');
+    if (ext != nullptr && std::strcmp(ext, ".libmap") == 0) {
+      std::strcpy(ext, ".libmap.txt");
+    } else {
+      std::strcat(text_filepath, ".txt");
+    }
+
+    file_ = std::fopen(text_filepath, "w");
+    if (file_ == nullptr) {
+      return DataResult::kErrorFileOpen;
+    }
+
+    // Write header information
+    std::fprintf(file_, "# PerFlow Library Map (Text Format)\n");
+    std::fprintf(file_, "# Generated: %llu\n", 
+                 static_cast<unsigned long long>(std::time(nullptr)));
+    std::fprintf(file_, "# Process ID: %u\n", process_id);
+    std::fprintf(file_, "# Library count: %zu\n", lib_map.size());
+    std::fprintf(file_, "#\n");
+    std::fprintf(file_, "# Format: [Base Address - End Address] (Size) Library Name\n");
+    std::fprintf(file_, "#\n\n");
+
+    // Write each library entry
+    for (const auto& lib : lib_map.libraries()) {
+      uintptr_t size = lib.end - lib.base;
+      if (std::fprintf(file_, "[0x%016lx - 0x%016lx] (0x%lx bytes) %s %s\n",
+                       static_cast<unsigned long>(lib.base),
+                       static_cast<unsigned long>(lib.end),
+                       static_cast<unsigned long>(size),
+                       lib.executable ? "[x]" : "[ ]",
+                       lib.name.c_str()) < 0) {
+        close();
+        return DataResult::kErrorFileWrite;
+      }
+    }
+
+    close();
+    return DataResult::kSuccess;
+  }
+
   /// Get the output file path
   const char* filepath() const noexcept { return filepath_; }
 
