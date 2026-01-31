@@ -77,41 +77,129 @@ Demonstrates post-processing of collected sample data with tree visualization.
 - `performance_tree_rank_N.pdf` - Visual tree diagram (requires GraphViz)
 - Library hotness statistics (console output)
 
-### 4. Online Analysis Example (`online_analysis_example`) - **Analyzer**
+### 4. Online Analysis Example (`online_analysis_example`) - **Continuous Monitoring**
 
-**NEW**: Comprehensive analyzer demonstrating the online analysis module.
+**NEW**: Real-time monitoring and analysis demonstrating continuous profiling workflow.
 
-**Purpose**: Complete workflow for analyzing MPI application performance data.
+**Purpose**: Demonstrates continuous directory monitoring where the analyzer processes sample data in real-time as MPI applications generate it.
 
 **Usage**:
 ```bash
 ./build/examples/online_analysis_example <data_directory> [output_directory]
 ```
 
-**Example**:
+**Two Workflow Modes**:
+
+#### Mode 1: Continuous Monitoring (Real-Time)
+This is the primary use case - start the analyzer first, then run your MPI application.
+
 ```bash
-# First, collect data with MPI sampler
+# Terminal 1: Start the analyzer in monitoring mode
+./build/examples/online_analysis_example /tmp/perflow_samples /tmp/analysis_output
+
+# Terminal 2: Run your MPI application (after analyzer is running)
 LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \
 PERFLOW_OUTPUT_DIR=/tmp/perflow_samples \
 mpirun -n 4 ./your_mpi_app
 
-# Then analyze the collected data
-./build/examples/online_analysis_example /tmp/perflow_samples /tmp/analysis_output
+# The analyzer will automatically detect and process files as they arrive
+# Press Ctrl+C in Terminal 1 to stop monitoring and generate final report
 ```
 
 **What it does**:
-- Builds performance trees from sample data
-- Performs workload balance analysis across processes
-- Identifies performance hotspots (inclusive and exclusive time)
-- Exports analysis results:
-  - Text tree representation
-  - Binary tree format
-  - PDF visualization (if GraphViz is installed)
+- Continuously monitors the specified directory for new .pflw and .libmap files
+- Automatically processes files as they are created by the MPI sampler
+- Displays real-time updates as samples are collected
+- Prints periodic analysis summaries (every 10 seconds)
+- Generates live PDF visualization (`performance_tree_live.pdf`)
+- Produces comprehensive final report when stopped
+- Never stops until you press Ctrl+C (ideal for long-running MPI jobs)
 
-**Output**:
-- `performance_tree.ptree.txt` - Human-readable tree
-- `performance_tree.ptree` - Binary format for further processing
-- `performance_tree.pdf` - Visual tree diagram (requires GraphViz)
+**Console Output (Real-Time)**:
+```
+PerFlow Online Analysis - Continuous Monitoring Mode
+====================================================
+
+Monitored directory: /tmp/perflow_samples
+Output directory: /tmp/analysis_output
+Press Ctrl+C to stop monitoring
+
+Monitoring started. Waiting for sample files...
+
+Tip: Run your MPI application now with:
+  LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \
+  PERFLOW_OUTPUT_DIR=/tmp/perflow_samples \
+  mpirun -n <N> ./your_mpi_app
+
+[1738342567] Loaded library map: /tmp/perflow_samples/perflow_mpi_rank_0.libmap
+[1738342567] Loaded library map: /tmp/perflow_samples/perflow_mpi_rank_1.libmap
+[1738342568] Processed sample file: /tmp/perflow_samples/perflow_mpi_rank_0.pflw
+  Total samples so far: 180
+[1738342568] Processed sample file: /tmp/perflow_samples/perflow_mpi_rank_1.pflw
+  Total samples so far: 360
+
+========================================
+Current Analysis Summary
+========================================
+
+Performance Tree Statistics:
+  Total samples: 360
+  Process count: 2
+  Root children: 3
+
+Balance Analysis:
+  Mean samples per process: 180.0
+  Std deviation: 0.0
+  Min samples: 180 (process 0)
+  Max samples: 180 (process 1)
+  Imbalance factor: 0.000
+
+Top 5 Hotspots (Total Time):
+  1. main (libapp.so) - 360 samples (100%)
+  2. compute (libapp.so) - 280 samples (77.8%)
+  3. MPI_Barrier (libmpi.so) - 80 samples (22.2%)
+
+  Visualization saved: /tmp/analysis_output/performance_tree_live.pdf
+========================================
+
+# ...monitoring continues until Ctrl+C...
+
+^C
+Received shutdown signal. Stopping monitoring...
+
+Monitoring stopped.
+
+========================================
+Final Analysis Report
+========================================
+
+Files processed:
+  Library maps: 2
+  Sample files: 2
+
+[...full analysis results...]
+
+Exporting results...
+  Tree (text): /tmp/analysis_output/performance_tree_final.ptree.txt
+  Tree (compressed): /tmp/analysis_output/performance_tree_final.ptree
+  Visualization: /tmp/analysis_output/performance_tree_final.pdf
+
+Analysis complete!
+```
+
+**Output Files**:
+- `performance_tree_live.pdf` - Updated periodically during monitoring
+- `performance_tree_final.pdf` - Final visualization at shutdown
+- `performance_tree_final.ptree.txt` - Human-readable tree (final)
+- `performance_tree_final.ptree` - Compressed binary format (final)
+
+**Key Features**:
+- ✅ Zero-configuration automatic file detection
+- ✅ Real-time processing as files arrive
+- ✅ Periodic summary reports while monitoring
+- ✅ Graceful shutdown with Ctrl+C
+- ✅ Perfect for long-running MPI applications
+- ✅ Incremental tree building for efficiency
 
 ## Typical Workflow
 

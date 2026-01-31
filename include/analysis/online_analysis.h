@@ -4,6 +4,11 @@
 #ifndef PERFLOW_ANALYSIS_ONLINE_ANALYSIS_H_
 #define PERFLOW_ANALYSIS_ONLINE_ANALYSIS_H_
 
+#include <cctype>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
+
 #include "analysis/analyzers.h"
 #include "analysis/directory_monitor.h"
 #include "analysis/performance_tree.h"
@@ -18,19 +23,25 @@ namespace analysis {
 /// It monitors directories, builds performance trees, and performs analysis
 class OnlineAnalysis {
  public:
+  /// User callback type for file processing notifications
+  /// Args: (file_path, file_type, is_new_file)
+  using FileProcessCallback =
+      std::function<void(const std::string&, FileType, bool)>;
+
   /// Constructor
-  OnlineAnalysis() noexcept : builder_(), monitor_(nullptr) {}
+  OnlineAnalysis() noexcept : builder_(), monitor_(nullptr), monitor_directory_(),
+                               pending_libmaps_(), processed_files_(),
+                               file_callback_(), mutex_() {}
 
   /// Set the directory to monitor
   /// @param directory Directory path
   /// @param poll_interval_ms Polling interval in milliseconds
   void set_monitor_directory(const std::string& directory,
                             uint32_t poll_interval_ms = 1000) {
+    monitor_directory_ = directory;
     monitor_ = std::make_unique<DirectoryMonitor>(directory, poll_interval_ms);
     
     // Set up callback to handle new files
-    // TODO(Issue #TBD): Implement file handling logic for automatic tree building
-    // Should process new .pflw files and update tree incrementally
     monitor_->set_callback([this](const std::string& path, FileType type,
                                   bool is_new) { handle_file(path, type, is_new); });
   }
@@ -49,6 +60,15 @@ class OnlineAnalysis {
       monitor_->stop();
     }
   }
+  
+  /// Set user callback for file processing notifications
+  void set_file_callback(FileProcessCallback callback) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    file_callback_ = callback;
+  }
+  
+  /// Get the monitored directory
+  const std::string& monitor_directory() const { return monitor_directory_; }
 
   /// Get the tree builder
   TreeBuilder& builder() noexcept { return builder_; }
@@ -93,19 +113,96 @@ class OnlineAnalysis {
 
  private:
   void handle_file(const std::string& path, FileType type, bool is_new) {
-    // Handle different file types
-    // TODO(Issue #TBD): Implement automatic file processing
-    // - For .pflw files: Extract process ID from filename and call builder.build_from_file()
-    // - For .libmap files: Load library map with builder.load_library_maps()
-    // - For .ptree files: Could be used for loading pre-built trees
-    // Returns: void currently, but could return bool for success/failure status
-    (void)path;
-    (void)type;
-    (void)is_new;
+    std::lock_guard<std::mutex> lock(mutex_);
+    
+    // Track which files we've processed
+    if (processed_files_.find(path) != processed_files_.end() && is_new) {
+      return;  // Already processed this file
+    }
+    
+    switch (type) {
+      case FileType::kLibraryMap: {
+        // Extract rank ID from filename (e.g., "perflow_mpi_rank_0.libmap")
+        uint32_t rank_id = extract_rank_from_filename(path);
+        if (rank_id != UINT32_MAX) {
+          pending_libmaps_[rank_id] = path;
+          if (file_callback_) {
+            file_callback_(path, type, is_new);
+          }
+        }
+        break;
+      }
+      
+      case FileType::kSampleData: {
+        // Extract rank ID from filename (e.g., "perflow_mpi_rank_0.pflw")
+        uint32_t rank_id = extract_rank_from_filename(path);
+        if (rank_id != UINT32_MAX) {
+          // Load library map for this rank if available
+          auto libmap_it = pending_libmaps_.find(rank_id);
+          if (libmap_it != pending_libmaps_.end()) {
+            std::vector<std::pair<std::string, uint32_t>> libmaps = {{libmap_it->second, rank_id}};
+            builder_.load_library_maps(libmaps);
+            pending_libmaps_.erase(libmap_it);
+          }
+          
+          // Build tree from this sample file
+          std::vector<std::pair<std::string, uint32_t>> files = {{path, rank_id}};
+          builder_.build_from_files(files, 1000.0);
+          processed_files_.insert(path);
+          
+          if (file_callback_) {
+            file_callback_(path, type, is_new);
+          }
+        }
+        break;
+      }
+      
+      case FileType::kPerformanceTree:
+        // Could be used for loading pre-built trees in the future
+        if (file_callback_) {
+          file_callback_(path, type, is_new);
+        }
+        break;
+        
+      default:
+        break;
+    }
+  }
+  
+  /// Extract rank ID from filename like "perflow_mpi_rank_0.pflw"
+  static uint32_t extract_rank_from_filename(const std::string& path) {
+    // Find "rank_" in the filename
+    size_t pos = path.find("rank_");
+    if (pos == std::string::npos) {
+      return UINT32_MAX;  // Not found
+    }
+    
+    pos += 5;  // Move past "rank_"
+    
+    // Extract digits
+    size_t end_pos = pos;
+    while (end_pos < path.length() && std::isdigit(path[end_pos])) {
+      ++end_pos;
+    }
+    
+    if (end_pos > pos) {
+      try {
+        return static_cast<uint32_t>(std::stoul(path.substr(pos, end_pos - pos)));
+      } catch (...) {
+        return UINT32_MAX;
+      }
+    }
+    
+    return UINT32_MAX;
   }
 
   TreeBuilder builder_;
   std::unique_ptr<DirectoryMonitor> monitor_;
+  std::string monitor_directory_;
+  std::unordered_map<uint32_t, std::string> pending_libmaps_;
+  std::unordered_set<std::string> processed_files_;
+  FileProcessCallback file_callback_;
+  mutable std::mutex mutex_;
 };
 
 }  // namespace analysis
