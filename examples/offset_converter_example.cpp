@@ -6,11 +6,11 @@
 ///
 /// This example shows how to:
 /// 1. Capture library maps from the current process
-/// 2. Store raw call stack addresses with metadata
+/// 2. Store raw call stack addresses
 /// 3. Post-process addresses to resolve them to (library, offset) pairs
 
 #include <iostream>
-#include <chrono>
+#include <vector>
 
 #include "sampling/library_map.h"
 #include "sampling/call_stack.h"
@@ -31,14 +31,6 @@ CallStack<> simulate_capture_call_stack() {
     stack.push(0x7ffff7dd6000);
     
     return stack;
-}
-
-/// Get current timestamp in nanoseconds
-int64_t get_timestamp_ns() {
-    auto now = std::chrono::high_resolution_clock::now();
-    auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(
-        now.time_since_epoch());
-    return ns.count();
 }
 
 int main() {
@@ -64,36 +56,35 @@ int main() {
     
     // Step 3: Simulate capturing call stacks during execution
     std::cout << "Step 3: Capturing call stacks with raw addresses..." << std::endl;
-    std::vector<RawCallStack<>> raw_stacks;
+    std::vector<CallStack<>> captured_stacks;
     
     for (int i = 0; i < 3; ++i) {
         CallStack<> stack = simulate_capture_call_stack();
-        int64_t timestamp = get_timestamp_ns();
-        uint32_t map_id = 0;  // Use initial map for all samples
-        
-        raw_stacks.emplace_back(stack, timestamp, map_id);
+        captured_stacks.push_back(stack);
         std::cout << "  Captured stack #" << i << " with " << stack.depth() 
-                  << " frames at timestamp " << timestamp << std::endl;
+                  << " frames" << std::endl;
     }
     std::cout << std::endl;
     
     // Step 4: Post-process to resolve addresses to (library, offset) pairs
     std::cout << "Step 4: Post-processing - resolving addresses to offsets..." << std::endl;
-    std::vector<ResolvedCallStack> resolved_stacks = converter.convert_batch(raw_stacks);
-    std::cout << "  Resolved " << resolved_stacks.size() << " call stacks" << std::endl;
+    std::cout << "  Processing " << captured_stacks.size() << " call stacks..." << std::endl;
     std::cout << std::endl;
     
     // Step 5: Display results
     std::cout << "Step 5: Displaying resolved call stacks..." << std::endl;
-    for (size_t i = 0; i < resolved_stacks.size(); ++i) {
-        const auto& resolved = resolved_stacks[i];
-        std::cout << "\n  Call Stack #" << i << ":" << std::endl;
-        std::cout << "    Timestamp: " << resolved.timestamp << " ns" << std::endl;
-        std::cout << "    Map ID: " << resolved.map_id << std::endl;
-        std::cout << "    Frames: " << resolved.frames.size() << std::endl;
+    for (size_t i = 0; i < captured_stacks.size(); ++i) {
+        const auto& stack = captured_stacks[i];
         
-        for (size_t j = 0; j < resolved.frames.size(); ++j) {
-            const auto& frame = resolved.frames[j];
+        // Convert each call stack to resolved frames
+        std::vector<ResolvedFrame> resolved_frames = converter.convert(stack, 0);
+        
+        std::cout << "\n  Call Stack #" << i << ":" << std::endl;
+        std::cout << "    Depth: " << stack.depth() << std::endl;
+        std::cout << "    Resolved Frames: " << resolved_frames.size() << std::endl;
+        
+        for (size_t j = 0; j < resolved_frames.size(); ++j) {
+            const auto& frame = resolved_frames[j];
             std::cout << "      Frame " << j << ": " << frame.library_name 
                       << " + 0x" << std::hex << frame.offset << std::dec
                       << " (raw: 0x" << std::hex << frame.raw_address << std::dec << ")"
@@ -121,9 +112,10 @@ int main() {
     std::cout << std::endl;
     std::cout << "Key Points:" << std::endl;
     std::cout << "  - Library maps are captured once at initialization (minimal overhead)" << std::endl;
-    std::cout << "  - Raw addresses are stored during sampling (fast)" << std::endl;
+    std::cout << "  - Raw addresses are stored in CallStack during sampling (fast)" << std::endl;
     std::cout << "  - Address resolution happens during post-processing (no runtime impact)" << std::endl;
-    std::cout << "  - Supports multiple map snapshots for dynamic library loading" << std::endl;
+    std::cout << "  - OffsetConverter supports multiple map snapshots for different processes/ranks" << std::endl;
+    std::cout << "  - ResolvedFrame includes raw address, offset, and library name" << std::endl;
     
     return 0;
 }
