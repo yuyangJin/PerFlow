@@ -22,6 +22,7 @@
 #include <iostream>
 #include <vector>
 #include <map>
+#include <algorithm>
 
 #include "sampling/call_stack.h"
 #include "sampling/data_export.h"
