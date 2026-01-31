@@ -3,7 +3,7 @@
 
 #include <gtest/gtest.h>
 
-#include "analysis/analyzers.h"
+#include "analysis/analysis_tasks.h"
 #include "analysis/performance_tree.h"
 
 using namespace perflow::analysis;

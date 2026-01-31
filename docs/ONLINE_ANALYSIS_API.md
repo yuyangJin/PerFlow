@@ -130,14 +130,14 @@ size_t loaded = builder.build_from_files(samples, 1000.0);  // 1ms per sample
 const PerformanceTree& tree = builder.tree();
 ```
 
-### 3. Analyzers (`analyzers.h`)
+### 3. Analysis Tasks (`analysis_tasks.h`)
 
 #### Balance Analyzer
 Analyzes workload distribution across processes.
 
 **Example:**
 ```cpp
-#include "analysis/analyzers.h"
+#include "analysis/analysis_tasks.h"
 
 BalanceAnalysisResult result = BalanceAnalyzer::analyze(tree);
 

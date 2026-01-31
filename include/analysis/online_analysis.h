@@ -9,7 +9,7 @@
 #include <unordered_map>
 #include <unordered_set>
 
-#include "analysis/analyzers.h"
+#include "analysis/analysis_tasks.h"
 #include "analysis/directory_monitor.h"
 #include "analysis/performance_tree.h"
 #include "analysis/tree_builder.h"

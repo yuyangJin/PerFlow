@@ -1,8 +1,8 @@
 // Copyright 2024 PerFlow Authors
 // Licensed under the Apache License, Version 2.0
 
-#ifndef PERFLOW_ANALYSIS_ANALYZERS_H_
-#define PERFLOW_ANALYSIS_ANALYZERS_H_
+#ifndef PERFLOW_ANALYSIS_ANALYSIS_TASKS_H_
+#define PERFLOW_ANALYSIS_ANALYSIS_TASKS_H_
 
 #include <algorithm>
 #include <cmath>
@@ -252,4 +252,4 @@ class HotspotAnalyzer {
 }  // namespace analysis
 }  // namespace perflow
 
-#endif  // PERFLOW_ANALYSIS_ANALYZERS_H_
+#endif  // PERFLOW_ANALYSIS_ANALYSIS_TASKS_H_

@@ -23,7 +23,7 @@ Successfully implemented a comprehensive online analysis module for PerFlow 2.0,
 - Note: File I/O has known issues (documented in tests)
 
 ### 3. Analysis Engines
-**File**: `include/analysis/analyzers.h`
+**File**: `include/analysis/analysis_tasks.h`
 - **BalanceAnalyzer**: Workload distribution analysis
   - Statistical metrics (mean, std dev, min/max)
   - Imbalance factor calculation
