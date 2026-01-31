@@ -33,6 +33,7 @@
 #include "sampling/static_hash_map.h"
 #include "analysis/offset_converter.h"
 #include "analysis/performance_tree.h"
+#include "analysis/tree_builder.h"
 #include "analysis/tree_visualizer.h"
 
 using namespace perflow::sampling;
@@ -203,13 +204,83 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
     }
 }
 
-/// Example: Process data from multiple ranks
+/// Example: Process data from multiple ranks using TreeBuilder
 void process_all_ranks(const char* data_dir, int num_ranks) {
-    std::cout << "Processing data from " << num_ranks << " ranks\n\n";
+    std::cout << "Processing data from " << num_ranks << " ranks into a single tree\n\n";
     
+    // Create TreeBuilder
+    TreeBuilder builder;
+    
+    // 1. Load library maps for all ranks
+    std::cout << "Loading library maps...\n";
+    std::vector<std::pair<std::string, uint32_t>> libmap_files;
     for (int rank = 0; rank < num_ranks; ++rank) {
-        process_rank_data(data_dir, static_cast<uint32_t>(rank));
-        std::cout << "\n" << std::string(60, '-') << "\n\n";
+        char libmap_file[512];
+        std::snprintf(libmap_file, sizeof(libmap_file),
+                      "%s/perflow_mpi_rank_%d.libmap", data_dir, rank);
+        libmap_files.emplace_back(libmap_file, rank);
+    }
+    
+    size_t libmaps_loaded = builder.load_library_maps(libmap_files);
+    std::cout << "  Loaded " << libmaps_loaded << " / " << num_ranks 
+              << " library maps\n";
+    
+    // 2. Build tree from all sample files
+    std::cout << "\nBuilding unified performance tree from all ranks...\n";
+    std::vector<std::pair<std::string, uint32_t>> sample_files;
+    for (int rank = 0; rank < num_ranks; ++rank) {
+        char data_file[512];
+        std::snprintf(data_file, sizeof(data_file),
+                      "%s/perflow_mpi_rank_%d.pflw", data_dir, rank);
+        sample_files.emplace_back(data_file, rank);
+    }
+    
+    size_t files_loaded = builder.build_from_files(sample_files, 1000.0);
+    std::cout << "  Processed " << files_loaded << " / " << num_ranks 
+              << " sample files\n";
+    std::cout << "  Total samples in tree: " << builder.tree().total_samples() << "\n";
+    std::cout << "  Process count: " << builder.tree().process_count() << "\n";
+    
+    // 3. Generate PDF visualization of the unified tree
+    std::cout << "\nGenerating PDF visualization of unified tree...\n";
+    
+    char pdf_path[512];
+    std::snprintf(pdf_path, sizeof(pdf_path), 
+                  "%s/performance_tree_all_ranks.pdf", data_dir);
+    
+    bool viz_success = TreeVisualizer::generate_pdf(builder.tree(), pdf_path,
+                                                     ColorScheme::kHeatmap, 15);
+    
+    if (viz_success) {
+        std::cout << "  PDF saved to: " << pdf_path << "\n";
+    } else {
+        std::cout << "  PDF generation failed (GraphViz may not be installed)\n";
+        std::cout << "  Install with: sudo apt-get install graphviz\n";
+    }
+    
+    // 4. Print some statistics
+    std::cout << "\nTree Statistics:\n";
+    std::cout << "  Root node children: " << builder.tree().root()->children().size() << "\n";
+    
+    // Print top-level functions by sample count
+    auto root_children = builder.tree().root()->children();
+    if (!root_children.empty()) {
+        std::vector<std::pair<std::shared_ptr<TreeNode>, uint64_t>> sorted_children;
+        for (const auto& child : root_children) {
+            sorted_children.emplace_back(child, child->total_samples());
+        }
+        std::sort(sorted_children.begin(), sorted_children.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+        
+        std::cout << "\n  Top 5 functions (by total samples):\n";
+        size_t count = 0;
+        for (const auto& [node, samples] : sorted_children) {
+            double percentage = 100.0 * samples / builder.tree().total_samples();
+            std::cout << "    " << node->frame().function_name 
+                      << ": " << samples << " samples (" 
+                      << percentage << "%)\n";
+            if (++count >= 5) break;
+        }
     }
 }
 
@@ -299,10 +370,39 @@ int main(int argc, char* argv[]) {
     
     std::cout << "\n" << std::string(60, '=') << "\n\n";
     
-    // Example 2: Process all ranks
-    std::cout << "=== Example 2: Process All Ranks ===\n\n";
-    std::cout << "Uncomment in source to process multiple ranks\n";
-    // process_all_ranks(data_dir, 4);  // Uncomment if you have data from 4 ranks
+    // Example 2: Process all ranks into a unified tree
+    std::cout << "=== Example 2: Process All Ranks (Unified Tree) ===\n\n";
+    
+    // Check if we have multiple rank files by trying to open rank 1
+    char test_file[512];
+    std::snprintf(test_file, sizeof(test_file), 
+                  "%s/perflow_mpi_rank_1.pflw", data_dir);
+    FILE* fp = fopen(test_file, "rb");
+    if (fp) {
+        fclose(fp);
+        // We have at least rank 0 and rank 1, try to process multiple ranks
+        // Detect how many ranks we have (up to 16 for this example)
+        int num_ranks = 1;
+        for (int i = 1; i < 16; ++i) {
+            std::snprintf(test_file, sizeof(test_file),
+                          "%s/perflow_mpi_rank_%d.pflw", data_dir, i);
+            FILE* test_fp = fopen(test_file, "rb");
+            if (test_fp) {
+                fclose(test_fp);
+                num_ranks = i + 1;
+            } else {
+                break;
+            }
+        }
+        std::cout << "Detected " << num_ranks << " rank(s)\n\n";
+        process_all_ranks(data_dir, num_ranks);
+    } else {
+        std::cout << "Only single rank data found. Run with multiple MPI ranks to see unified tree.\n";
+        std::cout << "To generate multi-rank data:\n";
+        std::cout << "  LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \\\n";
+        std::cout << "  PERFLOW_OUTPUT_DIR=" << data_dir << " \\\n";
+        std::cout << "  mpirun -n 4 ./your_mpi_app\n";
+    }
     
     std::cout << "\n" << std::string(60, '=') << "\n\n";
     
@@ -314,12 +414,9 @@ int main(int argc, char* argv[]) {
     std::cout << "\n" << std::string(60, '=') << "\n\n";
     std::cout << "Usage: " << (argc > 0 ? argv[0] : "post_analysis_example") 
               << " [data_directory]\n";
-    std::cout << "\nTo generate sample data, run:\n";
-    std::cout << "  LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \\\n";
-    std::cout << "  PERFLOW_OUTPUT_DIR=" << data_dir << " \\\n";
-    std::cout << "  mpirun -n 4 ./your_mpi_app\n\n";
-    std::cout << "Output:\n";
-    std::cout << "  - Performance tree PDF: " << data_dir << "/performance_tree_rank_N.pdf\n";
+    std::cout << "\nOutput files:\n";
+    std::cout << "  - " << data_dir << "/performance_tree_rank_N.pdf (per-rank trees)\n";
+    std::cout << "  - " << data_dir << "/performance_tree_all_ranks.pdf (unified tree)\n";
     std::cout << "  - Library hotness statistics (console output)\n\n";
     std::cout << "Note: PDF generation requires GraphViz to be installed\n";
     std::cout << "      Install with: sudo apt-get install graphviz\n\n";
