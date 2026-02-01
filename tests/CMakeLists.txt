@@ -24,6 +24,10 @@ add_executable(perflow_tests
     test_library_map.cpp
     test_offset_converter.cpp
     test_library_map_export.cpp
+    test_performance_tree.cpp
+    test_analysis_tasks.cpp
+    test_tree_builder.cpp
+    test_online_analysis_integration.cpp
 )
 
 target_link_libraries(perflow_tests
