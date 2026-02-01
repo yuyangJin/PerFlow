@@ -172,6 +172,31 @@ struct SymbolResolver::Impl {
   /// Try to resolve using addr2line (slower, needs debug symbols)
   SymbolInfo resolve_with_addr2line(const std::string& library_path,
                                      uintptr_t offset) const {
+    // For PIE executables, we may need to try different offsets
+    // The offset from LibraryMap might be relative to the first LOAD segment,
+    // but symbols are relative to their actual segment (e.g., .text at 0x3000)
+    
+    // Try the offset as-is first
+    SymbolInfo result = try_addr2line(library_path, offset);
+    if (result.is_resolved()) {
+      return result;
+    }
+    
+    // For PIE executables, try common text segment offsets
+    // Common text segment starts: 0x1000, 0x2000, 0x3000, 0x4000
+    for (uintptr_t text_base : {0x1000, 0x2000, 0x3000, 0x4000, 0x5000}) {
+      result = try_addr2line(library_path, offset + text_base);
+      if (result.is_resolved()) {
+        return result;
+      }
+    }
+    
+    return SymbolInfo();
+  }
+  
+  /// Helper to try addr2line with a specific offset
+  SymbolInfo try_addr2line(const std::string& library_path,
+                           uintptr_t offset) const {
     // Build addr2line command
     std::ostringstream cmd;
     cmd << "addr2line -e " << library_path 
