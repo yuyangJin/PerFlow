@@ -213,7 +213,6 @@ TEST_F(OffsetConverterSymbolResolutionTest, SymbolCachingAcrossMultipleCalls) {
   CallStack<> stack2(addresses, 1);
   
   // First conversion
-  auto stats_before = resolver->get_cache_stats();
   converter.convert(stack1, 0, true);
   auto stats_after_first = resolver->get_cache_stats();
   

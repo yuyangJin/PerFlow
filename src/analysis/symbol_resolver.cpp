@@ -1,9 +1,10 @@
 // Copyright 2024 PerFlow Authors
 // Licensed under the Apache License, Version 2.0
 
+#define _GNU_SOURCE
+
 #include "analysis/symbol_resolver.h"
 
-#define _GNU_SOURCE
 #include <dlfcn.h>
 #include <link.h>
 #include <cstdio>
