@@ -20,9 +20,10 @@ namespace analysis {
 /// TreeBuilder constructs performance trees from sample data
 class TreeBuilder {
  public:
-  /// Constructor with optional build mode
-  explicit TreeBuilder(TreeBuildMode mode = TreeBuildMode::kContextFree) noexcept 
-      : converter_(), tree_(mode) {}
+  /// Constructor with optional build mode and sample count mode
+  explicit TreeBuilder(TreeBuildMode mode = TreeBuildMode::kContextFree,
+                      SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
+      : converter_(), tree_(mode, count_mode) {}
 
   /// Get the performance tree
   PerformanceTree& tree() noexcept { return tree_; }
@@ -40,6 +41,16 @@ class TreeBuilder {
   /// Get the tree build mode
   TreeBuildMode build_mode() const noexcept {
     return tree_.build_mode();
+  }
+  
+  /// Set the sample count mode (must be called before building)
+  void set_sample_count_mode(SampleCountMode mode) {
+    tree_.set_sample_count_mode(mode);
+  }
+  
+  /// Get the sample count mode
+  SampleCountMode sample_count_mode() const noexcept {
+    return tree_.sample_count_mode();
   }
 
   /// Build tree from a sample data file

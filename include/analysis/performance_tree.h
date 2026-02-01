@@ -28,6 +28,21 @@ enum class TreeBuildMode {
   kContextAware = 1
 };
 
+/// SampleCountMode defines how samples are counted during tree building
+enum class SampleCountMode {
+  /// Exclusive: Only track self samples (samples at leaf nodes)
+  /// Nodes will only have self_samples set, total_samples will equal self_samples
+  kExclusive = 0,
+  
+  /// Inclusive: Only track total samples (all samples including children)
+  /// Nodes will have total_samples set from all paths through them
+  kInclusive = 1,
+  
+  /// Both: Track both inclusive and exclusive samples (default)
+  /// Nodes will have both total_samples and self_samples tracked independently
+  kBoth = 2
+};
+
 /// TreeNode represents a vertex in the performance tree
 /// Each node corresponds to a function/program structure
 class TreeNode {
@@ -151,9 +166,11 @@ class TreeNode {
 /// Thread-safe for concurrent insertions
 class PerformanceTree {
  public:
-  /// Constructor with optional build mode
-  explicit PerformanceTree(TreeBuildMode mode = TreeBuildMode::kContextFree) noexcept 
-      : root_(nullptr), process_count_(0), build_mode_(mode), mutex_() {
+  /// Constructor with optional build mode and sample count mode
+  explicit PerformanceTree(TreeBuildMode mode = TreeBuildMode::kContextFree,
+                          SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
+      : root_(nullptr), process_count_(0), build_mode_(mode), 
+        sample_count_mode_(count_mode), mutex_() {
     // Create a virtual root node
     sampling::ResolvedFrame root_frame;
     root_frame.function_name = "[root]";
@@ -182,6 +199,15 @@ class PerformanceTree {
     std::lock_guard<std::mutex> lock(mutex_);
     build_mode_ = mode;
   }
+  
+  /// Set the sample count mode (must be called before inserting call stacks)
+  void set_sample_count_mode(SampleCountMode mode) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    sample_count_mode_ = mode;
+  }
+  
+  /// Get the sample count mode
+  SampleCountMode sample_count_mode() const noexcept { return sample_count_mode_; }
 
   /// Insert a call stack into the tree
   /// @param frames Resolved frames from bottom (main) to top (leaf)
@@ -228,14 +254,27 @@ class PerformanceTree {
       // Update call count edge
       current->increment_call_count(child, count);
 
-      // Add sample to this node
-      child->add_sample(process_id, count, time_us);
+      // Add samples based on sample count mode
+      if (sample_count_mode_ == SampleCountMode::kInclusive || 
+          sample_count_mode_ == SampleCountMode::kBoth) {
+        // Track inclusive (total) samples - add to all nodes in path
+        child->add_sample(process_id, count, time_us);
+      }
 
       current = child;
     }
 
-    // Mark self samples at the leaf
-    current->add_self_sample(count);
+    // Mark self samples at the leaf based on sample count mode
+    if (sample_count_mode_ == SampleCountMode::kExclusive || 
+        sample_count_mode_ == SampleCountMode::kBoth) {
+      // Track exclusive (self) samples - only at leaf node
+      current->add_self_sample(count);
+    }
+    
+    // For exclusive mode, also set total_samples at leaf to match self_samples
+    if (sample_count_mode_ == SampleCountMode::kExclusive) {
+      current->add_sample(process_id, count, time_us);
+    }
   }
 
   /// Get total number of samples in the tree
@@ -262,6 +301,7 @@ class PerformanceTree {
   std::shared_ptr<TreeNode> root_;
   size_t process_count_;
   TreeBuildMode build_mode_;  // Tree building mode
+  SampleCountMode sample_count_mode_;  // Sample counting mode
   mutable std::mutex mutex_;
 };
 

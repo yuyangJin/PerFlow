@@ -84,6 +84,18 @@ class OnlineAnalysis {
     return builder_.tree();
   }
   const PerformanceTree& tree() const noexcept { return builder_.tree(); }
+  
+  /// Set the sample count mode (must be called before building)
+  void set_sample_count_mode(SampleCountMode mode) {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    builder_.set_sample_count_mode(mode);
+  }
+  
+  /// Get the sample count mode
+  SampleCountMode sample_count_mode() const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return builder_.sample_count_mode();
+  }
 
   /// Perform balance analysis (thread-safe)
   BalanceAnalysisResult analyze_balance() const {

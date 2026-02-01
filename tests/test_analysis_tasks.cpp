@@ -175,7 +175,7 @@ TEST(HotspotAnalyzerTest, TopNLimit) {
 }
 
 TEST(HotspotAnalyzerTest, FindTotalHotspots) {
-  PerformanceTree tree;
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth);
   tree.set_process_count(1);
 
   // Create call stacks where main calls everything (inclusive mode test)

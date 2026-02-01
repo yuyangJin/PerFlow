@@ -239,3 +239,111 @@ TEST(PerformanceTreeTest, ContextAwareMode) {
   EXPECT_EQ(main_node_aware->children()[0]->total_samples(), 10);
   EXPECT_EQ(main_node_aware->children()[1]->total_samples(), 5);
 }
+
+TEST(PerformanceTreeTest, SampleCountModeExclusive) {
+  // Test exclusive mode (only tracks self samples at leaf nodes)
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kExclusive);
+  tree.set_process_count(1);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "app";
+  frames.push_back(main_frame);
+
+  ResolvedFrame leaf_frame;
+  leaf_frame.function_name = "leaf";
+  leaf_frame.library_name = "app";
+  frames.push_back(leaf_frame);
+
+  tree.insert_call_stack(frames, 0, 100);
+
+  // Root should have total samples
+  EXPECT_EQ(tree.root()->total_samples(), 100);
+  
+  // Main should NOT have total samples tracked in exclusive mode (only at leaf)
+  auto main_node = tree.root()->children()[0];
+  EXPECT_EQ(main_node->total_samples(), 0);
+  EXPECT_EQ(main_node->self_samples(), 0);  // Not a leaf
+  
+  // Leaf should have both total and self samples in exclusive mode
+  auto leaf_node = main_node->children()[0];
+  EXPECT_EQ(leaf_node->total_samples(), 100);
+  EXPECT_EQ(leaf_node->self_samples(), 100);
+}
+
+TEST(PerformanceTreeTest, SampleCountModeInclusive) {
+  // Test inclusive mode (only tracks total samples, not self)
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kInclusive);
+  tree.set_process_count(1);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "app";
+  frames.push_back(main_frame);
+
+  ResolvedFrame leaf_frame;
+  leaf_frame.function_name = "leaf";
+  leaf_frame.library_name = "app";
+  frames.push_back(leaf_frame);
+
+  tree.insert_call_stack(frames, 0, 100);
+
+  // Root should have total samples
+  EXPECT_EQ(tree.root()->total_samples(), 100);
+  
+  // Main should have total samples in inclusive mode
+  auto main_node = tree.root()->children()[0];
+  EXPECT_EQ(main_node->total_samples(), 100);
+  EXPECT_EQ(main_node->self_samples(), 0);  // No self tracking in inclusive mode
+  
+  // Leaf should have total samples but NOT self samples in inclusive mode
+  auto leaf_node = main_node->children()[0];
+  EXPECT_EQ(leaf_node->total_samples(), 100);
+  EXPECT_EQ(leaf_node->self_samples(), 0);  // No self tracking
+}
+
+TEST(PerformanceTreeTest, SampleCountModeBoth) {
+  // Test both mode (tracks both total and self samples - original behavior)
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth);
+  tree.set_process_count(1);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "app";
+  frames.push_back(main_frame);
+
+  ResolvedFrame leaf_frame;
+  leaf_frame.function_name = "leaf";
+  leaf_frame.library_name = "app";
+  frames.push_back(leaf_frame);
+
+  tree.insert_call_stack(frames, 0, 100);
+
+  // Root should have total samples
+  EXPECT_EQ(tree.root()->total_samples(), 100);
+  
+  // Main should have total samples but not self (not a leaf)
+  auto main_node = tree.root()->children()[0];
+  EXPECT_EQ(main_node->total_samples(), 100);
+  EXPECT_EQ(main_node->self_samples(), 0);
+  
+  // Leaf should have both total and self samples
+  auto leaf_node = main_node->children()[0];
+  EXPECT_EQ(leaf_node->total_samples(), 100);
+  EXPECT_EQ(leaf_node->self_samples(), 100);
+}
+
+TEST(PerformanceTreeTest, SampleCountModeSetAfterConstruction) {
+  // Test that sample count mode can be set after construction
+  PerformanceTree tree;
+  EXPECT_EQ(tree.sample_count_mode(), SampleCountMode::kExclusive);  // Default
+  
+  tree.set_sample_count_mode(SampleCountMode::kBoth);
+  EXPECT_EQ(tree.sample_count_mode(), SampleCountMode::kBoth);
+  
+  tree.set_sample_count_mode(SampleCountMode::kInclusive);
+  EXPECT_EQ(tree.sample_count_mode(), SampleCountMode::kInclusive);
+}
