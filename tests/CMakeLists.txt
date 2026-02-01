@@ -81,6 +81,13 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
             ${MPI_CXX_LIBRARIES}
         )
         
+        # Add debug symbols (-g) for symbol resolution testing
+        # This enables the SymbolResolver to resolve function names and source locations
+        target_compile_options(${test_prog}
+            PRIVATE
+            -g
+        )
+        
         # Set output directory for test executable
         set_target_properties(${test_prog} PROPERTIES
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
