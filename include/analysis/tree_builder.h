@@ -84,8 +84,9 @@ class TreeBuilder {
       std::vector<sampling::ResolvedFrame> frames;
 
       if (has_converter) {
-        // Convert using offset converter
-        frames = converter_ref.convert(stack, process_id);
+        // Convert using offset converter with symbol resolution if available
+        bool resolve_symbols = converter_ref.has_symbol_resolver();
+        frames = converter_ref.convert(stack, process_id, resolve_symbols);
       } else {
         // Create basic frames with raw addresses
         for (size_t i = 0; i < stack.depth(); ++i) {

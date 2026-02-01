@@ -13,8 +13,10 @@
 #include <atomic>
 #include <chrono>
 #include <thread>
+#include <iomanip>
 
 #include "analysis/online_analysis.h"
+#include "analysis/symbol_resolver.h"
 
 using namespace perflow::analysis;
 
@@ -45,7 +47,9 @@ void print_usage(const char* program_name) {
   std::cout << "  4. Press Ctrl+C to stop monitoring and generate final reports\n\n";
 }
 
-void print_analysis_summary(const OnlineAnalysis& analysis, const char* output_dir) {
+void print_analysis_summary(const OnlineAnalysis& analysis, 
+                           const std::shared_ptr<SymbolResolver>& resolver,
+                           const char* output_dir) {
   const PerformanceTree& tree = analysis.tree();
   
   std::cout << "\n========================================\n";
@@ -61,6 +65,20 @@ void print_analysis_summary(const OnlineAnalysis& analysis, const char* output_d
   std::cout << "  Total samples: " << tree.total_samples() << "\n";
   std::cout << "  Process count: " << tree.process_count() << "\n";
   std::cout << "  Root children: " << tree.root()->children().size() << "\n\n";
+  
+  // Symbol resolution cache statistics
+  if (resolver) {
+    auto cache_stats = resolver->get_cache_stats();
+    std::cout << "Symbol Resolution Cache:\n";
+    std::cout << "  Cache hits: " << cache_stats.hits << "\n";
+    std::cout << "  Cache misses: " << cache_stats.misses << "\n";
+    std::cout << "  Cache size: " << cache_stats.size << " symbols\n";
+    if (cache_stats.hits + cache_stats.misses > 0) {
+      double hit_rate = 100.0 * cache_stats.hits / (cache_stats.hits + cache_stats.misses);
+      std::cout << "  Hit rate: " << std::fixed << std::setprecision(1) << hit_rate << "%\n";
+    }
+    std::cout << "\n";
+  }
   
   // Balance analysis
   auto balance = analysis.analyze_balance();
@@ -114,8 +132,19 @@ int main(int argc, char* argv[]) {
   std::cout << "Output directory: " << output_dir << "\n";
   std::cout << "Press Ctrl+C to stop monitoring\n\n";
 
+  // Create symbol resolver for function name resolution
+  std::cout << "Configuring symbol resolver...\n";
+  auto resolver = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kAutoFallback,  // Try dladdr first, fallback to addr2line
+      true  // Enable caching
+  );
+  std::cout << "  Symbol resolver created with auto-fallback strategy\n\n";
+
   // Create online analysis instance
   OnlineAnalysis analysis;
+  
+  // Configure the builder's converter with symbol resolver
+  analysis.builder().converter().set_symbol_resolver(resolver);
 
   // Set up file processing callback to report activity
   std::atomic<size_t> libmaps_loaded(0);
@@ -162,7 +191,7 @@ int main(int argc, char* argv[]) {
     if (now - last_summary_time >= summary_interval) {
       size_t current_samples = analysis.tree().total_samples();
       if (current_samples > 0 && current_samples != last_sample_count) {
-        print_analysis_summary(analysis, output_dir);
+        print_analysis_summary(analysis, resolver, output_dir);
         last_sample_count = current_samples;
       }
       last_summary_time = now;
@@ -194,6 +223,20 @@ int main(int argc, char* argv[]) {
   std::cout << "Performance Tree Statistics:\n";
   std::cout << "  Total samples: " << tree.total_samples() << "\n";
   std::cout << "  Process count: " << tree.process_count() << "\n\n";
+  
+  // Symbol resolution cache statistics
+  if (resolver) {
+    auto cache_stats = resolver->get_cache_stats();
+    std::cout << "Symbol Resolution Cache:\n";
+    std::cout << "  Cache hits: " << cache_stats.hits << "\n";
+    std::cout << "  Cache misses: " << cache_stats.misses << "\n";
+    std::cout << "  Cache size: " << cache_stats.size << " symbols\n";
+    if (cache_stats.hits + cache_stats.misses > 0) {
+      double hit_rate = 100.0 * cache_stats.hits / (cache_stats.hits + cache_stats.misses);
+      std::cout << "  Hit rate: " << std::fixed << std::setprecision(1) << hit_rate << "%\n";
+    }
+    std::cout << "\n";
+  }
   
   // Balance analysis
   std::cout << "Balance Analysis:\n";
