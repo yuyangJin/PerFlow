@@ -126,10 +126,10 @@ class BalanceAnalyzer {
 /// HotspotAnalyzer identifies performance bottlenecks
 class HotspotAnalyzer {
  public:
-  /// Find top hotspots in the performance tree
+  /// Find top hotspots in the performance tree (exclusive/self time by default)
   /// @param tree Performance tree to analyze
   /// @param top_n Number of top hotspots to return
-  /// @return Vector of hotspot information
+  /// @return Vector of hotspot information sorted by self samples (exclusive time)
   static std::vector<HotspotInfo> find_hotspots(const PerformanceTree& tree,
                                                  size_t top_n = 10) {
     std::vector<HotspotInfo> hotspots;
@@ -143,56 +143,7 @@ class HotspotAnalyzer {
     std::vector<std::shared_ptr<TreeNode>> nodes;
     collect_nodes(tree.root(), nodes);
 
-    // Sort by total samples (descending)
-    std::sort(nodes.begin(), nodes.end(),
-             [](const std::shared_ptr<TreeNode>& a,
-                const std::shared_ptr<TreeNode>& b) {
-               return a->total_samples() > b->total_samples();
-             });
-
-    // Extract top N hotspots
-    size_t count = std::min(top_n, nodes.size());
-    for (size_t i = 0; i < count; ++i) {
-      const auto& node = nodes[i];
-      const auto& frame = node->frame();
-
-      HotspotInfo info;
-      info.function_name = frame.function_name;
-      info.library_name = frame.library_name;
-
-      if (!frame.filename.empty() && frame.line_number > 0) {
-        char buf[256];
-        std::snprintf(buf, sizeof(buf), "%s:%u", frame.filename.c_str(),
-                     frame.line_number);
-        info.source_location = buf;
-      }
-
-      info.total_samples = node->total_samples();
-      info.percentage = (node->total_samples() * 100.0) / total_samples;
-      info.self_samples = node->self_samples();
-      info.self_percentage = (node->self_samples() * 100.0) / total_samples;
-
-      hotspots.push_back(info);
-    }
-
-    return hotspots;
-  }
-
-  /// Find hotspots by self samples (exclusive time)
-  static std::vector<HotspotInfo> find_self_hotspots(
-      const PerformanceTree& tree, size_t top_n = 10) {
-    std::vector<HotspotInfo> hotspots;
-    uint64_t total_samples = tree.total_samples();
-
-    if (total_samples == 0) {
-      return hotspots;
-    }
-
-    // Collect all nodes
-    std::vector<std::shared_ptr<TreeNode>> nodes;
-    collect_nodes(tree.root(), nodes);
-
-    // Sort by self samples (descending)
+    // Sort by self samples (descending) - EXCLUSIVE MODE (default)
     std::sort(nodes.begin(), nodes.end(),
              [](const std::shared_ptr<TreeNode>& a,
                 const std::shared_ptr<TreeNode>& b) {
@@ -231,6 +182,68 @@ class HotspotAnalyzer {
     }
 
     return hotspots;
+  }
+
+  /// Find hotspots by total samples (inclusive time)
+  /// @param tree Performance tree to analyze
+  /// @param top_n Number of top hotspots to return
+  /// @return Vector of hotspot information sorted by total samples (inclusive time)
+  static std::vector<HotspotInfo> find_total_hotspots(
+      const PerformanceTree& tree, size_t top_n = 10) {
+    std::vector<HotspotInfo> hotspots;
+    uint64_t total_samples = tree.total_samples();
+
+    if (total_samples == 0) {
+      return hotspots;
+    }
+
+    // Collect all nodes
+    std::vector<std::shared_ptr<TreeNode>> nodes;
+    collect_nodes(tree.root(), nodes);
+
+    // Sort by total samples (descending) - INCLUSIVE MODE
+    std::sort(nodes.begin(), nodes.end(),
+             [](const std::shared_ptr<TreeNode>& a,
+                const std::shared_ptr<TreeNode>& b) {
+               return a->total_samples() > b->total_samples();
+             });
+
+    // Extract top N hotspots
+    size_t count = std::min(top_n, nodes.size());
+    for (size_t i = 0; i < count; ++i) {
+      const auto& node = nodes[i];
+      const auto& frame = node->frame();
+
+      HotspotInfo info;
+      info.function_name = frame.function_name;
+      info.library_name = frame.library_name;
+
+      if (!frame.filename.empty() && frame.line_number > 0) {
+        char buf[256];
+        std::snprintf(buf, sizeof(buf), "%s:%u", frame.filename.c_str(),
+                     frame.line_number);
+        info.source_location = buf;
+      }
+
+      info.total_samples = node->total_samples();
+      info.percentage = (node->total_samples() * 100.0) / total_samples;
+      info.self_samples = node->self_samples();
+      info.self_percentage = (node->self_samples() * 100.0) / total_samples;
+
+      hotspots.push_back(info);
+    }
+
+    return hotspots;
+  }
+
+  /// Find hotspots by self samples (exclusive time) - alias for find_hotspots()
+  /// @param tree Performance tree to analyze
+  /// @param top_n Number of top hotspots to return
+  /// @return Vector of hotspot information sorted by self samples (exclusive time)
+  static std::vector<HotspotInfo> find_self_hotspots(
+      const PerformanceTree& tree, size_t top_n = 10) {
+    // Now just an alias for find_hotspots() since that's the default
+    return find_hotspots(tree, top_n);
   }
 
  private:

@@ -73,8 +73,8 @@ void print_analysis_summary(const OnlineAnalysis& analysis, const char* output_d
             << " (process " << balance.most_loaded_process << ")\n";
   std::cout << "  Imbalance factor: " << balance.imbalance_factor << "\n\n";
   
-  // Top 5 hotspots
-  std::cout << "Top 5 Hotspots (Total Time):\n";
+  // Top 5 hotspots (exclusive/self time - default mode)
+  std::cout << "Top 5 Hotspots (Self Time):\n";
   auto hotspots = analysis.find_hotspots(5);
   for (size_t i = 0; i < hotspots.size(); ++i) {
     const auto& hotspot = hotspots[i];
@@ -82,8 +82,8 @@ void print_analysis_summary(const OnlineAnalysis& analysis, const char* output_d
     if (!hotspot.library_name.empty()) {
       std::cout << " (" << hotspot.library_name << ")";
     }
-    std::cout << " - " << hotspot.total_samples << " samples ("
-              << hotspot.percentage << "%)\n";
+    std::cout << " - " << hotspot.self_samples << " samples ("
+              << hotspot.self_percentage << "%)\n";
   }
   
   // Export visualization
@@ -207,9 +207,9 @@ int main(int argc, char* argv[]) {
             << " (process " << balance.most_loaded_process << ")\n";
   std::cout << "  Imbalance factor: " << balance.imbalance_factor << "\n\n";
   
-  // Top 10 hotspots
-  std::cout << "Top 10 Hotspots (Total Time):\n";
-  std::cout << "----------------------------\n";
+  // Top 10 hotspots (self/exclusive time - default mode)
+  std::cout << "Top 10 Hotspots (Self Time - Exclusive):\n";
+  std::cout << "----------------------------------------\n";
   auto hotspots = analysis.find_hotspots(10);
   for (size_t i = 0; i < hotspots.size(); ++i) {
     const auto& hotspot = hotspots[i];
@@ -218,25 +218,25 @@ int main(int argc, char* argv[]) {
       std::cout << " (" << hotspot.library_name << ")";
     }
     std::cout << "\n";
-    std::cout << "     Total: " << hotspot.total_samples << " samples ("
-              << hotspot.percentage << "%)\n";
     std::cout << "     Self:  " << hotspot.self_samples << " samples ("
               << hotspot.self_percentage << "%)\n";
+    std::cout << "     Total: " << hotspot.total_samples << " samples ("
+              << hotspot.percentage << "%)\n";
   }
   std::cout << "\n";
   
-  // Top 10 self-time hotspots
-  std::cout << "Top 10 Hotspots (Self Time):\n";
-  std::cout << "---------------------------\n";
-  auto self_hotspots = analysis.find_self_hotspots(10);
-  for (size_t i = 0; i < self_hotspots.size(); ++i) {
-    const auto& hotspot = self_hotspots[i];
+  // Top 10 total-time hotspots (inclusive)
+  std::cout << "Top 10 Hotspots (Total Time - Inclusive):\n";
+  std::cout << "-----------------------------------------\n";
+  auto total_hotspots = analysis.find_total_hotspots(10);
+  for (size_t i = 0; i < total_hotspots.size(); ++i) {
+    const auto& hotspot = total_hotspots[i];
     std::cout << "  " << (i + 1) << ". " << hotspot.function_name;
     if (!hotspot.library_name.empty()) {
       std::cout << " (" << hotspot.library_name << ")";
     }
-    std::cout << " - " << hotspot.self_samples << " samples ("
-              << hotspot.self_percentage << "%)\n";
+    std::cout << " - " << hotspot.total_samples << " samples ("
+              << hotspot.percentage << "%)\n";
   }
   std::cout << "\n";
   

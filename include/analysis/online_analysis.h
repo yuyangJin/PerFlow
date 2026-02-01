@@ -91,16 +91,22 @@ class OnlineAnalysis {
     return BalanceAnalyzer::analyze(tree());
   }
 
-  /// Find performance hotspots (thread-safe)
+  /// Find performance hotspots by exclusive/self time (thread-safe, default)
   std::vector<HotspotInfo> find_hotspots(size_t top_n = 10) const {
     std::lock_guard<std::mutex> lock(builder_mutex_);
     return HotspotAnalyzer::find_hotspots(tree(), top_n);
   }
 
-  /// Find self-time hotspots (thread-safe)
+  /// Find self-time hotspots (thread-safe) - alias for find_hotspots()
   std::vector<HotspotInfo> find_self_hotspots(size_t top_n = 10) const {
     std::lock_guard<std::mutex> lock(builder_mutex_);
     return HotspotAnalyzer::find_self_hotspots(tree(), top_n);
+  }
+
+  /// Find total/inclusive time hotspots (thread-safe)
+  std::vector<HotspotInfo> find_total_hotspots(size_t top_n = 10) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return HotspotAnalyzer::find_total_hotspots(tree(), top_n);
   }
 
   /// Export tree visualization (thread-safe)

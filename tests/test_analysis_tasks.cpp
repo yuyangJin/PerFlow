@@ -89,16 +89,19 @@ TEST(HotspotAnalyzerTest, FindHotspots) {
 
   auto hotspots = HotspotAnalyzer::find_hotspots(tree, 5);
 
-  EXPECT_GE(hotspots.size(), 1);
+  EXPECT_GE(hotspots.size(), 2);
   
-  // Main should be first (has all samples)
-  EXPECT_EQ(hotspots[0].function_name, "main");
-  EXPECT_EQ(hotspots[0].total_samples, 1000);
+  // Hot function should be first (exclusive/self mode - 900 self samples)
+  EXPECT_EQ(hotspots[0].function_name, "hot_function");
+  EXPECT_EQ(hotspots[0].self_samples, 900);
+  EXPECT_EQ(hotspots[0].total_samples, 900);
+  EXPECT_NEAR(hotspots[0].self_percentage, 90.0, 0.1);
 
-  // Hot function should be second
-  EXPECT_EQ(hotspots[1].function_name, "hot_function");
-  EXPECT_EQ(hotspots[1].total_samples, 900);
-  EXPECT_NEAR(hotspots[1].percentage, 90.0, 0.1);
+  // Cold function should be second (100 self samples)
+  EXPECT_EQ(hotspots[1].function_name, "cold_function");
+  EXPECT_EQ(hotspots[1].self_samples, 100);
+  EXPECT_EQ(hotspots[1].total_samples, 100);
+  EXPECT_NEAR(hotspots[1].self_percentage, 10.0, 0.1);
 }
 
 TEST(HotspotAnalyzerTest, FindSelfHotspots) {
@@ -165,8 +168,52 @@ TEST(HotspotAnalyzerTest, TopNLimit) {
   auto hotspots = HotspotAnalyzer::find_hotspots(tree, 5);
   EXPECT_EQ(hotspots.size(), 5);
 
-  // Verify they're sorted by sample count
+  // Verify they're sorted by self sample count
   for (size_t i = 1; i < hotspots.size(); ++i) {
-    EXPECT_GE(hotspots[i - 1].total_samples, hotspots[i].total_samples);
+    EXPECT_GE(hotspots[i - 1].self_samples, hotspots[i].self_samples);
   }
+}
+
+TEST(HotspotAnalyzerTest, FindTotalHotspots) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+
+  // Create call stacks where main calls everything (inclusive mode test)
+  std::vector<ResolvedFrame> frames1;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "app";
+  frames1.push_back(main_frame);
+
+  ResolvedFrame hot_frame;
+  hot_frame.function_name = "hot_function";
+  hot_frame.library_name = "app";
+  frames1.push_back(hot_frame);
+
+  std::vector<ResolvedFrame> frames2;
+  frames2.push_back(main_frame);
+  ResolvedFrame cold_frame;
+  cold_frame.function_name = "cold_function";
+  cold_frame.library_name = "app";
+  frames2.push_back(cold_frame);
+
+  // Insert samples
+  tree.insert_call_stack(frames1, 0, 900, 90000.0);
+  tree.insert_call_stack(frames2, 0, 100, 10000.0);
+
+  auto hotspots = HotspotAnalyzer::find_total_hotspots(tree, 5);
+
+  EXPECT_GE(hotspots.size(), 2);
+  
+  // Main should be first in inclusive mode (has all 1000 total samples)
+  EXPECT_EQ(hotspots[0].function_name, "main");
+  EXPECT_EQ(hotspots[0].total_samples, 1000);
+  EXPECT_EQ(hotspots[0].self_samples, 0);  // Not a leaf
+  EXPECT_NEAR(hotspots[0].percentage, 100.0, 0.1);
+
+  // Hot function should be second (900 total samples)
+  EXPECT_EQ(hotspots[1].function_name, "hot_function");
+  EXPECT_EQ(hotspots[1].total_samples, 900);
+  EXPECT_EQ(hotspots[1].self_samples, 900);
+  EXPECT_NEAR(hotspots[1].percentage, 90.0, 0.1);
 }
