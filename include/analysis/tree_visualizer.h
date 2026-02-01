@@ -47,12 +47,14 @@ class TreeVisualizer {
     std::fprintf(file, "  edge [arrowhead=vee];\n\n");
 
     // Find max samples for normalization
+    // Use the appropriate sample count based on tree's sample count mode
     uint64_t max_samples = tree.total_samples();
+    bool use_self_samples = (tree.sample_count_mode() == SampleCountMode::kExclusive);
 
     // Generate nodes and edges
     uint64_t node_id = 0;
     generate_dot_node(tree.root(), node_id, max_samples, scheme, file, 0,
-                     max_depth);
+                     max_depth, use_self_samples);
 
     std::fprintf(file, "}\n");
     std::fclose(file);
@@ -95,7 +97,8 @@ class TreeVisualizer {
   static void generate_dot_node(const std::shared_ptr<TreeNode>& node,
                                 uint64_t& node_id, uint64_t max_samples,
                                 ColorScheme scheme, FILE* file,
-                                size_t current_depth, size_t max_depth) {
+                                size_t current_depth, size_t max_depth,
+                                bool use_self_samples) {
     if (!node) return;
     if (max_depth > 0 && current_depth > max_depth) return;
 
@@ -112,11 +115,12 @@ class TreeVisualizer {
       label = addr_buf;
     }
 
-    // Add sample count
+    // Add sample count - use self_samples in exclusive mode, total_samples otherwise
+    uint64_t node_samples = use_self_samples ? node->self_samples() : node->total_samples();
     char info_buf[128];
     std::snprintf(info_buf, sizeof(info_buf), "\\n[%llu samples, %.1f%%]",
-                 static_cast<unsigned long long>(node->total_samples()),
-                 max_samples > 0 ? (node->total_samples() * 100.0 / max_samples)
+                 static_cast<unsigned long long>(node_samples),
+                 max_samples > 0 ? (node_samples * 100.0 / max_samples)
                                  : 0.0);
     label += info_buf;
 
@@ -128,8 +132,8 @@ class TreeVisualizer {
       }
     }
 
-    // Determine color based on scheme
-    std::string color = get_color(node->total_samples(), max_samples, scheme);
+    // Determine color based on scheme - use appropriate sample count
+    std::string color = get_color(node_samples, max_samples, scheme);
 
     // Write node
     std::fprintf(file, "  node%llu [label=\"%s\", fillcolor=\"%s\"];\n",
@@ -153,7 +157,7 @@ class TreeVisualizer {
 
       // Recursively generate child
       generate_dot_node(child, node_id, max_samples, scheme, file,
-                       current_depth + 1, max_depth);
+                       current_depth + 1, max_depth, use_self_samples);
     }
   }
 
