@@ -28,11 +28,14 @@ add_executable(perflow_tests
     test_analysis_tasks.cpp
     test_tree_builder.cpp
     test_online_analysis_integration.cpp
+    test_symbol_resolver.cpp
+    test_offset_converter_symbol_resolution.cpp
 )
 
 target_link_libraries(perflow_tests
     PRIVATE
     perflow_sampling
+    perflow_analysis
     GTest::gtest
     GTest::gtest_main
 )

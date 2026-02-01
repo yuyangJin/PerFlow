@@ -60,6 +60,26 @@ find_package(Threads REQUIRED)
 target_link_libraries(perflow_sampling INTERFACE Threads::Threads)
 
 # ============================================================================
+# Analysis Library (with symbol resolution)
+# ============================================================================
+
+add_library(perflow_analysis STATIC
+    ${CMAKE_SOURCE_DIR}/src/analysis/symbol_resolver.cpp
+)
+
+target_include_directories(perflow_analysis
+    PUBLIC
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(perflow_analysis
+    PUBLIC
+    perflow_sampling
+    ${CMAKE_DL_LIBS}  # For dlopen, dladdr, etc.
+)
+
+# ============================================================================
 # MPI Sampler Library
 # ============================================================================
 
@@ -132,7 +152,7 @@ endif()
 # Installation
 include(GNUInstallDirs)
 
-install(TARGETS perflow_sampling
+install(TARGETS perflow_sampling perflow_analysis
     EXPORT PerFlowTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
