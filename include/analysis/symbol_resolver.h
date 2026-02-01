@@ -183,8 +183,10 @@ struct SymbolResolver::Impl {
     }
     
     // For PIE executables, try common text segment offsets
-    // Common text segment starts: 0x1000, 0x2000, 0x3000, 0x4000
-    for (uintptr_t text_base : {0x1000, 0x2000, 0x3000, 0x4000, 0x5000}) {
+    // Try both positive offsets (for typical PIE) and zero/negative adjustments
+    // Common text segment starts: 0x1000, 0x2000, 0x3000, 0x4000, etc.
+    for (uintptr_t text_base : {0x1000, 0x2000, 0x3000, 0x4000, 0x5000, 
+                                 0x6000, 0x8000, 0xa000, 0x10000}) {
       result = try_addr2line(library_path, offset + text_base);
       if (result.is_resolved()) {
         return result;
@@ -216,8 +218,8 @@ struct SymbolResolver::Impl {
     }
     
     std::string func_name(func_buffer.data());
-    // Remove trailing newline
-    if (!func_name.empty() && func_name.back() == '\n') {
+    // Remove trailing newline and whitespace
+    while (!func_name.empty() && (func_name.back() == '\n' || func_name.back() == '\r' || func_name.back() == ' ')) {
       func_name.pop_back();
     }
     
@@ -226,43 +228,64 @@ struct SymbolResolver::Impl {
     if (!fgets(loc_buffer.data(), loc_buffer.size(), pipe)) {
       pclose(pipe);
       // We have function name but no location
-      if (func_name != "??" && func_name != "??:0" && func_name != "??:?") {
+      // Accept function name if it looks valid (not ?? or empty)
+      if (!func_name.empty() && func_name != "??" && func_name != "??:0" && func_name != "??:?") {
         return SymbolInfo(func_name, "", 0);
       }
       return SymbolInfo();
     }
     
     std::string location(loc_buffer.data());
-    if (!location.empty() && location.back() == '\n') {
+    // Remove trailing newline and whitespace
+    while (!location.empty() && (location.back() == '\n' || location.back() == '\r' || location.back() == ' ')) {
       location.pop_back();
     }
     
     pclose(pipe);
     
-    // Parse location (format: "filename:line" or "??:0" or "??:?")
-    if (func_name == "??" || location == "??:0" || location == "??:?") {
+    // Check if resolution failed - addr2line returns "??" for unresolved
+    // Be more lenient - only reject if both function and location are clearly unresolved
+    if (func_name == "??" && (location == "??:0" || location == "??:?" || location == "??")) {
       return SymbolInfo();  // Not resolved
+    }
+    
+    // If function name is valid but location is ??, still return the function
+    if (func_name == "??") {
+      // Only function is unresolved, check if we have location
+      if (location != "??:0" && location != "??:?" && location != "??") {
+        func_name = "";  // Clear unresolved function but keep location
+      } else {
+        return SymbolInfo();  // Both unresolved
+      }
     }
     
     std::string filename;
     uint32_t line_number = 0;
     
-    size_t colon_pos = location.rfind(':');
-    if (colon_pos != std::string::npos) {
-      filename = location.substr(0, colon_pos);
-      std::string line_str = location.substr(colon_pos + 1);
-      
-      // Try to parse line number
-      try {
-        if (line_str != "?" && !line_str.empty()) {
-          line_number = static_cast<uint32_t>(std::stoul(line_str));
+    // Parse location if it doesn't look like an unresolved marker
+    if (!location.empty() && location != "??:0" && location != "??:?" && location != "??") {
+      size_t colon_pos = location.rfind(':');
+      if (colon_pos != std::string::npos) {
+        filename = location.substr(0, colon_pos);
+        std::string line_str = location.substr(colon_pos + 1);
+        
+        // Try to parse line number
+        try {
+          if (line_str != "?" && !line_str.empty()) {
+            line_number = static_cast<uint32_t>(std::stoul(line_str));
+          }
+        } catch (...) {
+          // Failed to parse line number, keep it as 0
         }
-      } catch (...) {
-        // Failed to parse line number, keep it as 0
       }
     }
     
-    return SymbolInfo(func_name, filename, line_number);
+    // Return if we have at least function name or filename
+    if (!func_name.empty() || !filename.empty()) {
+      return SymbolInfo(func_name, filename, line_number);
+    }
+    
+    return SymbolInfo();
   }
 };
 

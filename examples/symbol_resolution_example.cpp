@@ -55,8 +55,13 @@ void print_resolved_frame(const ResolvedFrame& frame, size_t index) {
       std::cout << ":" << frame.line_number;
     }
     std::cout << std::endl;
+  } else if (frame.function_name.empty()) {
+    // Only print debug info if nothing was resolved
+    std::cout << "      [Debug: Try 'addr2line -e " << frame.library_name 
+              << " -f -C 0x" << std::hex << frame.offset << std::dec << "']" << std::endl;
   }
 }
+
 
 int main() {
   std::cout << "=== PerFlow: Symbol Resolution Example ===" << std::endl;
