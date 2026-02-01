@@ -63,18 +63,16 @@ target_link_libraries(perflow_sampling INTERFACE Threads::Threads)
 # Analysis Library (with symbol resolution)
 # ============================================================================
 
-add_library(perflow_analysis STATIC
-    ${CMAKE_SOURCE_DIR}/src/analysis/symbol_resolver.cpp
-)
+add_library(perflow_analysis INTERFACE)
 
 target_include_directories(perflow_analysis
-    PUBLIC
+    INTERFACE
     $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
     $<INSTALL_INTERFACE:include>
 )
 
 target_link_libraries(perflow_analysis
-    PUBLIC
+    INTERFACE
     perflow_sampling
     ${CMAKE_DL_LIBS}  # For dlopen, dladdr, etc.
 )
