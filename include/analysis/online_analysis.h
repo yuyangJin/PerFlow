@@ -5,6 +5,7 @@
 #define PERFLOW_ANALYSIS_ONLINE_ANALYSIS_H_
 
 #include <cctype>
+#include <fstream>
 #include <mutex>
 #include <unordered_map>
 #include <unordered_set>
@@ -169,6 +170,12 @@ class OnlineAnalysis {
             }
           }
           
+          // If not in pending, try to find libmap file in the same directory
+          if (!has_libmap && !monitor_directory_.empty()) {
+            libmap_path = find_libmap_for_rank(monitor_directory_, rank_id);
+            has_libmap = !libmap_path.empty();
+          }
+          
           // Load library map and build tree with builder mutex protection
           {
             std::lock_guard<std::mutex> lock(builder_mutex_);
@@ -234,6 +241,27 @@ class OnlineAnalysis {
     }
     
     return UINT32_MAX;
+  }
+  
+  /// Find libmap file for a given rank in a directory
+  static std::string find_libmap_for_rank(const std::string& directory, uint32_t rank_id) {
+    // Try common patterns for libmap files
+    std::vector<std::string> patterns = {
+      "/perflow_mpi_rank_" + std::to_string(rank_id) + ".libmap",
+      "/rank_" + std::to_string(rank_id) + ".libmap",
+      "/perflow_rank_" + std::to_string(rank_id) + ".libmap"
+    };
+    
+    for (const auto& pattern : patterns) {
+      std::string path = directory + pattern;
+      // Check if file exists by trying to open it
+      std::ifstream file(path);
+      if (file.good()) {
+        return path;
+      }
+    }
+    
+    return "";  // Not found
   }
 
   TreeBuilder builder_;
