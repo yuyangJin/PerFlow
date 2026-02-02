@@ -19,7 +19,6 @@
 #include <memory>
 #include <signal.h>
 #include <unistd.h>
-#include <dlfcn.h>
 
 // libunwind for safe call stack capture
 #define UNW_LOCAL_ONLY
@@ -28,6 +27,7 @@
 #include "sampling/sampling.h"
 #include "sampling/library_map.h"
 #include "sampling/data_export.h"
+#include "sampling/mpi_init_setup.h"
 
 using namespace perflow::sampling;
 
@@ -64,8 +64,8 @@ constexpr size_t kSampleMapCapacity = 10000;
 // Global State
 // ============================================================================
 
-/// MPI rank of current process (-1 if not initialized)
-static int g_mpi_rank = -1;
+/// MPI rank is defined in mpi_init_setup.cpp and set during MPI_Init interception
+extern int g_mpi_rank;
 
 /// Module initialization flag
 static bool g_module_initialized = false;
@@ -265,37 +265,6 @@ static void papi_overflow_handler(int event_set, void* address,
     
     // Restart counting
     PAPI_start(event_set);
-}
-
-// ============================================================================
-// MPI Function Interception
-// ============================================================================
-
-// Original MPI_Init function pointer
-static int (*real_MPI_Init)(int*, char***) = nullptr;
-
-/// Intercepted MPI_Init to capture rank early
-extern "C" int MPI_Init(int* argc, char*** argv) {
-    // Call the real MPI_Init if we have the pointer
-    if (real_MPI_Init == nullptr) {
-        // Get the real MPI_Init function
-        real_MPI_Init = (int (*)(int*, char***))dlsym(RTLD_NEXT, "MPI_Init");
-        if (real_MPI_Init == nullptr) {
-            fprintf(stderr, "[MPI Sampler] Error: Could not find real MPI_Init\n");
-            return -1;
-        }
-    }
-    
-    // Call real MPI_Init
-    int result = real_MPI_Init(argc, argv);
-    
-    // If successful, get our rank
-    if (result == 0) {
-        MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
-        fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d\n", g_mpi_rank);
-    }
-    
-    return result;
 }
 
 // ============================================================================

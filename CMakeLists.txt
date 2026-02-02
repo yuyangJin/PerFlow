@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.14)
 project(PerFlow
     VERSION 0.1.0
     DESCRIPTION "A programmable and fast performance analysis for parallel programs"
-    LANGUAGES CXX
+    LANGUAGES CXX Fortran
 )
 
 # C++ standard
@@ -97,6 +97,7 @@ if(PAPI_FOUND AND MPI_FOUND)
     # Build MPI sampler as a shared library for LD_PRELOAD
     add_library(perflow_mpi_sampler SHARED
         ${CMAKE_SOURCE_DIR}/src/sampler/mpi_sampler.cpp
+        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_init_setup.cpp
     )
     
     target_include_directories(perflow_mpi_sampler

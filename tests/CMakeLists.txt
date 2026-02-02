@@ -93,6 +93,23 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
         )
         
+        # Determine MPI runner command (prefer srun for SLURM environments, fallback to mpirun/mpiexec)
+        # Allow override via MPI_EXEC environment variable or CMake variable
+        # if(NOT DEFINED MPIEXEC_EXECUTABLE)
+        #     find_program(MPIEXEC_EXECUTABLE NAMES srun)
+        #     if(NOT MPIEXEC_EXECUTABLE)
+        #         # Fallback to mpirun/mpiexec if srun is not available
+        #         find_program(MPIEXEC_EXECUTABLE NAMES mpirun mpiexec)
+        #     endif()
+        # endif()
+        
+        # if(NOT MPIEXEC_EXECUTABLE)
+        #     message(WARNING "No MPI executor found (srun/mpirun/mpiexec) - MPI tests may not run")
+        #     set(MPIEXEC_EXECUTABLE "srun")  # Default fallback
+        # endif()
+        
+        # message(STATUS "Using MPI executor: ${MPIEXEC_EXECUTABLE}")
+        
         # Add custom test target that uses LD_PRELOAD
         add_custom_target(run_${test_prog}
             COMMAND ${CMAKE_COMMAND} -E make_directory 
@@ -100,7 +117,7 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
             COMMAND ${CMAKE_COMMAND} -E env 
                     LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
                     PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/${test_prog}
-                    srun -n 4 -p ja 
+                    srun -n 4
                     ${CMAKE_BINARY_DIR}/tests/${test_prog}
             DEPENDS perflow_mpi_sampler ${test_prog}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -118,6 +135,83 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
     foreach(test_prog ${MPI_TEST_PROGRAMS})
         add_dependencies(run_all_mpi_tests run_${test_prog})
     endforeach()
+    
+    # ========================================================================
+    # Fortran MPI Sampler Test
+    # ========================================================================
+    
+    # Check if Fortran compiler is available
+    if(CMAKE_Fortran_COMPILER)
+        message(STATUS "Fortran compiler found - building Fortran MPI sampler test")
+        
+        # Find MPI Fortran (may be different from C MPI)
+        find_package(MPI COMPONENTS Fortran QUIET)
+        
+        if(MPI_Fortran_FOUND)
+            # Build Fortran test executable
+            add_executable(mpi_sampler_fortran_test
+                mpi_sampler_fortran_test.f90
+            )
+            
+            target_include_directories(mpi_sampler_fortran_test
+                PRIVATE
+                ${MPI_Fortran_INCLUDE_DIRS}
+            )
+            
+            target_link_libraries(mpi_sampler_fortran_test
+                PRIVATE
+                ${MPI_Fortran_LIBRARIES}
+            )
+            
+            # Add debug symbols for symbol resolution
+            target_compile_options(mpi_sampler_fortran_test
+                PRIVATE
+                -g
+            )
+            
+            # Set output directory for test executable
+            set_target_properties(mpi_sampler_fortran_test PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+            )
+            
+            # Determine MPI runner command (prefer srun for SLURM environments, fallback to mpirun/mpiexec)
+            # Allow override via MPI_EXEC environment variable or CMake variable
+            # if(NOT DEFINED MPIEXEC_EXECUTABLE)
+            #     find_program(MPIEXEC_EXECUTABLE NAMES srun)
+            #     if(NOT MPIEXEC_EXECUTABLE)
+            #         # Fallback to mpirun/mpiexec if srun is not available
+            #         find_program(MPIEXEC_EXECUTABLE NAMES mpirun mpiexec)
+            #     endif()
+            # endif()
+            
+            # if(NOT MPIEXEC_EXECUTABLE)
+            #     message(WARNING "No MPI executor found (srun/mpirun/mpiexec) - MPI tests may not run")
+            #     set(MPIEXEC_EXECUTABLE "srun")  # Default fallback
+            # endif()
+            
+            # message(STATUS "Using MPI executor: ${MPIEXEC_EXECUTABLE}")
+
+            # Add custom test target that uses LD_PRELOAD
+            add_custom_target(run_mpi_sampler_fortran_test
+                COMMAND ${CMAKE_COMMAND} -E make_directory 
+                        ${CMAKE_BINARY_DIR}/mpi_sampler_output/mpi_sampler_fortran_test
+                COMMAND ${CMAKE_COMMAND} -E env 
+                        LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
+                        PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/mpi_sampler_fortran_test
+                        srun -n 4
+                        ${CMAKE_BINARY_DIR}/tests/mpi_sampler_fortran_test
+                DEPENDS perflow_mpi_sampler mpi_sampler_fortran_test
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                COMMENT "Running Fortran MPI sampler test with 4 processes"
+            )
+            
+            message(STATUS "Fortran MPI test configured successfully")
+        else()
+            message(STATUS "MPI Fortran not found - skipping Fortran MPI sampler test")
+        endif()
+    else()
+        message(STATUS "Fortran compiler not found - skipping Fortran MPI sampler test")
+    endif()
     
 endif()
 
