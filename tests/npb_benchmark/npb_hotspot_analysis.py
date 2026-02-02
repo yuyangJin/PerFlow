@@ -4,326 +4,207 @@
 
 """
 NPB Hotspot Analysis Script
-Analyzes performance sampling data from PerFlow to identify hotspots
+Analyzes performance sampling data from PerFlow using the npb_hotspot_analyzer tool
 """
 
 import sys
 import os
 import json
-import struct
-import re
+import subprocess
 from pathlib import Path
-from collections import defaultdict
-from typing import Dict, List, Tuple
+from typing import Dict, List
 
 # ============================================================================
 # Configuration
 # ============================================================================
 
-# Functions to exclude from analysis
-EXCLUDED_FUNCTIONS = [
-    '_start',
-    '__libc_start_main',
-    'main',
-    # PAPI-related functions
-    'PAPI_',
-    'papi_',
-    '_papi_',
-    # Internal PerFlow functions (if any appear)
-    'perflow_',
-    '__perflow_',
-]
-
-# ============================================================================
-# Sample Data Parsing
-# ============================================================================
-
-def should_exclude_function(func_name: str) -> bool:
-    """Check if a function should be excluded from analysis"""
-    for pattern in EXCLUDED_FUNCTIONS:
-        if pattern in func_name:
-            return True
-    return False
-
-def parse_sample_file(filepath: str) -> List[Dict]:
-    """
-    Parse PerFlow binary sample file (.pflw)
-    Returns list of sample records
-    """
-    samples = []
+# Path to the npb_hotspot_analyzer executable
+def get_analyzer_path():
+    """Find the npb_hotspot_analyzer executable"""
+    # Try several possible locations
+    possible_paths = [
+        "../../build/examples/npb_hotspot_analyzer",
+        "../../../build/examples/npb_hotspot_analyzer",
+        "../../examples/npb_hotspot_analyzer",
+        os.path.join(os.environ.get("PERFLOW_BUILD_DIR", "../../build"), "examples/npb_hotspot_analyzer"),
+    ]
     
+    for path in possible_paths:
+        full_path = Path(path).resolve()
+        if full_path.exists():
+            return str(full_path)
+    
+    # Try to find in PATH
     try:
-        with open(filepath, 'rb') as f:
-            while True:
-                # Read sample header (simplified - adjust based on actual format)
-                # This is a placeholder - actual format may differ
-                header = f.read(16)
-                if len(header) < 16:
-                    break
-                
-                # Parse basic sample info
-                sample = {
-                    'timestamp': 0,
-                    'stack': []
-                }
-                
-                # Read call stack (placeholder implementation)
-                # Actual parsing depends on PerFlow's binary format
-                stack_size = struct.unpack('I', f.read(4))[0] if f.read(4) else 0
-                for _ in range(min(stack_size, 100)):  # Cap at 100 frames
-                    addr = struct.unpack('Q', f.read(8))[0] if f.read(8) else 0
-                    if addr == 0:
-                        break
-                    sample['stack'].append(hex(addr))
-                
-                samples.append(sample)
-                
-    except Exception as e:
-        print(f"Warning: Error parsing {filepath}: {e}", file=sys.stderr)
-        return []
+        result = subprocess.run(["which", "npb_hotspot_analyzer"], 
+                              capture_output=True, text=True, check=True)
+        return result.stdout.strip()
+    except:
+        pass
     
-    return samples
+    return None
 
-def parse_text_sample_file(filepath: str) -> List[Dict]:
+# ============================================================================
+# Hotspot Analysis
+# ============================================================================
+
+def analyze_hotspots(sample_data_dir: str, output_file: str = None) -> Dict:
     """
-    Parse PerFlow text sample file (.txt) for easier analysis
-    Returns list of sample records with function names
-    """
-    samples = []
-    current_sample = None
+    Analyze hotspots using the npb_hotspot_analyzer tool
     
+    Args:
+        sample_data_dir: Directory containing PerFlow sample data files
+        output_file: Optional output file path (default: sample_data_dir/hotspot_analysis.json)
+    
+    Returns:
+        Dictionary containing hotspot analysis results
+    """
+    # Find the analyzer executable
+    analyzer_path = get_analyzer_path()
+    if not analyzer_path:
+        print("Error: Cannot find npb_hotspot_analyzer executable", file=sys.stderr)
+        print("Please build PerFlow first or set PERFLOW_BUILD_DIR environment variable", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Build instructions:", file=sys.stderr)
+        print("  cd /path/to/PerFlow", file=sys.stderr)
+        print("  mkdir -p build && cd build", file=sys.stderr)
+        print("  cmake ..", file=sys.stderr)
+        print("  make", file=sys.stderr)
+        sys.exit(1)
+    
+    print(f"Using analyzer: {analyzer_path}")
+    
+    # Set output file
+    if output_file is None:
+        output_file = os.path.join(sample_data_dir, "hotspot_analysis.json")
+    
+    # Check if sample data directory exists
+    if not os.path.isdir(sample_data_dir):
+        print(f"Error: Sample data directory not found: {sample_data_dir}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Count number of rank files
+    rank_files = list(Path(sample_data_dir).glob("perflow_mpi_rank_*.pflw"))
+    if not rank_files:
+        print(f"Error: No sample data files found in {sample_data_dir}", file=sys.stderr)
+        print("Expected files: perflow_mpi_rank_*.pflw", file=sys.stderr)
+        sys.exit(1)
+    
+    num_ranks = len(rank_files)
+    print(f"Found {num_ranks} rank file(s) in {sample_data_dir}")
+    
+    # Run the analyzer
+    print(f"\nRunning hotspot analysis...")
     try:
-        with open(filepath, 'r') as f:
-            for line in f:
-                line = line.strip()
-                
-                # New sample marker
-                if line.startswith('Sample') or line.startswith('---'):
-                    if current_sample:
-                        samples.append(current_sample)
-                    current_sample = {'stack': []}
-                
-                # Stack frame line (contains function name)
-                elif current_sample is not None and line:
-                    # Extract function name from various formats
-                    # Format: "  [function_name] at address"
-                    # Format: "  address: function_name"
-                    # Format: "  #N  address in function_name"
-                    
-                    func_match = re.search(r'\[([^\]]+)\]', line)
-                    if func_match:
-                        func_name = func_match.group(1)
-                        current_sample['stack'].append(func_name)
-                    else:
-                        # Try other formats
-                        parts = line.split()
-                        if len(parts) >= 2:
-                            # Use last meaningful part as function name
-                            func_name = parts[-1]
-                            if func_name and not func_name.startswith('0x'):
-                                current_sample['stack'].append(func_name)
-            
-            if current_sample:
-                samples.append(current_sample)
-                
+        result = subprocess.run(
+            [analyzer_path, sample_data_dir, output_file, str(num_ranks)],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+        
+        # Print analyzer output
+        if result.stdout:
+            print(result.stdout)
+        
+        if result.stderr:
+            print(result.stderr, file=sys.stderr)
+    
+    except subprocess.CalledProcessError as e:
+        print(f"Error: Hotspot analyzer failed with exit code {e.returncode}", file=sys.stderr)
+        if e.stdout:
+            print("STDOUT:", file=sys.stderr)
+            print(e.stdout, file=sys.stderr)
+        if e.stderr:
+            print("STDERR:", file=sys.stderr)
+            print(e.stderr, file=sys.stderr)
+        sys.exit(1)
+    except FileNotFoundError:
+        print(f"Error: Cannot execute {analyzer_path}", file=sys.stderr)
+        sys.exit(1)
+    
+    # Load and return the results
+    try:
+        with open(output_file, 'r') as f:
+            results = json.load(f)
+        print(f"\nHotspot analysis complete. Results saved to: {output_file}")
+        return results
     except Exception as e:
-        print(f"Warning: Error parsing {filepath}: {e}", file=sys.stderr)
-        return []
-    
-    return samples
+        print(f"Error: Failed to load results from {output_file}: {e}", file=sys.stderr)
+        sys.exit(1)
 
-def analyze_samples(sample_dir: str) -> Dict[str, int]:
-    """
-    Analyze samples from a directory
-    Returns dictionary of function names to exclusive sample counts
-    """
-    function_counts = defaultdict(int)
+def print_hotspot_summary(results: Dict, top_n: int = 20):
+    """Print a summary of hotspot analysis results"""
+    hotspots = results.get("hotspots", [])
+    total_samples = results.get("total_samples", 0)
     
-    sample_dir_path = Path(sample_dir)
+    print("\n" + "=" * 80)
+    print("HOTSPOT ANALYSIS SUMMARY")
+    print("=" * 80)
+    print(f"Total samples: {total_samples}")
+    print(f"Unique functions: {len(hotspots)}")
+    print("")
     
-    # Try text files first (easier to parse)
-    text_files = list(sample_dir_path.glob('*.txt'))
-    binary_files = list(sample_dir_path.glob('*.pflw'))
-    
-    if text_files:
-        print(f"  Analyzing {len(text_files)} text sample files...")
-        for filepath in text_files:
-            samples = parse_text_sample_file(str(filepath))
-            
-            # Count exclusive samples (leaf function in stack)
-            for sample in samples:
-                if sample['stack']:
-                    # Leaf function is first in stack (exclusive time)
-                    leaf_func = sample['stack'][0]
-                    if not should_exclude_function(leaf_func):
-                        function_counts[leaf_func] += 1
-    
-    elif binary_files:
-        print(f"  Analyzing {len(binary_files)} binary sample files...")
-        print(f"  Note: Binary parsing is simplified, text files recommended")
-        for filepath in binary_files:
-            samples = parse_sample_file(str(filepath))
-            
-            # For binary files without symbols, count by address
-            for sample in samples:
-                if sample['stack']:
-                    leaf_addr = sample['stack'][0]
-                    function_counts[leaf_addr] += 1
-    
-    else:
-        print(f"  Warning: No sample files found in {sample_dir}")
-    
-    return dict(function_counts)
-
-# ============================================================================
-# Hotspot Calculation
-# ============================================================================
-
-def calculate_hotspots(sample_dirs: List[str], top_n: int = 10) -> Dict:
-    """
-    Calculate hotspots from multiple sample directories
-    Returns aggregated hotspot data
-    """
-    all_hotspots = {}
-    
-    for sample_dir in sample_dirs:
-        if not os.path.exists(sample_dir):
-            print(f"Warning: Sample directory not found: {sample_dir}")
-            continue
-        
-        print(f"Analyzing: {sample_dir}")
-        function_counts = analyze_samples(sample_dir)
-        
-        # Aggregate counts
-        for func, count in function_counts.items():
-            if func not in all_hotspots:
-                all_hotspots[func] = 0
-            all_hotspots[func] += count
-    
-    # Calculate percentages
-    total_samples = sum(all_hotspots.values())
-    
-    if total_samples == 0:
-        print("Warning: No samples found")
-        return {}
-    
-    hotspot_list = []
-    for func, count in all_hotspots.items():
-        percentage = (count / total_samples) * 100
-        hotspot_list.append({
-            'function': func,
-            'samples': count,
-            'percentage': percentage
-        })
-    
-    # Sort by sample count
-    hotspot_list.sort(key=lambda x: x['samples'], reverse=True)
-    
-    return {
-        'total_samples': total_samples,
-        'hotspots': hotspot_list[:top_n],
-        'all_functions': len(all_hotspots)
-    }
-
-# ============================================================================
-# Main Analysis
-# ============================================================================
-
-def analyze_benchmark_hotspots(results_dir: str, output_file: str):
-    """
-    Main function to analyze hotspots for all benchmarks
-    """
-    results_dir_path = Path(results_dir)
-    sample_data_dir = results_dir_path / 'overhead' / 'sample_data'
-    
-    if not sample_data_dir.exists():
-        print(f"Error: Sample data directory not found: {sample_data_dir}")
+    if not hotspots:
+        print("No hotspots found.")
         return
     
-    print("NPB Hotspot Analysis")
-    print("=" * 60)
-    print(f"Sample data directory: {sample_data_dir}")
-    print()
+    print(f"Top {min(top_n, len(hotspots))} Hotspots (by exclusive sample count):")
+    print("-" * 80)
+    print(f"{'Rank':<6} {'Function':<40} {'Exclusive %':<12} {'Inclusive %':<12}")
+    print("-" * 80)
     
-    # Group sample directories by benchmark and process count
-    benchmark_samples = defaultdict(lambda: defaultdict(list))
-    
-    for sample_dir in sample_data_dir.iterdir():
-        if sample_dir.is_dir():
-            # Parse directory name: benchmark_CLASS_npNUM_iterN
-            match = re.match(r'(\w+)_([A-Z])_np(\d+)_iter(\d+)', sample_dir.name)
-            if match:
-                benchmark, class_name, nprocs, iter_num = match.groups()
-                key = f"{benchmark}_{class_name}"
-                benchmark_samples[key][int(nprocs)].append(str(sample_dir))
-    
-    # Analyze hotspots for each benchmark and process count
-    results = {
-        'metadata': {
-            'analysis_date': str(Path(results_dir).stat().st_mtime),
-            'sample_data_dir': str(sample_data_dir)
-        },
-        'benchmarks': []
-    }
-    
-    for benchmark_key in sorted(benchmark_samples.keys()):
-        print(f"\nBenchmark: {benchmark_key}")
-        print("-" * 60)
+    for i, hotspot in enumerate(hotspots[:top_n], 1):
+        func = hotspot['function']
+        if len(func) > 38:
+            func = func[:35] + "..."
         
-        benchmark_data = {
-            'benchmark': benchmark_key,
-            'process_scales': []
-        }
+        print(f"{i:<6} {func:<40} {hotspot['exclusive_percentage']:>10.2f}% {hotspot['inclusive_percentage']:>10.2f}%")
         
-        for nprocs in sorted(benchmark_samples[benchmark_key].keys()):
-            sample_dirs = benchmark_samples[benchmark_key][nprocs]
-            print(f"  Process scale: {nprocs} ({len(sample_dirs)} runs)")
-            
-            hotspot_data = calculate_hotspots(sample_dirs, top_n=10)
-            
-            if hotspot_data and hotspot_data['hotspots']:
-                print(f"  Total samples: {hotspot_data['total_samples']}")
-                print(f"  Top 5 hotspots:")
-                for i, hotspot in enumerate(hotspot_data['hotspots'][:5], 1):
-                    print(f"    {i}. {hotspot['function']}: "
-                          f"{hotspot['percentage']:.2f}% ({hotspot['samples']} samples)")
-            
-            benchmark_data['process_scales'].append({
-                'num_processes': nprocs,
-                'total_samples': hotspot_data.get('total_samples', 0),
-                'hotspots': hotspot_data.get('hotspots', [])
-            })
-        
-        results['benchmarks'].append(benchmark_data)
+        # Print additional details for top 5
+        if i <= 5:
+            if hotspot['library']:
+                lib = hotspot['library']
+                if len(lib) > 50:
+                    lib = "..." + lib[-47:]
+                print(f"       Library: {lib}")
+            if hotspot['filename'] and hotspot['filename'] != "":
+                loc = hotspot['filename']
+                if hotspot['line_number'] > 0:
+                    loc += f":{hotspot['line_number']}"
+                if len(loc) > 50:
+                    loc = "..." + loc[-47:]
+                print(f"       Location: {loc}")
+            print("")
     
-    # Save results to JSON
-    with open(output_file, 'w') as f:
-        json.dump(results, f, indent=2)
-    
-    print()
-    print("=" * 60)
-    print(f"Hotspot analysis saved to: {output_file}")
+    print("=" * 80)
 
 # ============================================================================
-# Command Line Interface
+# Main
 # ============================================================================
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python3 npb_hotspot_analysis.py <results_dir> [output_file]")
-        print()
+        print("Usage: npb_hotspot_analysis.py <sample_data_dir> [output_file]")
+        print("")
         print("Arguments:")
-        print("  results_dir   Directory containing NPB benchmark results")
-        print("  output_file   Output JSON file (default: results_dir/hotspot_analysis.json)")
-        print()
+        print("  sample_data_dir   Directory containing perflow_mpi_rank_*.pflw files")
+        print("  output_file       Optional output JSON file (default: sample_data_dir/hotspot_analysis.json)")
+        print("")
         print("Example:")
-        print("  python3 npb_hotspot_analysis.py ./npb_results")
+        print("  python3 npb_hotspot_analysis.py ./npb_results/overhead/sample_data")
         sys.exit(1)
     
-    results_dir = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else os.path.join(results_dir, 'hotspot_analysis.json')
+    sample_data_dir = sys.argv[1]
+    output_file = sys.argv[2] if len(sys.argv) > 2 else None
     
-    analyze_benchmark_hotspots(results_dir, output_file)
+    # Analyze hotspots
+    results = analyze_hotspots(sample_data_dir, output_file)
+    
+    # Print summary
+    print_hotspot_summary(results, top_n=20)
+    
+    return 0
 
-if __name__ == '__main__':
-    main()
+if __name__ == "__main__":
+    sys.exit(main())
