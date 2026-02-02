@@ -119,5 +119,65 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
         add_dependencies(run_all_mpi_tests run_${test_prog})
     endforeach()
     
+    # ========================================================================
+    # Fortran MPI Sampler Test
+    # ========================================================================
+    
+    # Check if Fortran compiler is available
+    if(CMAKE_Fortran_COMPILER)
+        message(STATUS "Fortran compiler found - building Fortran MPI sampler test")
+        
+        # Find MPI Fortran (may be different from C MPI)
+        find_package(MPI COMPONENTS Fortran QUIET)
+        
+        if(MPI_Fortran_FOUND)
+            # Build Fortran test executable
+            add_executable(mpi_sampler_fortran_test
+                mpi_sampler_fortran_test.f90
+            )
+            
+            target_include_directories(mpi_sampler_fortran_test
+                PRIVATE
+                ${MPI_Fortran_INCLUDE_DIRS}
+            )
+            
+            target_link_libraries(mpi_sampler_fortran_test
+                PRIVATE
+                ${MPI_Fortran_LIBRARIES}
+            )
+            
+            # Add debug symbols for symbol resolution
+            target_compile_options(mpi_sampler_fortran_test
+                PRIVATE
+                -g
+            )
+            
+            # Set output directory for test executable
+            set_target_properties(mpi_sampler_fortran_test PROPERTIES
+                RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
+            )
+            
+            # Add custom test target that uses LD_PRELOAD
+            add_custom_target(run_mpi_sampler_fortran_test
+                COMMAND ${CMAKE_COMMAND} -E make_directory 
+                        ${CMAKE_BINARY_DIR}/mpi_sampler_output/mpi_sampler_fortran_test
+                COMMAND ${CMAKE_COMMAND} -E env 
+                        LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
+                        PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/mpi_sampler_fortran_test
+                        srun -n 4 -p ja 
+                        ${CMAKE_BINARY_DIR}/tests/mpi_sampler_fortran_test
+                DEPENDS perflow_mpi_sampler mpi_sampler_fortran_test
+                WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+                COMMENT "Running Fortran MPI sampler test with 4 processes"
+            )
+            
+            message(STATUS "Fortran MPI test configured successfully")
+        else()
+            message(STATUS "MPI Fortran not found - skipping Fortran MPI sampler test")
+        endif()
+    else()
+        message(STATUS "Fortran compiler not found - skipping Fortran MPI sampler test")
+    endif()
+    
 endif()
 

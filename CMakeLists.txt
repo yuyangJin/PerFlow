@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.14)
 project(PerFlow
     VERSION 0.1.0
     DESCRIPTION "A programmable and fast performance analysis for parallel programs"
-    LANGUAGES CXX
+    LANGUAGES CXX Fortran
 )
 
 # C++ standard
