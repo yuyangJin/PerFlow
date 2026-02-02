@@ -93,6 +93,23 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
         )
         
+        # Determine MPI runner command (prefer mpirun/mpiexec over srun for portability)
+        # Allow override via MPI_EXEC environment variable or CMake variable
+        if(NOT DEFINED MPIEXEC_EXECUTABLE)
+            find_program(MPIEXEC_EXECUTABLE NAMES mpirun mpiexec)
+            if(NOT MPIEXEC_EXECUTABLE)
+                # Fallback to srun if available (for SLURM environments)
+                find_program(MPIEXEC_EXECUTABLE NAMES srun)
+            endif()
+        endif()
+        
+        if(NOT MPIEXEC_EXECUTABLE)
+            message(WARNING "No MPI executor found (mpirun/mpiexec/srun) - MPI tests may not run")
+            set(MPIEXEC_EXECUTABLE "mpirun")  # Default fallback
+        endif()
+        
+        message(STATUS "Using MPI executor: ${MPIEXEC_EXECUTABLE}")
+        
         # Add custom test target that uses LD_PRELOAD
         add_custom_target(run_${test_prog}
             COMMAND ${CMAKE_COMMAND} -E make_directory 
@@ -100,7 +117,7 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
             COMMAND ${CMAKE_COMMAND} -E env 
                     LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
                     PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/${test_prog}
-                    srun -n 4 -p ja 
+                    ${MPIEXEC_EXECUTABLE} -n 4
                     ${CMAKE_BINARY_DIR}/tests/${test_prog}
             DEPENDS perflow_mpi_sampler ${test_prog}
             WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
@@ -164,7 +181,7 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
                 COMMAND ${CMAKE_COMMAND} -E env 
                         LD_PRELOAD=${CMAKE_BINARY_DIR}/lib/libperflow_mpi_sampler.so
                         PERFLOW_OUTPUT_DIR=${CMAKE_BINARY_DIR}/mpi_sampler_output/mpi_sampler_fortran_test
-                        srun -n 4 -p ja 
+                        ${MPIEXEC_EXECUTABLE} -n 4
                         ${CMAKE_BINARY_DIR}/tests/mpi_sampler_fortran_test
                 DEPENDS perflow_mpi_sampler mpi_sampler_fortran_test
                 WORKING_DIRECTORY ${CMAKE_BINARY_DIR}

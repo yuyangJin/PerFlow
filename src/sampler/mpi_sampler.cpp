@@ -326,6 +326,7 @@ extern "C" int MPI_Init(int* argc, char*** argv) {
         }
         // Reset fortran_init flag after calling PMPI
         int result = static_cast<int>(ierr);
+        fortran_init = 0;  // Reset flag to prevent reuse
         
         // If successful, get our rank
         if (result == 0) {
@@ -339,6 +340,7 @@ extern "C" int MPI_Init(int* argc, char*** argv) {
         MPI_Fint ierr = 0;
         pmpi_init_(&ierr);
         int result = static_cast<int>(ierr);
+        fortran_init = 0;  // Reset flag to prevent reuse
         
         // If successful, get our rank
         if (result == 0) {
@@ -416,11 +418,12 @@ static int (*real_MPI_Init_thread)(int*, char***, int, int*) = nullptr;
 
 /// Intercepted MPI_Init_thread to capture rank early
 extern "C" int MPI_Init_thread(int* argc, char*** argv, int required, int* provided) {
-    // Handle Fortran initialization if flagged
+    // Note: Fortran MPI_Init_thread has different signature and is handled separately
+    // through the Fortran wrappers below. If fortran_init is set here, it means
+    // there's an unexpected call path - just clear the flag and proceed with C/C++ init.
     if (fortran_init) {
-        fprintf(stderr, "[MPI Sampler] Warning: Fortran MPI_Init_thread called through C wrapper\n");
-        // For now, we'll treat it like MPI_Init since Fortran MPI_Init_thread has different signature
-        // The proper Fortran wrappers are defined below
+        fprintf(stderr, "[MPI Sampler] Warning: Unexpected fortran_init flag in C MPI_Init_thread, clearing\n");
+        fortran_init = 0;
     }
     
     // Handle C/C++ initialization
@@ -456,6 +459,7 @@ static void MPI_Init_thread_fortran_wrapper(MPI_Fint *required, MPI_Fint *provid
     int c_required = static_cast<int>(*required);
     int c_provided = 0;
     
+    // Note: This calls the C MPI_Init_thread wrapper above, which will handle rank capture
     int result = MPI_Init_thread(&argc, &argv, c_required, &c_provided);
     
     *provided = static_cast<MPI_Fint>(c_provided);
