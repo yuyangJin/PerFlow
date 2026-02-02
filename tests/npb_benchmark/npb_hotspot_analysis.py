@@ -24,9 +24,8 @@ def get_analyzer_path():
     """Find the npb_hotspot_analyzer executable"""
     # Try several possible locations
     possible_paths = [
-        "../../build/examples/npb_hotspot_analyzer",
-        "../../../build/examples/npb_hotspot_analyzer",
-        "../../examples/npb_hotspot_analyzer",
+        "./build/examples/npb_hotspot_analyzer",
+        "./examples/npb_hotspot_analyzer",
         os.path.join(os.environ.get("PERFLOW_BUILD_DIR", "../../build"), "examples/npb_hotspot_analyzer"),
     ]
     
