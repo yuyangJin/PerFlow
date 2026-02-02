@@ -393,7 +393,15 @@ fi
 if [ "$RUN_HOTSPOT" -eq 1 ]; then
     log_task "TASK 4: Hotspot Analysis"
     
-    if ! python3 "$SCRIPT_DIR/npb_hotspot_analysis.py" "$RESULTS_DIR"; then
+    # Build hotspot analysis command with parameters
+    HOTSPOT_CMD="python3 $SCRIPT_DIR/npb_hotspot_analysis.py"
+    HOTSPOT_CMD="$HOTSPOT_CMD -r $RESULTS_DIR"
+    HOTSPOT_CMD="$HOTSPOT_CMD -b \"$NPB_BENCHMARKS\""
+    HOTSPOT_CMD="$HOTSPOT_CMD -c $NPB_CLASS"
+    HOTSPOT_CMD="$HOTSPOT_CMD -s \"$PROCESS_SCALES\""
+    HOTSPOT_CMD="$HOTSPOT_CMD --square-scales \"$PROCESS_SCALES_SQUARE\""
+    
+    if ! eval "$HOTSPOT_CMD"; then
         log_error "Hotspot analysis failed"
         exit 1
     fi
