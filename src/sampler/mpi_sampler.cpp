@@ -27,7 +27,7 @@
 #include "sampling/sampling.h"
 #include "sampling/library_map.h"
 #include "sampling/data_export.h"
-#include "mpi_init_setup.h"
+#include "sampling/mpi_init_setup.h"
 
 using namespace perflow::sampling;
 

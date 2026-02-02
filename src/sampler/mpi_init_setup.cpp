@@ -15,7 +15,7 @@
 #include <cstdlib>
 #include <dlfcn.h>
 
-#include "mpi_init_setup.h"
+#include "sampling/mpi_init_setup.h"
 
 // ============================================================================
 // Global State
