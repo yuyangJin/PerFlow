@@ -305,8 +305,10 @@ static void initialize_sampler() {
     // Compute overflow threshold
     g_overflow_threshold = compute_overflow_threshold(g_sampling_frequency);
     
-    fprintf(stderr, "[MPI Sampler] Initializing with frequency %d Hz (threshold: %lld cycles)\n",
-            g_sampling_frequency, g_overflow_threshold);
+    if (g_mpi_rank == 0) {
+        fprintf(stderr, "[MPI Sampler] Initializing with frequency %d Hz (threshold: %lld cycles)\n",
+                g_sampling_frequency, g_overflow_threshold);
+    }
     
     // Initialize PAPI library
     int retval = PAPI_library_init(PAPI_VER_CURRENT);
@@ -345,7 +347,9 @@ static void initialize_sampler() {
         retval = PAPI_add_event(g_event_set, events_to_add[i]);
         if (retval == PAPI_OK) {
             g_events_added++;
-            fprintf(stderr, "[MPI Sampler] Added event 0x%x\n", events_to_add[i]);
+            if (g_mpi_rank == 0) {
+                fprintf(stderr, "[MPI Sampler] Added event 0x%x\n", events_to_add[i]);
+            }
         } else {
             fprintf(stderr, "[MPI Sampler] Warning: Could not add event 0x%x: %s\n",
                     events_to_add[i], PAPI_strerror(retval));
@@ -360,8 +364,10 @@ static void initialize_sampler() {
         return;
     }
     
-    fprintf(stderr, "[MPI Sampler] Successfully added %d/%d events\n",
-            g_events_added, kNumEvents);
+    if (g_mpi_rank == 0) {
+        fprintf(stderr, "[MPI Sampler] Successfully added %d/%d events\n",
+                g_events_added, kNumEvents);
+    }
     
     // Set up overflow handler for PAPI_TOT_CYC
     retval = PAPI_overflow(g_event_set, PAPI_TOT_CYC, g_overflow_threshold, 0,
@@ -380,8 +386,10 @@ static void initialize_sampler() {
     if (!g_library_map->parse_current_process()) {
         fprintf(stderr, "[MPI Sampler] Warning: Failed to parse library map\n");
     } else {
-        fprintf(stderr, "[MPI Sampler] Captured %zu library mappings\n",
-                g_library_map->size());
+        if (g_mpi_rank == 0) {
+            fprintf(stderr, "[MPI Sampler] Captured %zu library mappings\n",
+                    g_library_map->size());
+        }
     }
     
     // Start counting
@@ -392,8 +400,11 @@ static void initialize_sampler() {
         g_module_initialized = false;
         return;
     }
+    if (g_mpi_rank == 0) {
+        fprintf(stderr, "[MPI Sampler] Initialization successful\n");
+        fprintf(stderr, "[MPI Sampler] Started PAPI event counting\n");
+    }
     
-    fprintf(stderr, "[MPI Sampler] Initialization successful\n");
 }
 
 /// Finalize the sampler and export data
@@ -402,7 +413,9 @@ static void finalize_sampler() {
         return;  // Not initialized
     }
     
-    fprintf(stderr, "[MPI Sampler] Finalizing sampler\n");
+    if (g_mpi_rank == 0) {
+        fprintf(stderr, "[MPI Sampler] Finalizing sampler\n");
+    }
     
     // Use the rank captured during MPI_Init
     // Note: MPI_Finalize() may have been called already, so we can't call MPI_Comm_rank here
@@ -417,19 +430,23 @@ static void finalize_sampler() {
     check_papi(retval, PAPI_OK, "PAPI_stop");
     
     // Print final counter values (only for events that were actually added)
-    fprintf(stderr, "[MPI Sampler] Rank %d - Final counters (%d events):\n", 
-            g_mpi_rank, g_events_added);
-    const char* event_names[] = {"TOT_CYC", "TOT_INS", "L1_DCM"};
-    for (int i = 0; i < g_events_added && i < kNumEvents; ++i) {
-        fprintf(stderr, "  Counter %d (%s): %lld\n", i, event_names[i], values[i]);
+    if (g_mpi_rank == 0) {
+        fprintf(stderr, "[MPI Sampler] Rank %d - Final counters (%d events):\n", 
+                g_mpi_rank, g_events_added);
+        const char* event_names[] = {"TOT_CYC", "TOT_INS", "L1_DCM"};
+        for (int i = 0; i < g_events_added && i < kNumEvents; ++i) {
+            fprintf(stderr, "  Counter %d (%s): %lld\n", i, event_names[i], values[i]);
+        }
     }
     
     delete[] values;
     
     // Print sample statistics
     if (g_samples != nullptr) {
-        fprintf(stderr, "[MPI Sampler] Rank %d - Collected %zu unique call stacks\n",
-                g_mpi_rank, g_samples->size());
+        if (g_mpi_rank == 0) {
+            fprintf(stderr, "[MPI Sampler] Rank %d - Collected %zu unique call stacks\n",
+                    g_mpi_rank, g_samples->size());
+        }
         
         // Export data to file
         char output_dir[256];
@@ -451,22 +468,26 @@ static void finalize_sampler() {
         DataResult result = exporter.exportData(*g_samples);
         
         if (result == DataResult::kSuccess) {
-            fprintf(stderr, "[MPI Sampler] Rank %d - Data exported to %s\n",
-                    g_mpi_rank, exporter.filepath());
+            if (g_mpi_rank == 0) {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Data exported to %s\n",
+                        g_mpi_rank, exporter.filepath());
+            }
         } else {
             fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export data\n",
                     g_mpi_rank);
         }
         
-        // Also export in human-readable text format
-        DataResult text_result = exporter.exportDataText(*g_samples);
-        
-        if (text_result == DataResult::kSuccess) {
-            fprintf(stderr, "[MPI Sampler] Rank %d - Human-readable data exported to text file\n",
-                    g_mpi_rank);
-        } else {
-            fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable data\n",
-                    g_mpi_rank);
+        if (g_mpi_rank == 0) {
+            // Also export in human-readable text format
+            DataResult text_result = exporter.exportDataText(*g_samples);
+            
+            if (text_result == DataResult::kSuccess) {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Human-readable data exported to text file\n",
+                        g_mpi_rank);
+            } else {
+                fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable data\n",
+                        g_mpi_rank);
+            }
         }
         
         // Export library map if available
@@ -476,23 +497,27 @@ static void finalize_sampler() {
                                                            static_cast<uint32_t>(g_mpi_rank));
             
             if (map_result == DataResult::kSuccess) {
-                fprintf(stderr, "[MPI Sampler] Rank %d - Library map exported to %s\n",
-                        g_mpi_rank, map_exporter.filepath());
+                if (g_mpi_rank == 0) {
+                    fprintf(stderr, "[MPI Sampler] Rank %d - Library map exported to %s\n",
+                            g_mpi_rank, map_exporter.filepath());
+                }
             } else {
                 fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export library map\n",
                         g_mpi_rank);
             }
             
-            // Also export in human-readable text format
-            DataResult text_map_result = map_exporter.exportMapText(*g_library_map,
-                                                                     static_cast<uint32_t>(g_mpi_rank));
-            
-            if (text_map_result == DataResult::kSuccess) {
-                fprintf(stderr, "[MPI Sampler] Rank %d - Human-readable library map exported to text file\n",
-                        g_mpi_rank);
-            } else {
-                fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable library map\n",
-                        g_mpi_rank);
+            if (g_mpi_rank == 0) {
+                // Also export in human-readable text format
+                DataResult text_map_result = map_exporter.exportMapText(*g_library_map,
+                                                                        static_cast<uint32_t>(g_mpi_rank));
+                
+                if (text_map_result == DataResult::kSuccess) {
+                    fprintf(stderr, "[MPI Sampler] Rank %d - Human-readable library map exported to text file\n",
+                            g_mpi_rank);
+                } else {
+                    fprintf(stderr, "[MPI Sampler] Rank %d - Failed to export human-readable library map\n",
+                            g_mpi_rank);
+                }
             }
         }
     }
@@ -507,5 +532,7 @@ static void finalize_sampler() {
     // Clean up library map
     g_library_map.reset();
     
-    fprintf(stderr, "[MPI Sampler] Rank %d - Finalization complete\n", g_mpi_rank);
+    if (g_mpi_rank == 0) {
+        fprintf(stderr, "[MPI Sampler] Finalization finalized\n", g_mpi_rank);
+    }
 }

@@ -168,7 +168,7 @@ cat > config/make.def << EOF
 #---------------------------------------------------------------------------
 # This is the fortran compiler used for MPI programs
 #---------------------------------------------------------------------------
-MPIFC = mpifort
+MPIFC = mpifort -g
 # This links MPI fortran programs; usually the same as \${MPIFC}
 FLINK	= \$(MPIFC)
 
@@ -214,7 +214,7 @@ FLINKFLAGS = \$(FFLAGS)
 #---------------------------------------------------------------------------
 # This is the C compiler used for MPI programs
 #---------------------------------------------------------------------------
-MPICC = mpicc
+MPICC = mpicc -g
 # This links MPI C programs; usually the same as \${MPICC}
 CLINK	= \$(MPICC)
 
