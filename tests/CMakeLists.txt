@@ -28,11 +28,14 @@ add_executable(perflow_tests
     test_analysis_tasks.cpp
     test_tree_builder.cpp
     test_online_analysis_integration.cpp
+    test_symbol_resolver.cpp
+    test_offset_converter_symbol_resolution.cpp
 )
 
 target_link_libraries(perflow_tests
     PRIVATE
     perflow_sampling
+    perflow_analysis
     GTest::gtest
     GTest::gtest_main
 )
@@ -76,6 +79,13 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
         target_link_libraries(${test_prog}
             PRIVATE
             ${MPI_CXX_LIBRARIES}
+        )
+        
+        # Add debug symbols (-g) for symbol resolution testing
+        # This enables the SymbolResolver to resolve function names and source locations
+        target_compile_options(${test_prog}
+            PRIVATE
+            -g
         )
         
         # Set output directory for test executable

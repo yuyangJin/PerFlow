@@ -32,6 +32,7 @@
 #include "sampling/library_map.h"
 #include "sampling/static_hash_map.h"
 #include "analysis/offset_converter.h"
+#include "analysis/symbol_resolver.h"
 #include "analysis/performance_tree.h"
 #include "analysis/tree_builder.h"
 #include "analysis/tree_visualizer.h"
@@ -130,18 +131,27 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
     
     std::cout << "  Loaded " << call_stacks.size() << " unique call stacks\n";
     
-    // 3. Create offset converter and add map snapshot
-    OffsetConverter converter;
-    converter.add_map_snapshot(rank, lib_map);
+    // 3. Create symbol resolver for function name resolution
+    std::cout << "\nCreating symbol resolver...\n";
+    auto resolver = std::make_shared<SymbolResolver>(
+        SymbolResolver::Strategy::kAutoFallback,  // Try dladdr first, fallback to addr2line
+        true  // Enable caching
+    );
+    std::cout << "  Symbol resolver created with auto-fallback strategy\n";
     
-    // 4. Build performance tree for visualization
+    // 4. Create offset converter with symbol resolver and add map snapshot
+    OffsetConverter converter(resolver);
+    converter.add_map_snapshot(rank, lib_map);
+    std::cout << "  Offset converter configured with symbol resolution\n";
+    
+    // 5. Build performance tree for visualization
     std::cout << "\nBuilding performance tree...\n";
     PerformanceTree tree;
     tree.set_process_count(1);  // Single rank analysis
     
     call_stacks.for_each([&](const CallStackType& stack, const uint64_t& count) {
-        // Convert raw addresses to resolved frames
-        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank);
+        // Convert raw addresses to resolved frames with symbol resolution
+        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank, true);
         
         // Insert into tree (frames are already in bottom-to-top order)
         tree.insert_call_stack(resolved, rank, count, count * 1000.0);  // Assume 1ms per sample
@@ -149,7 +159,7 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
     
     std::cout << "  Tree built with " << tree.total_samples() << " total samples\n";
     
-    // 5. Generate PDF visualization
+    // 6. Generate PDF visualization
     std::cout << "\nGenerating PDF visualization...\n";
     
     char pdf_path[512];
@@ -166,26 +176,52 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
         std::cout << "  Install with: sudo apt-get install graphviz\n";
     }
     
-    // 6. Process statistics
-    std::cout << "\nConverting raw addresses to offsets...\n";
+    // 7. Process statistics with symbol resolution
+    std::cout << "\nConverting raw addresses to offsets and resolving symbols...\n";
     
     // Count statistics
     size_t total_samples = 0;
     std::map<std::string, uint64_t> library_hotness;  // Library name -> sample count
+    std::map<std::string, uint64_t> function_hotness;  // Function name -> sample count
     
     call_stacks.for_each([&](const CallStackType& stack, const uint64_t& count) {
         total_samples += count;
         
-        // Convert raw addresses to resolved frames
-        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank);
+        // Convert raw addresses to resolved frames with symbols
+        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank, true);
         
-        // Aggregate statistics by library
+        // Aggregate statistics by library and function
         for (const auto& frame : resolved) {
             library_hotness[frame.library_name] += count;
+            
+            // If function name was resolved, track it
+            if (!frame.function_name.empty()) {
+                std::string func_key = frame.function_name;
+                if (!frame.filename.empty()) {
+                    func_key += " (" + frame.filename;
+                    if (frame.line_number > 0) {
+                        func_key += ":" + std::to_string(frame.line_number);
+                    }
+                    func_key += ")";
+                }
+                function_hotness[func_key] += count;
+            }
         }
     });
     
     std::cout << "  Total samples: " << total_samples << "\n";
+    
+    // Display symbol resolution statistics
+    auto cache_stats = resolver->get_cache_stats();
+    std::cout << "\nSymbol Resolution Cache Statistics:\n";
+    std::cout << "  Cache hits: " << cache_stats.hits << "\n";
+    std::cout << "  Cache misses: " << cache_stats.misses << "\n";
+    std::cout << "  Cache size: " << cache_stats.size << " symbols\n";
+    if (cache_stats.hits + cache_stats.misses > 0) {
+        double hit_rate = 100.0 * cache_stats.hits / (cache_stats.hits + cache_stats.misses);
+        std::cout << "  Hit rate: " << std::fixed << std::setprecision(1) << hit_rate << "%\n";
+    }
+    
     std::cout << "\nHotness by library:\n";
     
     // Sort libraries by sample count
@@ -201,6 +237,25 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
         std::cout << "  " << lib_name << ": " 
                   << samples << " samples (" << percentage << "%)\n";
         if (++count >= 10) break;
+    }
+    
+    // Display hottest functions if any were resolved
+    if (!function_hotness.empty()) {
+        std::cout << "\nHotness by function (top 10):\n";
+        
+        // Sort functions by sample count
+        std::vector<std::pair<std::string, uint64_t>> sorted_funcs(
+            function_hotness.begin(), function_hotness.end());
+        std::sort(sorted_funcs.begin(), sorted_funcs.end(),
+                  [](const auto& a, const auto& b) { return a.second > b.second; });
+        
+        count = 0;
+        for (const auto& [func_name, samples] : sorted_funcs) {
+            double percentage = 100.0 * samples / total_samples;
+            std::cout << "  " << func_name << ": " 
+                      << samples << " samples (" << percentage << "%)\n";
+            if (++count >= 10) break;
+        }
     }
 }
 
@@ -309,8 +364,14 @@ void find_hot_paths(const char* data_dir, uint32_t rank, size_t top_n) {
     HashMapType call_stacks;
     data_importer.importData(call_stacks);
     
-    // Create offset converter
-    OffsetConverter converter;
+    // Create symbol resolver
+    auto resolver = std::make_shared<SymbolResolver>(
+        SymbolResolver::Strategy::kAutoFallback,
+        true  // Enable caching
+    );
+    
+    // Create offset converter with symbol resolver
+    OffsetConverter converter(resolver);
     converter.add_map_snapshot(rank, lib_map);
     
     // Find top N hottest call stacks
@@ -332,15 +393,27 @@ void find_hot_paths(const char* data_dir, uint32_t rank, size_t top_n) {
         
         std::cout << "Call Stack #" << (i + 1) << " (samples: " << count << ")\n";
         
-        // Convert and print resolved frames
-        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank);
+        // Convert and print resolved frames with symbols
+        std::vector<ResolvedFrame> resolved = converter.convert(stack, rank, true);
         
         for (size_t j = 0; j < resolved.size(); ++j) {
             const auto& frame = resolved[j];
             std::cout << "  Frame " << j << ": "
                       << frame.library_name << " + 0x" 
-                      << std::hex << frame.offset << std::dec
-                      << " (raw: 0x" << std::hex << frame.raw_address << std::dec << ")\n";
+                      << std::hex << frame.offset << std::dec;
+            
+            if (!frame.function_name.empty()) {
+                std::cout << " [" << frame.function_name << "]";
+            }
+            
+            if (!frame.filename.empty()) {
+                std::cout << "\n             at " << frame.filename;
+                if (frame.line_number > 0) {
+                    std::cout << ":" << frame.line_number;
+                }
+            }
+            
+            std::cout << "\n             (raw: 0x" << std::hex << frame.raw_address << std::dec << ")\n";
         }
         
         std::cout << "\n";

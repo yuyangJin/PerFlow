@@ -26,7 +26,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # Options
 option(PERFLOW_BUILD_TESTS "Build unit tests" ON)
-option(PERFLOW_BUILD_EXAMPLES "Build example programs" OFF)
+option(PERFLOW_BUILD_EXAMPLES "Build example programs" ON)
 option(PERFLOW_ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
 
 # Sanitizers for development
@@ -58,6 +58,24 @@ endif()
 # Threading support
 find_package(Threads REQUIRED)
 target_link_libraries(perflow_sampling INTERFACE Threads::Threads)
+
+# ============================================================================
+# Analysis Library (with symbol resolution)
+# ============================================================================
+
+add_library(perflow_analysis INTERFACE)
+
+target_include_directories(perflow_analysis
+    INTERFACE
+    $<BUILD_INTERFACE:${CMAKE_SOURCE_DIR}/include>
+    $<INSTALL_INTERFACE:include>
+)
+
+target_link_libraries(perflow_analysis
+    INTERFACE
+    perflow_sampling
+    ${CMAKE_DL_LIBS}  # For dlopen, dladdr, etc.
+)
 
 # ============================================================================
 # MPI Sampler Library
@@ -132,7 +150,7 @@ endif()
 # Installation
 include(GNUInstallDirs)
 
-install(TARGETS perflow_sampling
+install(TARGETS perflow_sampling perflow_analysis
     EXPORT PerFlowTargets
     INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
