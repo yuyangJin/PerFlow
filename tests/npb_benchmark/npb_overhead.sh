@@ -313,7 +313,9 @@ for benchmark in $NPB_BENCHMARKS; do
             BASELINE_TIME=${BASELINE_TIMES[$key]:-0.0}
             
             if [ "$BASELINE_TIME" != "0.0" ] && [ "$EXEC_TIME" != "0.0" ]; then
-                OVERHEAD=$(echo "scale=2; ($EXEC_TIME - $BASELINE_TIME) / $BASELINE_TIME * 100" | bc)
+                OVERHEAD=$(echo "scale=4; ($EXEC_TIME - $BASELINE_TIME) / $BASELINE_TIME * 100" | bc)
+                # Format to exactly 2 decimal places
+                OVERHEAD=$(printf "%.2f" "$OVERHEAD")
             else
                 OVERHEAD="N/A"
             fi
