@@ -67,7 +67,8 @@ struct HotspotInfo {
 };
 
 /// Analyze hotspots from sample data
-std::vector<HotspotInfo> analyze_hotspots(const char* data_dir, int num_ranks) {
+/// Returns a pair: (hotspots vector, total_samples)
+std::pair<std::vector<HotspotInfo>, uint64_t> analyze_hotspots(const char* data_dir, int num_ranks) {
     std::map<std::string, HotspotInfo> hotspot_map;
     uint64_t total_samples = 0;
     
@@ -188,7 +189,7 @@ std::vector<HotspotInfo> analyze_hotspots(const char* data_dir, int num_ranks) {
                   return a.exclusive_samples > b.exclusive_samples;
               });
     
-    return hotspots;
+    return std::make_pair(hotspots, total_samples);
 }
 
 /// Write hotspots to JSON file
@@ -279,18 +280,11 @@ int main(int argc, char* argv[]) {
     
     // Analyze hotspots
     std::cout << "Analyzing hotspots...\n";
-    auto hotspots = analyze_hotspots(data_dir, num_ranks);
+    auto [hotspots, total_samples] = analyze_hotspots(data_dir, num_ranks);
     
     if (hotspots.empty()) {
         std::cerr << "Warning: No hotspots found. Check that sample data files exist.\n";
         return 1;
-    }
-    
-    // Calculate total samples
-    uint64_t total_samples = 0;
-    for (const auto& h : hotspots) {
-        total_samples = std::max(total_samples, 
-            static_cast<uint64_t>(h.exclusive_samples / (h.exclusive_percentage / 100.0)));
     }
     
     std::cout << "Found " << hotspots.size() << " unique functions\n";
