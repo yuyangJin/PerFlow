@@ -93,18 +93,18 @@ if(TARGET perflow_mpi_sampler AND MPI_FOUND)
             RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/tests
         )
         
-        # Determine MPI runner command (prefer mpirun/mpiexec over srun for portability)
+        # Determine MPI runner command (prefer srun for SLURM environments, fallback to mpirun/mpiexec)
         # Allow override via MPI_EXEC environment variable or CMake variable
         if(NOT DEFINED MPIEXEC_EXECUTABLE)
-            find_program(MPIEXEC_EXECUTABLE NAMES mpirun mpiexec)
+            find_program(MPIEXEC_EXECUTABLE NAMES srun)
             if(NOT MPIEXEC_EXECUTABLE)
-                # Fallback to srun if available (for SLURM environments)
-                find_program(MPIEXEC_EXECUTABLE NAMES srun)
+                # Fallback to mpirun/mpiexec if srun is not available
+                find_program(MPIEXEC_EXECUTABLE NAMES mpirun mpiexec)
             endif()
         endif()
         
         if(NOT MPIEXEC_EXECUTABLE)
-            message(WARNING "No MPI executor found (mpirun/mpiexec/srun) - MPI tests may not run")
+            message(WARNING "No MPI executor found (srun/mpirun/mpiexec) - MPI tests may not run")
             set(MPIEXEC_EXECUTABLE "mpirun")  # Default fallback
         endif()
         
