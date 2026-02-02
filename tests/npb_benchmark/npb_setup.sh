@@ -142,7 +142,7 @@ log_info "NPB-MPI directory: $NPB_PATH"
 
 # Create make.def configuration file
 log_info "Creating make.def configuration..."
-cat > config/make.def << 'EOF'
+cat > config/make.def << EOF
 #---------------------------------------------------------------------------
 # Items in this file will need to be changed for each platform.
 #---------------------------------------------------------------------------
@@ -160,17 +160,17 @@ cat > config/make.def << 'EOF'
 # FLINKFLAGS - Fortran linker arguments
 # F_LIB      - any -L and -l arguments required for linking Fortran 
 # 
-# compilations are done with $(F77) $(F_INC) $(FFLAGS) or
-#                            $(F77) $(FFLAGS)
-# linking is done with       $(FLINK) $(F_LIB) $(FLINKFLAGS)
+# compilations are done with \$(F77) \$(F_INC) \$(FFLAGS) or
+#                            \$(F77) \$(FFLAGS)
+# linking is done with       \$(FLINK) \$(F_LIB) \$(FLINKFLAGS)
 #---------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------
 # This is the fortran compiler used for MPI programs
 #---------------------------------------------------------------------------
 F77 = mpif77
-# This links MPI fortran programs; usually the same as ${F77}
-FLINK	= $(F77)
+# This links MPI fortran programs; usually the same as \${F77}
+FLINK	= \$(F77)
 
 #---------------------------------------------------------------------------
 # These macros are passed to the linker 
@@ -206,17 +206,17 @@ FLINKFLAGS = -O3 -fallow-argument-mismatch
 # CLINKFLAGS - C linker flags
 # C_LIB      - any -L and -l arguments required for linking C 
 #
-# compilations are done with $(CC) $(C_INC) $(CFLAGS) or
-#                            $(CC) $(CFLAGS)
-# linking is done with       $(CLINK) $(C_LIB) $(CLINKFLAGS)
+# compilations are done with \$(CC) \$(C_INC) \$(CFLAGS) or
+#                            \$(CC) \$(CFLAGS)
+# linking is done with       \$(CLINK) \$(C_LIB) \$(CLINKFLAGS)
 #---------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------
 # This is the C compiler used for MPI programs
 #---------------------------------------------------------------------------
 CC = mpicc
-# This links MPI C programs; usually the same as ${CC}
-CLINK	= $(CC)
+# This links MPI C programs; usually the same as \${CC}
+CLINK	= \$(CC)
 
 #---------------------------------------------------------------------------
 # These macros are passed to the linker 
@@ -254,7 +254,7 @@ UCFLAGS = -O3
 #---------------------------------------------------------------------------
 # Destination of executables, relative to subdirs of the main directory. . 
 #---------------------------------------------------------------------------
-BINDIR	= ../bin
+BINDIR	= ${WORK_DIR}/MPI/bin
 
 
 #---------------------------------------------------------------------------
@@ -280,6 +280,9 @@ EOF
 
 log_success "make.def created successfully"
 
+# Create BINDIR if it doesn't exist
+mkdir -p "${WORK_DIR}/MPI/bin"
+
 # Compile benchmarks
 log_info "Compiling NPB benchmarks..."
 COMPILED_COUNT=0
@@ -290,7 +293,7 @@ for benchmark in $NPB_BENCHMARKS; do
     log_info "Compiling ${BENCHMARK_UPPER}.${NPB_CLASS}..."
     
     if make "${benchmark}" CLASS="${NPB_CLASS}" 2>&1 | tee "/tmp/npb_compile_${benchmark}.log"; then
-        if [ -f "bin/${benchmark}.${NPB_CLASS}.x" ]; then
+        if [ -f "${WORK_DIR}/MPI/bin/${benchmark}.${NPB_CLASS}.x" ]; then
             log_success "${BENCHMARK_UPPER}.${NPB_CLASS} compiled successfully"
             COMPILED_COUNT=$((COMPILED_COUNT + 1))
         else
@@ -317,7 +320,7 @@ fi
 
 # List compiled binaries
 log_info "Compiled binaries:"
-ls -lh bin/*.x 2>/dev/null || log_warning "No binaries found in bin/"
+ls -lh "${WORK_DIR}/MPI/bin/"*.x 2>/dev/null || log_warning "No binaries found in ${WORK_DIR}/MPI/bin/"
 
 # Save compilation info
 cat > "$WORK_DIR/npb_compilation_info.txt" << EOF
@@ -332,9 +335,9 @@ Compiled Count: $COMPILED_COUNT
 Compiled Binaries:
 EOF
 
-ls -lh "$NPB_PATH/bin/"*.x 2>/dev/null >> "$WORK_DIR/npb_compilation_info.txt" || echo "None" >> "$WORK_DIR/npb_compilation_info.txt"
+ls -lh "${WORK_DIR}/MPI/bin/"*.x 2>/dev/null >> "$WORK_DIR/npb_compilation_info.txt" || echo "None" >> "$WORK_DIR/npb_compilation_info.txt"
 
-log_success "Compilation complete! Binary location: $NPB_PATH/bin/"
+log_success "Compilation complete! Binary location: ${WORK_DIR}/MPI/bin/"
 log_info "Compilation info saved to: $WORK_DIR/npb_compilation_info.txt"
 
 exit 0

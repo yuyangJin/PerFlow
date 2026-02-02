@@ -188,7 +188,7 @@ FIRST_RESULT=1
 # Run benchmarks
 for benchmark in $NPB_BENCHMARKS; do
     BENCHMARK_UPPER=$(echo "$benchmark" | tr '[:lower:]' '[:upper:]')
-    BINARY="$NPB_PATH/bin/${benchmark}.${NPB_CLASS}.x"
+    BINARY="${WORK_DIR}/MPI/bin/${benchmark}.${NPB_CLASS}.x"
     
     if [ ! -f "$BINARY" ]; then
         log_warning "Binary not found: $BINARY, skipping..."
