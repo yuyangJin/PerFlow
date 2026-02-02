@@ -150,27 +150,27 @@ cat > config/make.def << EOF
 #---------------------------------------------------------------------------
 # Parallel Fortran:
 #
-# For CG, EP, FT, MG, LU, SP, BT and UA, which are in Fortran, the following
-# must be defined:
+# For CG, EP, FT, MG, LU, SP and BT, which are in Fortran, the following must 
+# be defined:
 #
-# F77        - Fortran compiler
+# MPIFC      - Fortran compiler
 # FFLAGS     - Fortran compilation arguments
-# F_INC      - any -I arguments required for compiling Fortran 
+# FMPI_INC   - any -I arguments required for compiling MPI/Fortran 
 # FLINK      - Fortran linker
 # FLINKFLAGS - Fortran linker arguments
-# F_LIB      - any -L and -l arguments required for linking Fortran 
+# FMPI_LIB   - any -L and -l arguments required for linking MPI/Fortran 
 # 
-# compilations are done with \$(F77) \$(F_INC) \$(FFLAGS) or
-#                            \$(F77) \$(FFLAGS)
-# linking is done with       \$(FLINK) \$(F_LIB) \$(FLINKFLAGS)
+# compilations are done with \$(MPIFC) \$(FMPI_INC) \$(FFLAGS) or
+#                            \$(MPIFC) \$(FFLAGS)
+# linking is done with       \$(FLINK) \$(FMPI_LIB) \$(FLINKFLAGS)
 #---------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------
 # This is the fortran compiler used for MPI programs
 #---------------------------------------------------------------------------
-F77 = mpif77
-# This links MPI fortran programs; usually the same as \${F77}
-FLINK	= \$(F77)
+MPIFC = mpifort
+# This links MPI fortran programs; usually the same as \${MPIFC}
+FLINK	= \$(MPIFC)
 
 #---------------------------------------------------------------------------
 # These macros are passed to the linker 
@@ -185,13 +185,13 @@ F_INC =
 #---------------------------------------------------------------------------
 # Global *compile time* flags for Fortran programs
 #---------------------------------------------------------------------------
-FFLAGS	= -O3 -fallow-argument-mismatch
+FFLAGS	= -O3 -fallow-argument-mismatch -fallow-invalid-boz
 
 #---------------------------------------------------------------------------
 # Global *link time* flags. Flags for increasing maximum executable 
 # size usually go here. 
 #---------------------------------------------------------------------------
-FLINKFLAGS = -O3 -fallow-argument-mismatch
+FLINKFLAGS = \$(FFLAGS)
 
 
 #---------------------------------------------------------------------------
@@ -199,46 +199,55 @@ FLINKFLAGS = -O3 -fallow-argument-mismatch
 #
 # For IS and DT, which are in C, the following must be defined:
 #
-# CC         - C compiler 
+# MPICC         - C compiler 
 # CFLAGS     - C compilation arguments
-# C_INC      - any -I arguments required for compiling C 
+# CMPI_INC      - any -I arguments required for compiling C 
 # CLINK      - C linker
 # CLINKFLAGS - C linker flags
-# C_LIB      - any -L and -l arguments required for linking C 
+# CMPI_LIB      - any -L and -l arguments required for linking C 
 #
-# compilations are done with \$(CC) \$(C_INC) \$(CFLAGS) or
-#                            \$(CC) \$(CFLAGS)
-# linking is done with       \$(CLINK) \$(C_LIB) \$(CLINKFLAGS)
+# compilations are done with \$(MPICC) \$(CMPI_INC) \$(CFLAGS) or
+#                            \$(MPICC) \$(CFLAGS)
+# linking is done with       \$(CLINK) \$(CMPI_LIB) \$(CLINKFLAGS)
 #---------------------------------------------------------------------------
 
 #---------------------------------------------------------------------------
 # This is the C compiler used for MPI programs
 #---------------------------------------------------------------------------
-CC = mpicc
-# This links MPI C programs; usually the same as \${CC}
-CLINK	= \$(CC)
+MPICC = mpicc
+# This links MPI C programs; usually the same as \${MPICC}
+CLINK	= \$(MPICC)
 
 #---------------------------------------------------------------------------
 # These macros are passed to the linker 
 #---------------------------------------------------------------------------
-C_LIB  = -lm
+CMPI_LIB  = -lm
 
 #---------------------------------------------------------------------------
 # These macros are passed to the compiler 
 #---------------------------------------------------------------------------
-C_INC =
+CMPI_INC =
 
 #---------------------------------------------------------------------------
 # Global *compile time* flags for C programs
 #---------------------------------------------------------------------------
-CFLAGS	= -O3 -fallow-argument-mismatch
+CFLAGS	= -O3 -fallow-argument-mismatch -fallow-invalid-boz
 
 #---------------------------------------------------------------------------
 # Global *link time* flags. Flags for increasing maximum executable 
 # size usually go here. 
 #---------------------------------------------------------------------------
-CLINKFLAGS = -O3 -fallow-argument-mismatch
+CLINKFLAGS = \$(CFLAGS)
 
+#---------------------------------------------------------------------------
+# MPI dummy library:
+#
+# Uncomment if you want to use the MPI dummy library supplied by NAS instead 
+# of the true message-passing library. The include file redefines several of
+# the above macros. It also invokes make in subdirectory MPI_dummy. Make 
+# sure that no spaces or tabs precede include.
+#---------------------------------------------------------------------------
+# include ../config/make.dummy
 
 #---------------------------------------------------------------------------
 # Utilities C:
@@ -247,7 +256,7 @@ CLINKFLAGS = -O3 -fallow-argument-mismatch
 # this compiler go here also; typically there are few flags required; hence 
 # there are no separate macros provided for such flags.
 #---------------------------------------------------------------------------
-UCC	= gcc
+CC	= gcc -g
 UCFLAGS = -O3
 
 
@@ -256,25 +265,38 @@ UCFLAGS = -O3
 #---------------------------------------------------------------------------
 BINDIR	= ${WORK_DIR}/MPI/bin
 
+#---------------------------------------------------------------------------
+# Some machines (e.g. Crays) have 128-bit DOUBLE PRECISION numbers, which
+# is twice the precision required for the NPB suite. A compiler flag 
+# (e.g. -dp) can usually be used to change DOUBLE PRECISION variables to
+# 64 bits, but the MPI library may continue to send 128 bits. Short of
+# recompiling MPI, the solution is to use MPI_REAL to send these 64-bit
+# numbers, and MPI_COMPLEX to send their complex counterparts. Uncomment
+# the following line to enable this substitution. 
+# 
+# NOTE: IF THE I/O BENCHMARK IS BEING BUILT, WE USE CONVERTFLAG TO
+#       SPECIFIY THE FORTRAN RECORD LENGTH UNIT. IT IS A SYSTEM-SPECIFIC
+#       VALUE (USUALLY 1 OR 4). UNCOMMENT THE SECOND LINE AND SUBSTITUTE
+#       THE CORRECT VALUE FOR "length".
+#       IF BOTH 128-BIT DOUBLE PRECISION NUMBERS AND I/O ARE TO BE ENABLED,
+#       UNCOMMENT THE THIRD LINE AND SUBSTITUTE THE CORRECT VALUE FOR
+#       "length"
+#---------------------------------------------------------------------------
+# CONVERTFLAG	= -DCONVERTDOUBLE
+# CONVERTFLAG	= -DFORTRAN_REC_SIZE=length
+# CONVERTFLAG	= -DCONVERTDOUBLE -DFORTRAN_REC_SIZE=length
+CONVERTFLAG	= -DFORTRAN_REC_SIZE=1
 
 #---------------------------------------------------------------------------
 # The variable RAND controls which random number generator 
 # is used. It is described in detail in README.install. 
-# Use "ranka" unless there is a reason to use another one. 
-# Other allowed values are "randdp", "randdpvec", "randlc", and "ranlc"
+# Use "randi8" unless there is a reason to use another one. 
+# Other allowed values are "randi8_safe", "randdp" and "randdpvec"
 #---------------------------------------------------------------------------
-RAND   = ranka
+RAND   = randi8
 # The following is highly reliable but may be slow:
 # RAND   = randdp
 
-
-#---------------------------------------------------------------------------
-# The variable WTIME is the name of the wtime source code module in the
-# common directory.  
-# For most machines,       use wtime.c
-# For SGI power challenge: use wtime_sgi64.c
-#---------------------------------------------------------------------------
-WTIME  = wtime.c
 
 EOF
 
@@ -292,7 +314,7 @@ for benchmark in $NPB_BENCHMARKS; do
     BENCHMARK_UPPER=$(echo "$benchmark" | tr '[:lower:]' '[:upper:]')
     log_info "Compiling ${BENCHMARK_UPPER}.${NPB_CLASS}..."
     
-    if make "${benchmark}" CLASS="${NPB_CLASS}" 2>&1 | tee "/tmp/npb_compile_${benchmark}.log"; then
+    if make "${benchmark}" CLASS="${NPB_CLASS} -j12" 2>&1 | tee "/tmp/npb_compile_${benchmark}.log"; then
         if [ -f "${WORK_DIR}/MPI/bin/${benchmark}.${NPB_CLASS}.x" ]; then
             log_success "${BENCHMARK_UPPER}.${NPB_CLASS} compiled successfully"
             COMPILED_COUNT=$((COMPILED_COUNT + 1))
