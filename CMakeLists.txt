@@ -26,7 +26,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # Options
 option(PERFLOW_BUILD_TESTS "Build unit tests" ON)
-option(PERFLOW_BUILD_EXAMPLES "Build example programs" OFF)
+option(PERFLOW_BUILD_EXAMPLES "Build example programs" ON)
 option(PERFLOW_ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
 
 # Sanitizers for development
