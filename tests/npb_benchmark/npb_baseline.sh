@@ -23,7 +23,7 @@ PROCESS_SCALES="${NPB_PROCESS_SCALES:-1 4 16 64 128 256 512}"
 PROCESS_SCALES_SQUARE="${NPB_PROCESS_SCALES_SQUARE:-1 4 9 16 36 64 121 256 484}"
 USE_SLURM="${USE_SLURM:-0}"
 SLURM_PARTITION="${SLURM_PARTITION:-ja}"
-NUM_ITERATIONS="${NUM_ITERATIONS:-3}"
+NUM_ITERATIONS="${NUM_ITERATIONS:-1}"
 
 # Colors for output
 RED='\033[0;31m'
@@ -173,9 +173,8 @@ echo ""
 mkdir -p "$RESULTS_DIR/baseline"
 
 # Check if NPB binaries exist
-NPB_PATH="$WORK_DIR/$NPB_DIR/$NPB_MPI_DIR"
-if [ ! -d "$NPB_PATH/bin" ]; then
-    log_error "NPB binaries not found at $NPB_PATH/bin"
+if [ ! -d "$WORK_DIR/MPI/bin" ]; then
+    log_error "NPB binaries not found at $WORK_DIR/MPI/bin"
     log_error "Please run npb_setup.sh first"
     exit 1
 fi
