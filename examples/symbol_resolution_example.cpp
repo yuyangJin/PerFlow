@@ -12,6 +12,7 @@
 #include <iostream>
 #include <iomanip>
 #include <memory>
+#include <cstdlib>
 #include <dlfcn.h>
 
 #include "sampling/library_map.h"
@@ -79,9 +80,17 @@ int main() {
   
   // Step 2: Create a SymbolResolver
   std::cout << "Step 2: Creating SymbolResolver..." << std::endl;
+  
+  // Check for debug mode via environment variable
+  bool debug_mode = (std::getenv("PERFLOW_SYMBOL_DEBUG") != nullptr);
+  if (debug_mode) {
+    std::cout << "  *** DEBUG MODE ENABLED (PERFLOW_SYMBOL_DEBUG is set) ***" << std::endl;
+  }
+  
   auto resolver = std::make_shared<SymbolResolver>(
       SymbolResolver::Strategy::kAutoFallback,  // Try dladdr first, fallback to addr2line
-      true  // Enable caching
+      true,  // Enable caching
+      debug_mode  // Enable debug output if env var is set
   );
   std::cout << "  Symbol resolver created with auto-fallback strategy" << std::endl;
   std::cout << std::endl;

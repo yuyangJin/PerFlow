@@ -438,6 +438,82 @@ call_stacks.for_each([&](const CallStack<>& stack, uint64_t count) {
    );
    ```
 
+## Debugging Symbol Resolution
+
+If symbol resolution is not working on your platform, you can enable debug mode to see detailed information about what's happening.
+
+### Enabling Debug Mode
+
+Set the `PERFLOW_SYMBOL_DEBUG` environment variable before running your program:
+
+```bash
+export PERFLOW_SYMBOL_DEBUG=1
+./examples/symbol_resolution_example
+```
+
+Or for a single run:
+
+```bash
+PERFLOW_SYMBOL_DEBUG=1 ./examples/symbol_resolution_example
+```
+
+### Debug Output
+
+With debug mode enabled, you'll see detailed output showing:
+- Which resolution strategy is being used
+- Cache hits and misses
+- Each addr2line command being executed
+- The raw output from addr2line (function name and location)
+- Which text segment offset succeeded (for PIE executables)
+- Why resolution failed (if it did)
+
+Example debug output:
+```
+[SymbolResolver] Initialized with strategy=kAutoFallback, cache=enabled
+[SymbolResolver] resolve("/path/to/binary", 0x1450)
+[SymbolResolver] Cache MISS
+[SymbolResolver] Using kAutoFallback strategy
+[SymbolResolver] Trying dladdr first...
+[SymbolResolver] dladdr failed, trying addr2line...
+[SymbolResolver] resolve_with_addr2line(/path/to/binary, 0x1450)
+[SymbolResolver]   Trying offset as-is: 0x1450
+[SymbolResolver]     Executing: addr2line -e /path/to/binary -f -C 0x1450 2>/dev/null
+[SymbolResolver]     Function name: '??'
+[SymbolResolver]     Location: '??:0'
+[SymbolResolver]     Both function and location unresolved
+[SymbolResolver]   Trying with text_base 0x1000 -> adjusted offset 0x2450
+[SymbolResolver]     Executing: addr2line -e /path/to/binary -f -C 0x2450 2>/dev/null
+[SymbolResolver]     Function name: 'my_function()'
+[SymbolResolver]     Location: '/path/to/source.cpp:42'
+[SymbolResolver]     Resolved: func='my_function()', file='/path/to/source.cpp', line=42
+[SymbolResolver]   SUCCESS with adjusted offset 0x2450 -> my_function()
+```
+
+### Programmatic Debug Mode
+
+You can also enable debug mode programmatically:
+
+```cpp
+auto resolver = std::make_shared<SymbolResolver>(
+    SymbolResolver::Strategy::kAutoFallback,
+    true,   // enable cache
+    true    // enable debug mode
+);
+
+// Or enable it later:
+resolver->set_debug_mode(true);
+```
+
+### Troubleshooting with Debug Output
+
+1. **Check if addr2line is working**: Look for "Executing: addr2line" lines to see the exact commands being run. You can copy and run them manually.
+
+2. **Check text segment offset**: For PIE executables, the debug output shows which offset adjustment succeeded (e.g., "SUCCESS with adjusted offset 0x3a4e").
+
+3. **Verify debug symbols**: If you see "Function name: '??'" for all offsets, your binary likely doesn't have debug symbols. Rebuild with `-g`.
+
+4. **Check file paths**: Ensure the binary path passed to the resolver is correct and accessible.
+
 ## Best Practices
 
 1. **Use Caching**: Always enable caching for batch processing

@@ -18,6 +18,7 @@
 #include <unordered_map>
 #include <sstream>
 #include <iomanip>
+#include <iostream>
 #include <array>
 
 namespace perflow {
@@ -57,8 +58,10 @@ class SymbolResolver {
   /// Constructor
   /// @param strategy Resolution strategy to use
   /// @param enable_cache Whether to cache resolved symbols
+  /// @param debug_mode Whether to print debug information
   explicit SymbolResolver(Strategy strategy = Strategy::kAutoFallback,
-                          bool enable_cache = true) noexcept;
+                          bool enable_cache = true,
+                          bool debug_mode = false) noexcept;
   
   /// Destructor
   ~SymbolResolver() noexcept;
@@ -89,6 +92,9 @@ class SymbolResolver {
   
   CacheStats get_cache_stats() const noexcept;
   
+  /// Enable or disable debug mode
+  void set_debug_mode(bool enabled) noexcept;
+  
  private:
   struct Impl;
   std::unique_ptr<Impl> impl_;
@@ -114,15 +120,26 @@ struct CacheKeyHash {
 struct SymbolResolver::Impl {
   Strategy strategy;
   bool enable_cache;
+  bool debug_mode;
   
   // Symbol cache
   mutable std::unordered_map<CacheKey, SymbolInfo, CacheKeyHash> cache;
   mutable size_t cache_hits;
   mutable size_t cache_misses;
   
-  Impl(Strategy strat, bool cache_enabled) noexcept
-      : strategy(strat), enable_cache(cache_enabled),
-        cache_hits(0), cache_misses(0) {}
+  Impl(Strategy strat, bool cache_enabled, bool debug) noexcept
+      : strategy(strat), enable_cache(cache_enabled), debug_mode(debug),
+        cache_hits(0), cache_misses(0) {
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver] Initialized with strategy=";
+      switch (strategy) {
+        case Strategy::kDlAddrOnly: std::cerr << "kDlAddrOnly"; break;
+        case Strategy::kAddr2LineOnly: std::cerr << "kAddr2LineOnly"; break;
+        case Strategy::kAutoFallback: std::cerr << "kAutoFallback"; break;
+      }
+      std::cerr << ", cache=" << (enable_cache ? "enabled" : "disabled") << "\n";
+    }
+  }
   
   /// Try to resolve using dladdr (fast, export symbols)
   SymbolInfo resolve_with_dladdr(const std::string& library_path, 
@@ -172,13 +189,25 @@ struct SymbolResolver::Impl {
   /// Try to resolve using addr2line (slower, needs debug symbols)
   SymbolInfo resolve_with_addr2line(const std::string& library_path,
                                      uintptr_t offset) const {
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver] resolve_with_addr2line(" << library_path 
+                << ", 0x" << std::hex << offset << std::dec << ")\n";
+    }
+    
     // For PIE executables, we may need to try different offsets
     // The offset from LibraryMap might be relative to the first LOAD segment,
     // but symbols are relative to their actual segment (e.g., .text at 0x3000)
     
     // Try the offset as-is first
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver]   Trying offset as-is: 0x" << std::hex << offset << std::dec << "\n";
+    }
     SymbolInfo result = try_addr2line(library_path, offset);
     if (result.is_resolved()) {
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]   SUCCESS with offset 0x" << std::hex << offset << std::dec 
+                  << " -> " << result.function_name << "\n";
+      }
       return result;
     }
     
@@ -187,12 +216,24 @@ struct SymbolResolver::Impl {
     // Common text segment starts: 0x1000, 0x2000, 0x3000, 0x4000, etc.
     for (uintptr_t text_base : {0x1000, 0x2000, 0x3000, 0x4000, 0x5000, 
                                  0x6000, 0x8000, 0xa000, 0x10000}) {
-      result = try_addr2line(library_path, offset + text_base);
+      uintptr_t adjusted_offset = offset + text_base;
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]   Trying with text_base 0x" << std::hex << text_base 
+                  << " -> adjusted offset 0x" << adjusted_offset << std::dec << "\n";
+      }
+      result = try_addr2line(library_path, adjusted_offset);
       if (result.is_resolved()) {
+        if (debug_mode) {
+          std::cerr << "[SymbolResolver]   SUCCESS with adjusted offset 0x" << std::hex << adjusted_offset 
+                    << std::dec << " -> " << result.function_name << "\n";
+        }
         return result;
       }
     }
     
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver]   FAILED to resolve with any offset\n";
+    }
     return SymbolInfo();
   }
   
@@ -205,8 +246,15 @@ struct SymbolResolver::Impl {
         << " -f -C 0x" << std::hex << offset 
         << " 2>/dev/null";
     
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver]     Executing: " << cmd.str() << "\n";
+    }
+    
     FILE* pipe = popen(cmd.str().c_str(), "r");
     if (!pipe) {
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]     ERROR: popen failed\n";
+      }
       return SymbolInfo();
     }
     
@@ -214,6 +262,9 @@ struct SymbolResolver::Impl {
     std::array<char, 512> func_buffer{};
     if (!fgets(func_buffer.data(), func_buffer.size(), pipe)) {
       pclose(pipe);
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]     ERROR: Failed to read function name line\n";
+      }
       return SymbolInfo();
     }
     
@@ -223,14 +274,27 @@ struct SymbolResolver::Impl {
       func_name.pop_back();
     }
     
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver]     Function name: '" << func_name << "'\n";
+    }
+    
     // Read source location (second line)
     std::array<char, 512> loc_buffer{};
     if (!fgets(loc_buffer.data(), loc_buffer.size(), pipe)) {
       pclose(pipe);
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]     No location line, checking if function is valid\n";
+      }
       // We have function name but no location
       // Accept function name if it looks valid (not ?? or empty)
       if (!func_name.empty() && func_name != "??" && func_name != "??:0" && func_name != "??:?") {
+        if (debug_mode) {
+          std::cerr << "[SymbolResolver]     Returning function only: " << func_name << "\n";
+        }
         return SymbolInfo(func_name, "", 0);
+      }
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]     Function name not valid, returning unresolved\n";
       }
       return SymbolInfo();
     }
@@ -241,11 +305,18 @@ struct SymbolResolver::Impl {
       location.pop_back();
     }
     
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver]     Location: '" << location << "'\n";
+    }
+    
     pclose(pipe);
     
     // Check if resolution failed - addr2line returns "??" for unresolved
     // Be more lenient - only reject if both function and location are clearly unresolved
     if (func_name == "??" && (location == "??:0" || location == "??:?" || location == "??")) {
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]     Both function and location unresolved (" "?" "?" ")\n";
+      }
       return SymbolInfo();  // Not resolved
     }
     
@@ -254,7 +325,13 @@ struct SymbolResolver::Impl {
       // Only function is unresolved, check if we have location
       if (location != "??:0" && location != "??:?" && location != "??") {
         func_name = "";  // Clear unresolved function but keep location
+        if (debug_mode) {
+          std::cerr << "[SymbolResolver]     Function unresolved but have location\n";
+        }
       } else {
+        if (debug_mode) {
+          std::cerr << "[SymbolResolver]     Both unresolved\n";
+        }
         return SymbolInfo();  // Both unresolved
       }
     }
@@ -276,21 +353,31 @@ struct SymbolResolver::Impl {
           }
         } catch (...) {
           // Failed to parse line number, keep it as 0
+          if (debug_mode) {
+            std::cerr << "[SymbolResolver]     Failed to parse line number: " << line_str << "\n";
+          }
         }
       }
     }
     
     // Return if we have at least function name or filename
     if (!func_name.empty() || !filename.empty()) {
+      if (debug_mode) {
+        std::cerr << "[SymbolResolver]     Resolved: func='" << func_name 
+                  << "', file='" << filename << "', line=" << line_number << "\n";
+      }
       return SymbolInfo(func_name, filename, line_number);
     }
     
+    if (debug_mode) {
+      std::cerr << "[SymbolResolver]     No valid info, returning unresolved\n";
+    }
     return SymbolInfo();
   }
 };
 
-inline SymbolResolver::SymbolResolver(Strategy strategy, bool enable_cache) noexcept
-    : impl_(std::make_unique<Impl>(strategy, enable_cache)) {
+inline SymbolResolver::SymbolResolver(Strategy strategy, bool enable_cache, bool debug_mode) noexcept
+    : impl_(std::make_unique<Impl>(strategy, enable_cache, debug_mode)) {
 }
 
 inline SymbolResolver::~SymbolResolver() noexcept = default;
@@ -299,17 +386,32 @@ inline SymbolResolver::SymbolResolver(SymbolResolver&&) noexcept = default;
 
 inline SymbolResolver& SymbolResolver::operator=(SymbolResolver&&) noexcept = default;
 
+inline void SymbolResolver::set_debug_mode(bool enabled) noexcept {
+  impl_->debug_mode = enabled;
+}
+
 inline SymbolInfo SymbolResolver::resolve(const std::string& library_path, 
                                     uintptr_t offset) const {
+  if (impl_->debug_mode) {
+    std::cerr << "\n[SymbolResolver] resolve(\"" << library_path 
+              << "\", 0x" << std::hex << offset << std::dec << ")\n";
+  }
+  
   // Check cache first
   if (impl_->enable_cache) {
     CacheKey key(library_path, offset);
     auto it = impl_->cache.find(key);
     if (it != impl_->cache.end()) {
       impl_->cache_hits++;
+      if (impl_->debug_mode) {
+        std::cerr << "[SymbolResolver] Cache HIT -> " << it->second.function_name << "\n";
+      }
       return it->second;
     }
     impl_->cache_misses++;
+    if (impl_->debug_mode) {
+      std::cerr << "[SymbolResolver] Cache MISS\n";
+    }
   }
   
   SymbolInfo result;
@@ -317,20 +419,35 @@ inline SymbolInfo SymbolResolver::resolve(const std::string& library_path,
   // Try resolution based on strategy
   switch (impl_->strategy) {
     case Strategy::kDlAddrOnly:
+      if (impl_->debug_mode) {
+        std::cerr << "[SymbolResolver] Using kDlAddrOnly strategy\n";
+      }
       result = impl_->resolve_with_dladdr(library_path, offset);
       break;
       
     case Strategy::kAddr2LineOnly:
+      if (impl_->debug_mode) {
+        std::cerr << "[SymbolResolver] Using kAddr2LineOnly strategy\n";
+      }
       result = impl_->resolve_with_addr2line(library_path, offset);
       break;
       
     case Strategy::kAutoFallback:
+      if (impl_->debug_mode) {
+        std::cerr << "[SymbolResolver] Using kAutoFallback strategy\n";
+        std::cerr << "[SymbolResolver] Trying dladdr first...\n";
+      }
       // Try dladdr first (faster)
       result = impl_->resolve_with_dladdr(library_path, offset);
       
       // If dladdr didn't find the symbol, try addr2line
       if (!result.is_resolved()) {
+        if (impl_->debug_mode) {
+          std::cerr << "[SymbolResolver] dladdr failed, trying addr2line...\n";
+        }
         result = impl_->resolve_with_addr2line(library_path, offset);
+      } else if (impl_->debug_mode) {
+        std::cerr << "[SymbolResolver] dladdr succeeded: " << result.function_name << "\n";
       }
       break;
   }
