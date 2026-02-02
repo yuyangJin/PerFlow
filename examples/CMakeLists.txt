@@ -29,6 +29,11 @@ target_link_libraries(symbol_resolution_example PRIVATE perflow_sampling perflow
 # Add debug symbols (-g) and preserve frame pointers for symbol resolution
 target_compile_options(symbol_resolution_example PRIVATE -g -fno-omit-frame-pointer)
 
+# NPB Hotspot Analyzer for NPB Benchmark Tests
+add_executable(npb_hotspot_analyzer npb_hotspot_analyzer.cpp)
+target_link_libraries(npb_hotspot_analyzer PRIVATE perflow_sampling perflow_analysis ${CMAKE_DL_LIBS})
+target_compile_options(npb_hotspot_analyzer PRIVATE -g)
+
 # Set output directory for examples
 set_target_properties(
     pmu_sampler_demo
@@ -36,6 +41,7 @@ set_target_properties(
     post_analysis_example
     online_analysis_example
     symbol_resolution_example
+    npb_hotspot_analyzer
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
 )
