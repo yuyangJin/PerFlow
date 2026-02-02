@@ -15,7 +15,7 @@ WORK_DIR="${NPB_WORK_DIR:-$(pwd)/npb_workspace}"
 NPB_DIR="NPB"
 NPB_MPI_DIR="NPB3.4/NPB3.4-MPI"
 RESULTS_DIR="${NPB_RESULTS_DIR:-$(pwd)/npb_results}"
-PERFLOW_BUILD_DIR="${PERFLOW_BUILD_DIR:-../../build}"
+PERFLOW_BUILD_DIR="${PERFLOW_BUILD_DIR:-./}" # Default PerFlow build directory
 
 # Default configuration
 NPB_BENCHMARKS="${NPB_BENCHMARKS:-bt cg ep ft is lu mg sp}"
@@ -24,7 +24,7 @@ PROCESS_SCALES="${NPB_PROCESS_SCALES:-1 4 16 64 128 256 512}"
 PROCESS_SCALES_SQUARE="${NPB_PROCESS_SCALES_SQUARE:-1 4 9 16 36 64 121 256 484}"
 USE_SLURM="${USE_SLURM:-0}"
 SLURM_PARTITION="${SLURM_PARTITION:-ja}"
-NUM_ITERATIONS="${NUM_ITERATIONS:-3}"
+NUM_ITERATIONS="${NUM_ITERATIONS:-1}"
 SAMPLING_FREQ="${PERFLOW_SAMPLING_FREQ:-1000}"
 
 # Colors for output
@@ -199,9 +199,8 @@ mkdir -p "$RESULTS_DIR/overhead"
 mkdir -p "$RESULTS_DIR/overhead/sample_data"
 
 # Check if NPB binaries exist
-NPB_PATH="$WORK_DIR/$NPB_DIR/$NPB_MPI_DIR"
-if [ ! -d "$NPB_PATH/bin" ]; then
-    log_error "NPB binaries not found at $NPB_PATH/bin"
+if [ ! -d "$WORK_DIR/MPI/bin" ]; then
+    log_error "NPB binaries not found at $WORK_DIR/MPI/bin"
     log_error "Please run npb_setup.sh first"
     exit 1
 fi
