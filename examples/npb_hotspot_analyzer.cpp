@@ -67,10 +67,13 @@ struct HotspotInfo {
 };
 
 /// Analyze hotspots from sample data
-/// Returns a pair: (hotspots vector, total_samples)
-std::pair<std::vector<HotspotInfo>, uint64_t> analyze_hotspots(const char* data_dir, int num_ranks) {
+/// @param data_dir Directory containing sample data files
+/// @param num_ranks Number of MPI ranks to process
+/// @param total_samples Output parameter to store the total number of samples
+/// @return Vector of hotspot information sorted by exclusive samples
+std::vector<HotspotInfo> analyze_hotspots(const char* data_dir, int num_ranks, uint64_t& total_samples) {
     std::map<std::string, HotspotInfo> hotspot_map;
-    uint64_t total_samples = 0;
+    total_samples = 0;
     
     // Process each rank
     for (int rank = 0; rank < num_ranks; ++rank) {
@@ -189,7 +192,7 @@ std::pair<std::vector<HotspotInfo>, uint64_t> analyze_hotspots(const char* data_
                   return a.exclusive_samples > b.exclusive_samples;
               });
     
-    return std::make_pair(hotspots, total_samples);
+    return hotspots;
 }
 
 /// Write hotspots to JSON file
@@ -280,7 +283,8 @@ int main(int argc, char* argv[]) {
     
     // Analyze hotspots
     std::cout << "Analyzing hotspots...\n";
-    auto [hotspots, total_samples] = analyze_hotspots(data_dir, num_ranks);
+    uint64_t total_samples = 0;
+    std::vector<HotspotInfo> hotspots = analyze_hotspots(data_dir, num_ranks, total_samples);
     
     if (hotspots.empty()) {
         std::cerr << "Warning: No hotspots found. Check that sample data files exist.\n";
