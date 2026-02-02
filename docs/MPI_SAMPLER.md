@@ -15,11 +15,20 @@ The MPI Performance Sampler is a performance profiling tool for MPI applications
      - **Method 1 (default)**: libunwind-based unwinding (from `demo/sampling/sampler.cpp`)
      - **Method 2 (alternative)**: Frame pointer unwinding (from `include/sampling/pmu_sampler.h`)
    - Data export in PerFlow binary format
+   - **MPI initialization interception** for both C/C++ and Fortran:
+     - C/C++: `MPI_Init`, `MPI_Init_thread`
+     - Fortran: `MPI_INIT`, `mpi_init`, `mpi_init_`, `mpi_init__` (all name mangling variants)
+     - Fortran: `MPI_INIT_THREAD`, `mpi_init_thread`, `mpi_init_thread_`, `mpi_init_thread__`
 
-2. **tests/mpi_sampler_test.cpp** - Test application
+2. **tests/mpi_sampler_test.cpp** - C/C++ test application
    - Matrix multiplication workload
    - Vector operations
    - MPI collective operations (Bcast, Reduce, Gather, Scatter, Allreduce)
+
+3. **tests/mpi_sampler_fortran_test.f90** - Fortran test application
+   - Matrix multiplication workload
+   - MPI collective operations
+   - Tests Fortran MPI_Init interception
 
 ### Key Features
 
@@ -47,7 +56,33 @@ mkdir build && cd build
 cmake ..
 make perflow_mpi_sampler
 make mpi_sampler_test
+make mpi_sampler_fortran_test  # Fortran test (requires gfortran)
 ```
+
+## Language Support
+
+The MPI sampler supports both C/C++ and Fortran MPI applications:
+
+### C/C++ Support
+- Intercepts `MPI_Init` and `MPI_Init_thread` functions
+- Uses `dlsym(RTLD_NEXT, ...)` to find real MPI functions
+- Works with all standard MPI implementations (OpenMPI, MPICH, Intel MPI)
+
+### Fortran Support
+- Supports all Fortran name mangling conventions:
+  - `MPI_INIT` (all uppercase)
+  - `mpi_init` (all lowercase)
+  - `mpi_init_` (lowercase with trailing underscore)
+  - `mpi_init__` (lowercase with double trailing underscore)
+- Also supports `MPI_Init_thread` variants:
+  - `MPI_INIT_THREAD`, `mpi_init_thread`, `mpi_init_thread_`, `mpi_init_thread__`
+- Automatically detects which variant is used by the compiler
+- Compatible with gfortran, ifort, and other Fortran compilers
+
+### Mixed-Language Applications
+- Supports applications that mix C/C++ and Fortran code
+- Rank identification works consistently regardless of which language calls MPI_Init
+- No special configuration needed
 
 ## Usage
 
@@ -69,15 +104,22 @@ LD_PRELOAD=/path/to/libperflow_mpi_sampler.so \
 
 ```bash
 cd build
-make run_mpi_sampler_test
+make run_mpi_sampler_test          # C/C++ test
+make run_mpi_sampler_fortran_test  # Fortran test
 ```
 
 Or manually:
 
 ```bash
+# C/C++ test
 LD_PRELOAD=./lib/libperflow_mpi_sampler.so \
   PERFLOW_OUTPUT_DIR=/tmp \
   mpirun -n 4 ./tests/mpi_sampler_test
+
+# Fortran test
+LD_PRELOAD=./lib/libperflow_mpi_sampler.so \
+  PERFLOW_OUTPUT_DIR=/tmp \
+  mpirun -n 4 ./tests/mpi_sampler_fortran_test
 ```
 
 ## Output Format
@@ -93,6 +135,35 @@ Each file contains:
 - Metadata (timestamp, event counts, etc.)
 
 ## Implementation Details
+
+### MPI Function Interception
+
+The sampler uses dynamic instrumentation (LD_PRELOAD) to intercept MPI initialization functions:
+
+#### C/C++ Interception
+- Hooks `MPI_Init` and `MPI_Init_thread` using symbol interposition
+- Uses `dlsym(RTLD_NEXT, "MPI_Init")` to find the real MPI function
+- Calls the real function, then captures the MPI rank using `MPI_Comm_rank`
+
+#### Fortran Interception
+- Provides wrappers for all common Fortran name mangling conventions
+- Each wrapper sets a flag indicating which variant was called
+- When `MPI_Init` (C wrapper) is called from Fortran wrapper, it:
+  1. Detects the Fortran init flag
+  2. Calls the appropriate PMPI Fortran function (e.g., `pmpi_init_`)
+  3. Captures the MPI rank after initialization
+- Uses weak symbols (`#pragma weak`) for shared library compatibility
+
+#### Fortran Name Mangling
+Different Fortran compilers use different name mangling schemes:
+- gfortran: typically uses lowercase with single trailing underscore (`mpi_init_`)
+- ifort: may use lowercase with double trailing underscore (`mpi_init__`)
+- Some compilers: uppercase (`MPI_INIT`) or plain lowercase (`mpi_init`)
+
+The sampler handles all variants automatically by:
+1. Providing all four wrapper functions
+2. Using weak symbols to detect which one is linked
+3. Calling the corresponding PMPI function based on which wrapper was invoked
 
 ### Constructor/Destructor Hooks
 
