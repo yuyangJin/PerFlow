@@ -18,3 +18,12 @@ _codeql_detected_source_root
 
 # Temporary files
 *.tmp
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# NPB benchmark workspace and results
+tests/npb_benchmark/npb_workspace/
+tests/npb_benchmark/npb_results/
