@@ -21,6 +21,7 @@ PERFLOW_BUILD_DIR="${PERFLOW_BUILD_DIR:-../../build}"
 NPB_BENCHMARKS="${NPB_BENCHMARKS:-bt cg ep ft is lu mg sp}"
 NPB_CLASS="${NPB_CLASS:-C}"
 PROCESS_SCALES="${NPB_PROCESS_SCALES:-1 4 16 64 128 256 512}"
+PROCESS_SCALES_SQUARE="${NPB_PROCESS_SCALES_SQUARE:-1 4 9 16 36 64 121 256 484}"
 USE_SLURM="${USE_SLURM:-0}"
 SLURM_PARTITION="${SLURM_PARTITION:-ja}"
 NUM_ITERATIONS="${NUM_ITERATIONS:-3}"
@@ -53,6 +54,16 @@ log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
 }
 
+get_process_scales() {
+    local benchmark="$1"
+    # BT and SP require perfect square number of processes
+    if [ "$benchmark" = "bt" ] || [ "$benchmark" = "sp" ]; then
+        echo "$PROCESS_SCALES_SQUARE"
+    else
+        echo "$PROCESS_SCALES"
+    fi
+}
+
 usage() {
     cat << EOF
 Usage: $0 [OPTIONS]
@@ -66,6 +77,7 @@ OPTIONS:
     -b LIST     Space-separated list of benchmarks (default: bt cg ep ft is lu mg sp)
     -c CLASS    Problem class (default: C)
     -s SCALES   Space-separated list of process scales (default: "1 4 16 64 128 256 512")
+                Note: BT and SP benchmarks automatically use square scales: "1 4 9 16 36 64 121 256 484"
     -i NUM      Number of iterations per benchmark (default: 3)
     -f FREQ     Sampling frequency in Hz (default: 1000)
     --slurm     Use SLURM for job submission
@@ -83,15 +95,16 @@ EXAMPLES:
     $0 -f 5000
 
 ENVIRONMENT VARIABLES:
-    NPB_WORK_DIR        Working directory
-    NPB_RESULTS_DIR     Results directory
-    PERFLOW_BUILD_DIR   PerFlow build directory
-    NPB_BENCHMARKS      Benchmarks to run
-    NPB_CLASS           Problem class
-    NPB_PROCESS_SCALES  Process scales
-    USE_SLURM           Use SLURM (0 or 1)
-    SLURM_PARTITION     SLURM partition name
-    PERFLOW_SAMPLING_FREQ  Sampling frequency
+    NPB_WORK_DIR            Working directory
+    NPB_RESULTS_DIR         Results directory
+    PERFLOW_BUILD_DIR       PerFlow build directory
+    NPB_BENCHMARKS          Benchmarks to run
+    NPB_CLASS               Problem class
+    NPB_PROCESS_SCALES      Process scales (for most benchmarks)
+    NPB_PROCESS_SCALES_SQUARE  Process scales for BT/SP (default: "1 4 9 16 36 64 121 256 484")
+    USE_SLURM               Use SLURM (0 or 1)
+    SLURM_PARTITION         SLURM partition name
+    PERFLOW_SAMPLING_FREQ   Sampling frequency
 
 EOF
     exit 1
@@ -248,9 +261,13 @@ for benchmark in $NPB_BENCHMARKS; do
         continue
     fi
     
-    log_info "Running benchmark with sampler: ${BENCHMARK_UPPER}.${NPB_CLASS}"
+    # Get appropriate process scales for this benchmark
+    BENCHMARK_PROCESS_SCALES=$(get_process_scales "$benchmark")
     
-    for nprocs in $PROCESS_SCALES; do
+    log_info "Running benchmark with sampler: ${BENCHMARK_UPPER}.${NPB_CLASS}"
+    log_info "  Process scales for $BENCHMARK_UPPER: $BENCHMARK_PROCESS_SCALES"
+    
+    for nprocs in $BENCHMARK_PROCESS_SCALES; do
         log_info "  Process scale: $nprocs"
         
         for iter in $(seq 1 $NUM_ITERATIONS); do
@@ -353,7 +370,8 @@ printf "%-10s %-10s %s\n" "Benchmark" "Processes" "Avg Overhead (%)"
 printf "%-10s %-10s %s\n" "----------" "----------" "----------------"
 
 for benchmark in $NPB_BENCHMARKS; do
-    for nprocs in $PROCESS_SCALES; do
+    BENCHMARK_PROCESS_SCALES=$(get_process_scales "$benchmark")
+    for nprocs in $BENCHMARK_PROCESS_SCALES; do
         AVG_OVERHEAD=$(awk -F',' -v b="$benchmark" -v n="$nprocs" \
             'NR>1 && $1==b && $3==n && $7!="N/A" {sum+=$7; count++} END {if(count>0) printf "%.2f", sum/count; else print "N/A"}' \
             "$CSV_FILE")

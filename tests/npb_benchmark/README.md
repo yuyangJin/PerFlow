@@ -236,6 +236,7 @@ export PERFLOW_BUILD_DIR=/path/to/perflow/build
 export NPB_BENCHMARKS="cg ep ft"
 export NPB_CLASS="C"
 export NPB_PROCESS_SCALES="1 4 16 64"
+export NPB_PROCESS_SCALES_SQUARE="1 4 9 16 36 64 121 256 484"  # For BT and SP
 export NUM_ITERATIONS=3
 
 # PerFlow configuration
@@ -256,10 +257,13 @@ export SLURM_PARTITION=compute
 | Benchmarks | bt cg ep ft is lu mg sp |
 | Class | C |
 | Process Scales | 1 4 16 64 128 256 512 |
+| Process Scales (BT/SP) | 1 4 9 16 36 64 121 256 484 |
 | Iterations | 3 |
 | Sampling Frequency | 1000 Hz |
 | Use SLURM | 0 (disabled) |
 | SLURM Partition | ja |
+
+**Note:** BT and SP benchmarks require perfect square numbers of processes, so they automatically use different process scales.
 
 ## NPB Benchmarks
 

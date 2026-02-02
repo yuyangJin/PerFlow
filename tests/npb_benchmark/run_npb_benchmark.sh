@@ -21,6 +21,7 @@ PERFLOW_BUILD_DIR="${PERFLOW_BUILD_DIR:-${SCRIPT_DIR}/../../build}"
 NPB_BENCHMARKS="${NPB_BENCHMARKS:-bt cg ep ft is lu mg sp}"
 NPB_CLASS="${NPB_CLASS:-C}"
 PROCESS_SCALES="${NPB_PROCESS_SCALES:-1 4 16 64 128 256 512}"
+PROCESS_SCALES_SQUARE="${NPB_PROCESS_SCALES_SQUARE:-1 4 9 16 36 64 121 256 484}"
 NUM_ITERATIONS="${NUM_ITERATIONS:-3}"
 SAMPLING_FREQ="${PERFLOW_SAMPLING_FREQ:-1000}"
 
@@ -96,6 +97,8 @@ OPTIONS:
     -c CLASS            NPB problem class: A, B, C, D, E, F (default: C)
     -s SCALES           Space-separated process scales
                         (default: "1 4 16 64 128 256 512")
+                        Note: BT and SP benchmarks automatically use square scales:
+                        "1 4 9 16 36 64 121 256 484"
     -i NUM              Number of iterations per test (default: 3)
     -f FREQ             Sampling frequency in Hz (default: 1000)
     
@@ -144,6 +147,7 @@ ENVIRONMENT VARIABLES:
   NPB_BENCHMARKS        Benchmarks to run (overridden by -b)
   NPB_CLASS             Problem class (overridden by -c)
   NPB_PROCESS_SCALES    Process scales (overridden by -s)
+  NPB_PROCESS_SCALES_SQUARE  Process scales for BT/SP (default: "1 4 9 16 36 64 121 256 484")
   NUM_ITERATIONS        Number of iterations (overridden by -i)
   PERFLOW_SAMPLING_FREQ Sampling frequency (overridden by -f)
   USE_SLURM             Use SLURM: 0 or 1 (overridden by --slurm)
@@ -325,6 +329,7 @@ export PERFLOW_BUILD_DIR="$PERFLOW_BUILD_DIR"
 export NPB_BENCHMARKS="$NPB_BENCHMARKS"
 export NPB_CLASS="$NPB_CLASS"
 export NPB_PROCESS_SCALES="$PROCESS_SCALES"
+export NPB_PROCESS_SCALES_SQUARE="$PROCESS_SCALES_SQUARE"
 export NUM_ITERATIONS="$NUM_ITERATIONS"
 export PERFLOW_SAMPLING_FREQ="$SAMPLING_FREQ"
 export USE_SLURM="$USE_SLURM"
