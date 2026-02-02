@@ -23,9 +23,9 @@ class LibraryMapExportTest : public ::testing::Test {
 TEST_F(LibraryMapExportTest, ExportAndImport) {
   LibraryMap original_map;
   
-  // Add some test libraries
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
-  LibraryMap::LibraryInfo lib2("/test/lib2.so", 0x3000, 0x4000, true);
+  // Add some test libraries with realistic addresses
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
+  LibraryMap::LibraryInfo lib2("/test/lib2.so", 0x7f0000003000, 0x7f0000004000, true);
   LibraryMap::LibraryInfo lib3("/usr/bin/test", 0x400000, 0x500000, true);
   
   original_map.add_library(lib1);
@@ -54,21 +54,22 @@ TEST_F(LibraryMapExportTest, ExportAndImport) {
   // Verify the imported map has the same number of libraries
   EXPECT_EQ(imported_map.size(), original_map.size());
   
-  // Verify resolution works the same
-  auto result1 = imported_map.resolve(0x1500);
+  // Verify resolution works - dynamic addresses calculate offsets
+  auto result1 = imported_map.resolve(0x7f0000001500);
   ASSERT_TRUE(result1.has_value());
   EXPECT_EQ(result1->first, "/test/lib1.so");
-  EXPECT_EQ(result1->second, 0x500u);
+  EXPECT_EQ(result1->second, 0x500u);  // Dynamic: 0x7f0000001500 - 0x7f0000001000
   
-  auto result2 = imported_map.resolve(0x3500);
+  auto result2 = imported_map.resolve(0x7f0000003500);
   ASSERT_TRUE(result2.has_value());
   EXPECT_EQ(result2->first, "/test/lib2.so");
-  EXPECT_EQ(result2->second, 0x500u);
+  EXPECT_EQ(result2->second, 0x500u);  // Dynamic: 0x7f0000003500 - 0x7f0000003000
   
+  // Static address - offset equals raw address
   auto result3 = imported_map.resolve(0x450000);
   ASSERT_TRUE(result3.has_value());
   EXPECT_EQ(result3->first, "/usr/bin/test");
-  EXPECT_EQ(result3->second, 0x50000u);
+  EXPECT_EQ(result3->second, 0x450000u);  // Static: offset = raw address
   
   // Clean up
   CleanupTestFile(exporter.filepath());
@@ -107,14 +108,14 @@ TEST_F(LibraryMapExportTest, ImportNonexistentFile) {
 TEST_F(LibraryMapExportTest, ExportWithLongLibraryName) {
   LibraryMap map;
   
-  // Create a library with a very long name
+  // Create a library with a very long name and dynamic base address
   std::string long_name = "/very/long/path/to/library/";
   for (int i = 0; i < 50; ++i) {
     long_name += "subdir/";
   }
   long_name += "libtest.so";
   
-  LibraryMap::LibraryInfo lib(long_name, 0x1000, 0x2000, true);
+  LibraryMap::LibraryInfo lib(long_name, 0x7f0000001000, 0x7f0000002000, true);
   map.add_library(lib);
   
   // Export
@@ -134,7 +135,7 @@ TEST_F(LibraryMapExportTest, ExportWithLongLibraryName) {
   
   EXPECT_EQ(imported_map.size(), 1u);
   
-  auto result = imported_map.resolve(0x1500);
+  auto result = imported_map.resolve(0x7f0000001500);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->first, long_name);
   

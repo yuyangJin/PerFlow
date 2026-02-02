@@ -24,13 +24,13 @@ TEST_F(OffsetConverterSymbolResolutionTest, ConverterWithoutSymbolResolver) {
   LibraryMap lib_map;
   
   // Add a library
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
   lib_map.add_library(lib1);
   
   converter.add_map_snapshot(0, lib_map);
   
   // Create a call stack
-  uintptr_t addresses[] = {0x1500};
+  uintptr_t addresses[] = {0x7f0000001500};
   CallStack<> stack(addresses, 1);
   
   // Convert without symbol resolution (default behavior)
@@ -57,13 +57,13 @@ TEST_F(OffsetConverterSymbolResolutionTest, ConverterWithSymbolResolver) {
   EXPECT_TRUE(converter.has_symbol_resolver());
   
   LibraryMap lib_map;
-  LibraryMap::LibraryInfo lib1("/lib/x86_64-linux-gnu/libc.so.6", 0x1000, 0x200000, true);
+  LibraryMap::LibraryInfo lib1("/lib/x86_64-linux-gnu/libc.so.6", 0x7f8000000000, 0x7f8000200000, true);
   lib_map.add_library(lib1);
   
   converter.add_map_snapshot(0, lib_map);
   
   // Create a call stack
-  uintptr_t addresses[] = {0x1500};
+  uintptr_t addresses[] = {0x7f8000000500};
   CallStack<> stack(addresses, 1);
   
   // Convert WITH symbol resolution
@@ -105,15 +105,15 @@ TEST_F(OffsetConverterSymbolResolutionTest, MultipleFramesWithSymbolResolution) 
   OffsetConverter converter(resolver);
   
   LibraryMap lib_map;
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
-  LibraryMap::LibraryInfo lib2("/test/lib2.so", 0x3000, 0x4000, true);
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
+  LibraryMap::LibraryInfo lib2("/test/lib2.so", 0x7f0000003000, 0x7f0000004000, true);
   lib_map.add_library(lib1);
   lib_map.add_library(lib2);
   
   converter.add_map_snapshot(0, lib_map);
   
   // Create a multi-frame call stack
-  uintptr_t addresses[] = {0x1500, 0x3500, 0x1800};
+  uintptr_t addresses[] = {0x7f0000001500, 0x7f0000003500, 0x7f0000001800};
   CallStack<> stack(addresses, 3);
   
   // Convert with symbol resolution
@@ -137,12 +137,12 @@ TEST_F(OffsetConverterSymbolResolutionTest, SymbolResolutionRequestedButNoResolv
   OffsetConverter converter;
   
   LibraryMap lib_map;
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
   lib_map.add_library(lib1);
   
   converter.add_map_snapshot(0, lib_map);
   
-  uintptr_t addresses[] = {0x1500};
+  uintptr_t addresses[] = {0x7f0000001500};
   CallStack<> stack(addresses, 1);
   
   // Request symbol resolution but no resolver is set
@@ -159,11 +159,11 @@ TEST_F(OffsetConverterSymbolResolutionTest, BackwardCompatibilityWithExistingCod
   OffsetConverter converter;
   LibraryMap lib_map;
   
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
   lib_map.add_library(lib1);
   converter.add_map_snapshot(0, lib_map);
   
-  uintptr_t addresses[] = {0x1500};
+  uintptr_t addresses[] = {0x7f0000001500};
   CallStack<> stack(addresses, 1);
   
   // Old-style call (2 parameters) should still work
@@ -179,7 +179,7 @@ TEST_F(OffsetConverterSymbolResolutionTest, UnresolvedAddressWithSymbolResolver)
   OffsetConverter converter(resolver);
   
   LibraryMap lib_map;
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
   lib_map.add_library(lib1);
   
   converter.add_map_snapshot(0, lib_map);
@@ -203,12 +203,12 @@ TEST_F(OffsetConverterSymbolResolutionTest, SymbolCachingAcrossMultipleCalls) {
   OffsetConverter converter(resolver);
   
   LibraryMap lib_map;
-  LibraryMap::LibraryInfo lib1("/test/lib.so", 0x1000, 0x2000, true);
+  LibraryMap::LibraryInfo lib1("/test/lib.so", 0x7f0000001000, 0x7f0000002000, true);
   lib_map.add_library(lib1);
   converter.add_map_snapshot(0, lib_map);
   
   // Create multiple stacks with same addresses
-  uintptr_t addresses[] = {0x1500};
+  uintptr_t addresses[] = {0x7f0000001500};
   CallStack<> stack1(addresses, 1);
   CallStack<> stack2(addresses, 1);
   

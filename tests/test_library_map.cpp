@@ -66,17 +66,19 @@ TEST_F(LibraryMapTest, ResolveAddress) {
   // Parse the file
   ASSERT_TRUE(lib_map.parse_maps_file(test_file));
   
-  // Resolve an address in the first region
+  // Resolve an address in the first region (static base address)
+  // For static base addresses (< 0x10000000), offset equals raw address
   auto result1 = lib_map.resolve(0x400500);
   ASSERT_TRUE(result1.has_value());
   EXPECT_EQ(result1->first, "/usr/bin/test");
-  EXPECT_EQ(result1->second, 0x500u);
+  EXPECT_EQ(result1->second, 0x400500u);  // Static address: offset = raw address
   
-  // Resolve an address in the second region
+  // Resolve an address in the second region (dynamic base address)
+  // For dynamic base addresses (>= 0x10000000), offset is calculated
   auto result2 = lib_map.resolve(0x7f8000010000);
   ASSERT_TRUE(result2.has_value());
   EXPECT_EQ(result2->first, "/lib/x86_64-linux-gnu/libc.so.6");
-  EXPECT_EQ(result2->second, 0x10000u);
+  EXPECT_EQ(result2->second, 0x10000u);  // Dynamic address: offset = raw - base
   
   // Try to resolve an address not in any region
   auto result3 = lib_map.resolve(0x12345678);
@@ -89,19 +91,20 @@ TEST_F(LibraryMapTest, ResolveAddress) {
 TEST_F(LibraryMapTest, AddLibrary) {
   LibraryMap lib_map;
   
-  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x1000, 0x2000, true);
-  LibraryMap::LibraryInfo lib2("/test/lib2.so", 0x3000, 0x4000, true);
+  // Use realistic dynamic base addresses for shared libraries
+  LibraryMap::LibraryInfo lib1("/test/lib1.so", 0x7f0000001000, 0x7f0000002000, true);
+  LibraryMap::LibraryInfo lib2("/test/lib2.so", 0x7f0000003000, 0x7f0000004000, true);
   
   lib_map.add_library(lib1);
   lib_map.add_library(lib2);
   
   EXPECT_EQ(lib_map.size(), 2u);
   
-  // Test resolution
-  auto result = lib_map.resolve(0x1500);
+  // Test resolution with dynamic addresses
+  auto result = lib_map.resolve(0x7f0000001500);
   ASSERT_TRUE(result.has_value());
   EXPECT_EQ(result->first, "/test/lib1.so");
-  EXPECT_EQ(result->second, 0x500u);
+  EXPECT_EQ(result->second, 0x500u);  // Dynamic: 0x7f0000001500 - 0x7f0000001000
 }
 
 TEST_F(LibraryMapTest, Clear) {
@@ -140,7 +143,14 @@ TEST_F(LibraryMapTest, ParseCurrentProcess) {
     EXPECT_TRUE(result.has_value());
     if (result.has_value()) {
       EXPECT_FALSE(result->first.empty());
-      EXPECT_EQ(result->second, 0x100u);
+      // Expected offset depends on whether base is static or dynamic
+      if (first_lib.base < 0x10000000UL) {
+        // Static base address: offset equals raw address
+        EXPECT_EQ(result->second, test_addr);
+      } else {
+        // Dynamic base address: offset is calculated
+        EXPECT_EQ(result->second, 0x100u);
+      }
     }
   }
 }
