@@ -73,7 +73,19 @@ class LibraryMap {
       if (addr >= lib.base && addr < lib.end) {
         // Only return executable regions for meaningful stack traces
         if (lib.executable) {
-          uintptr_t offset = addr - lib.base;
+          uintptr_t offset;
+          // For static base addresses (typical for non-PIE executables),
+          // the offset should equal the raw address.
+          // For dynamic base addresses (typical for shared libraries with ASLR),
+          // the offset should be calculated as raw_address - base_address.
+          // Threshold of 0x10000000 (256 MB) distinguishes static from dynamic.
+          if (lib.base < kStaticBaseAddressThreshold) {
+            // Static base address - offset equals raw address
+            offset = addr;
+          } else {
+            // Dynamic base address - calculate offset
+            offset = addr - lib.base;
+          }
           return std::make_pair(lib.name, offset);
         }
       }
@@ -103,6 +115,15 @@ class LibraryMap {
 
  private:
   std::vector<LibraryInfo> libraries_;
+
+  /// Threshold to distinguish static vs dynamic base addresses.
+  /// Base addresses below this threshold are considered static (non-PIE executables),
+  /// where the offset should equal the raw address.
+  /// Base addresses at or above this threshold are considered dynamic (shared libraries with ASLR),
+  /// where the offset should be calculated as raw_address - base_address.
+  /// 0x10000000 (256 MB) is a reasonable threshold that separates typical non-PIE
+  /// executable addresses (0x400000-0x600000) from ASLR addresses (0x7f...).
+  static constexpr uintptr_t kStaticBaseAddressThreshold = 0x10000000UL;
 
   /// Maximum pathname length for safety
   static constexpr size_t kMaxPathnameLength = 2047;  // 2048 - 1 for null terminator

@@ -36,6 +36,24 @@ if (result.has_value()) {
 }
 ```
 
+**Address Resolution Logic:**
+
+The `LibraryMap::resolve()` method handles two types of base addresses:
+
+1. **Static Base Addresses** (< 0x10000000): Typical for non-PIE executables (e.g., MPI programs)
+   - Base addresses are usually in the range 0x400000 - 0x600000
+   - Offset equals the raw address (no subtraction needed)
+   - Example: Address 0x410000 with base 0x402000 → offset = 0x410000
+
+2. **Dynamic Base Addresses** (≥ 0x10000000): Typical for shared libraries with ASLR
+   - Base addresses are randomized, usually starting with 0x7f...
+   - Offset is calculated as: offset = raw_address - base_address
+   - Example: Address 0x7f8a1c012345 with base 0x7f8a1c000000 → offset = 0x12345
+
+This distinction is important because:
+- Non-PIE executables have symbols referenced by their absolute addresses in debug info
+- Shared libraries have symbols referenced by offsets from their load address
+
 ### 2. Library Map Export/Import (`include/sampling/data_export.h`)
 
 Export and import library maps to/from files:
