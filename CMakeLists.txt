@@ -137,6 +137,45 @@ else()
     endif()
 endif()
 
+# ============================================================================
+# Timer-Based MPI Sampler Library (PAPI-independent)
+# ============================================================================
+
+# Build timer-based MPI sampler if MPI is available
+# This sampler doesn't require PAPI and uses POSIX timers instead
+if(MPI_FOUND)
+    message(STATUS "MPI found - building timer-based MPI sampler")
+    
+    # Build timer-based MPI sampler as a shared library for LD_PRELOAD
+    add_library(perflow_mpi_sampler_timer SHARED
+        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_sampler_timer.cpp
+        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_init_setup.cpp
+    )
+    
+    target_include_directories(perflow_mpi_sampler_timer
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+    
+    target_link_libraries(perflow_mpi_sampler_timer
+        PRIVATE
+        perflow_sampling
+        ${MPI_CXX_LIBRARIES}
+        unwind
+        dl
+        rt  # Required for POSIX timers
+    )
+    
+    # Set output directory
+    set_target_properties(perflow_mpi_sampler_timer PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    )
+    
+else()
+    message(STATUS "MPI not found - skipping timer-based MPI sampler build")
+endif()
+
 # Tests
 if(PERFLOW_BUILD_TESTS)
     enable_testing()
