@@ -192,10 +192,9 @@ static void initialize_sampler() {
         }
     }
     
-    if (g_mpi_rank == 0) {
-        fprintf(stderr, "[MPI Sampler Timer] Initializing with frequency %d Hz\n",
-                g_sampling_frequency);
-    }
+    // Note: Cannot check MPI rank here as MPI_Init may not have been called yet
+    fprintf(stderr, "[MPI Sampler Timer] Initializing with frequency %d Hz\n",
+            g_sampling_frequency);
     
     // Set up signal handler for timer
     struct sigaction sa;
@@ -260,17 +259,13 @@ static void initialize_sampler() {
     if (!g_library_map->parse_current_process()) {
         fprintf(stderr, "[MPI Sampler Timer] Warning: Failed to parse library map\n");
     } else {
-        if (g_mpi_rank == 0) {
-            fprintf(stderr, "[MPI Sampler Timer] Captured %zu library mappings\n",
-                    g_library_map->size());
-        }
+        fprintf(stderr, "[MPI Sampler Timer] Captured %zu library mappings\n",
+                g_library_map->size());
     }
     
-    if (g_mpi_rank == 0) {
-        fprintf(stderr, "[MPI Sampler Timer] Initialization successful\n");
-        fprintf(stderr, "[MPI Sampler Timer] Timer started with interval: %lld ns (%.2f Hz)\n",
-                interval_ns, 1000000000.0 / interval_ns);
-    }
+    fprintf(stderr, "[MPI Sampler Timer] Initialization successful\n");
+    fprintf(stderr, "[MPI Sampler Timer] Timer started with interval: %lld ns (%.2f Hz)\n",
+            interval_ns, 1000000000.0 / interval_ns);
 }
 
 /// Finalize the sampler and export data
@@ -295,7 +290,6 @@ static void finalize_sampler() {
     // Use the rank captured during MPI_Init
     // Note: MPI_Finalize() may have been called already, so we can't call MPI_Comm_rank here
     if (g_mpi_rank < 0) {
-        g_mpi_rank = -1;  // Default to rank -1 if rank was never captured
         fprintf(stderr, "[MPI Sampler Timer] Warning: MPI rank was not captured, using rank -1\n");
     }
     
