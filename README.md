@@ -5,7 +5,9 @@ A programmable and fast performance analysis tool for parallel programs with onl
 ## Features
 
 ### Sampling-Based Profiling
-- Low-overhead MPI application profiling using PAPI
+- **Two sampling modes**: Hardware PMU (PAPI) and Timer-based (POSIX)
+- **Hardware PMU mode**: Ultra-low overhead (<0.5% @ 1kHz), cycle-accurate sampling
+- **Timer-based mode**: Platform-independent, works in containers/VMs, no special privileges
 - Configurable sampling frequencies (100Hz - 10kHz)
 - Call stack capture with libunwind
 - Per-process sample data collection
@@ -27,6 +29,8 @@ A programmable and fast performance analysis tool for parallel programs with onl
 
 ## Documentation
 
+- [Timer-Based Sampler Usage](docs/TIMER_SAMPLER_USAGE.md) - Using the timer-based sampler
+- [Timer-Based Sampler Performance](docs/TIMER_BASED_SAMPLER.md) - Detailed performance analysis
 - [Symbol Resolution Guide](docs/SYMBOL_RESOLUTION.md) - Complete symbol resolution reference
 - [Online Analysis API Documentation](docs/ONLINE_ANALYSIS_API.md) - Complete API reference
 - [Call Stack Offset Conversion](docs/CALL_STACK_OFFSET_CONVERSION.md) - Address resolution details
@@ -44,9 +48,18 @@ make -j$(nproc)
 
 ### Running MPI Sampler
 
+**Option 1: Hardware PMU Sampler** (lowest overhead, requires PMU access)
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler.so \
 PERFLOW_OUTPUT_DIR=/tmp/samples \
+mpirun -n 4 ./your_mpi_app
+```
+
+**Option 2: Timer-Based Sampler** (platform-independent, works everywhere)
+```bash
+LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
+PERFLOW_OUTPUT_DIR=/tmp/samples \
+PERFLOW_SAMPLING_FREQ=1000 \
 mpirun -n 4 ./your_mpi_app
 ```
 
