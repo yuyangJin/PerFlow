@@ -115,6 +115,8 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
             break;
         }
         // Store address (subtract 2 for return address adjustment)
+        // This aligns with the behavior in the original mpi_sampler.cpp and demo/sampling/sampler.cpp
+        // The adjustment accounts for the fact that the PC points after the call instruction
         addresses[depth] = (uintptr_t)pc - 2;
         depth++;
     }
@@ -274,9 +276,7 @@ static void finalize_sampler() {
         return;  // Not initialized
     }
     
-    if (g_mpi_rank == 0) {
-        fprintf(stderr, "[MPI Sampler Timer] Finalizing sampler\n");
-    }
+    fprintf(stderr, "[MPI Sampler Timer] Finalizing sampler\n");
     
     // Stop the timer
     if (g_timer_created) {
