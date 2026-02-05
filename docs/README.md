@@ -21,6 +21,7 @@ For those who want to extend PerFlow or understand its internals.
 - **[Fortran MPI Support](developer-guide/FORTRAN_MPI_SUPPORT.md)** - MPI name mangling and Fortran integration
 - **[Implementation Summary](developer-guide/IMPLEMENTATION_SUMMARY.md)** - Symbol resolution feature details
 - **[Contributing Guidelines](developer-guide/contributing.md)** - How to contribute to PerFlow
+- **[Documentation Style Guide](STYLE_GUIDE.md)** - Style guide for documentation
 
 ### 📖 API Reference
 Detailed API documentation for developers integrating PerFlow.
