@@ -15,9 +15,12 @@ from .analysis import (
 )
 
 try:
-    from . import _perflow_bindings as cpf
+    from ._perflow_bindings import ColorScheme, SampleCountMode
+    cpf_available = True
 except ImportError:
-    cpf = None
+    ColorScheme = None
+    SampleCountMode = None
+    cpf_available = False
 
 
 def create_basic_analysis_workflow(
@@ -73,7 +76,7 @@ def create_basic_analysis_workflow(
     viz_path = os.path.join(output_dir, "performance_tree.pdf")
     viz_task = ExportVisualizationTask(
         output_path=viz_path,
-        color_scheme=cpf.ColorScheme.HEATMAP if cpf else None,
+        color_scheme=ColorScheme.HEATMAP if cpf_available else None,
         name="ExportVisualization"
     )
     viz_node = graph.add_node(viz_task)
@@ -268,7 +271,7 @@ def create_hotspot_focused_workflow(
     load_task = LoadTreeTask(
         sample_files=sample_files,
         libmap_files=libmap_files,
-        count_mode=cpf.SampleCountMode.BOTH if cpf else None,
+        count_mode=SampleCountMode.BOTH if cpf_available else None,
         name="LoadTree"
     )
     load_node = graph.add_node(load_task)
@@ -287,7 +290,7 @@ def create_hotspot_focused_workflow(
     self_viz_path = os.path.join(output_dir, "hotspots_self.pdf")
     self_viz_task = ExportVisualizationTask(
         output_path=self_viz_path,
-        color_scheme=cpf.ColorScheme.HEATMAP if cpf else None,
+        color_scheme=ColorScheme.HEATMAP if cpf_available else None,
         name="SelfVisualization"
     )
     self_viz_node = graph.add_node(self_viz_task)

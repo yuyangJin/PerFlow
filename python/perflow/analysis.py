@@ -11,9 +11,21 @@ import os
 from .dataflow import Task
 
 try:
-    from . import _perflow_bindings as cpf
+    from ._perflow_bindings import (
+        TreeBuilder, TreeBuildMode, SampleCountMode, ColorScheme,
+        BalanceAnalyzer, HotspotAnalyzer, TreeTraversal, TreeVisualizer
+    )
+    cpf_available = True
 except ImportError:
-    cpf = None
+    TreeBuilder = None
+    TreeBuildMode = None
+    SampleCountMode = None
+    ColorScheme = None
+    BalanceAnalyzer = None
+    HotspotAnalyzer = None
+    TreeTraversal = None
+    TreeVisualizer = None
+    cpf_available = False
 
 
 class LoadTreeTask(Task):
@@ -42,17 +54,17 @@ class LoadTreeTask(Task):
         self.sample_files = sample_files
         self.libmap_files = libmap_files or []
         self.time_per_sample = time_per_sample
-        self.build_mode = build_mode or (cpf.TreeBuildMode.CONTEXT_FREE if cpf else None)
-        self.count_mode = count_mode or (cpf.SampleCountMode.EXCLUSIVE if cpf else None)
+        self.build_mode = build_mode or (TreeBuildMode.CONTEXT_FREE if cpf_available else None)
+        self.count_mode = count_mode or (SampleCountMode.EXCLUSIVE if cpf_available else None)
         self.parallel = parallel
     
     def execute(self, **inputs) -> Any:
         """Execute the task."""
-        if cpf is None:
+        if not cpf_available:
             raise RuntimeError("C++ bindings not available")
         
         # Create tree builder
-        builder = cpf.TreeBuilder(self.build_mode, self.count_mode)
+        builder = TreeBuilder(self.build_mode, self.count_mode)
         
         # Load library maps if provided
         if self.libmap_files:
@@ -81,13 +93,13 @@ class BalanceAnalysisTask(Task):
     
     def execute(self, tree=None, **inputs) -> Any:
         """Execute the task."""
-        if cpf is None:
+        if not cpf_available:
             raise RuntimeError("C++ bindings not available")
         
         if tree is None:
             raise ValueError("tree input is required")
         
-        return cpf.BalanceAnalyzer.analyze(tree)
+        return BalanceAnalyzer.analyze(tree)
 
 
 class HotspotAnalysisTask(Task):
@@ -108,16 +120,16 @@ class HotspotAnalysisTask(Task):
     
     def execute(self, tree=None, **inputs) -> Any:
         """Execute the task."""
-        if cpf is None:
+        if not cpf_available:
             raise RuntimeError("C++ bindings not available")
         
         if tree is None:
             raise ValueError("tree input is required")
         
         if self.mode == "self":
-            return cpf.HotspotAnalyzer.find_self_hotspots(tree, self.top_n)
+            return HotspotAnalyzer.find_self_hotspots(tree, self.top_n)
         elif self.mode == "total":
-            return cpf.HotspotAnalyzer.find_total_hotspots(tree, self.top_n)
+            return HotspotAnalyzer.find_total_hotspots(tree, self.top_n)
         else:
             raise ValueError(f"Invalid mode: {self.mode}")
 
@@ -138,14 +150,14 @@ class FilterNodesTask(Task):
     
     def execute(self, tree=None, **inputs) -> Any:
         """Execute the task."""
-        if cpf is None:
+        if not cpf_available:
             raise RuntimeError("C++ bindings not available")
         
         if tree is None:
             raise ValueError("tree input is required")
         
         root = tree.root()
-        return cpf.TreeTraversal.find_nodes(root, self.predicate)
+        return TreeTraversal.find_nodes(root, self.predicate)
 
 
 class TraverseTreeTask(Task):
@@ -169,7 +181,7 @@ class TraverseTreeTask(Task):
     
     def execute(self, tree=None, **inputs) -> Any:
         """Execute the task."""
-        if cpf is None:
+        if not cpf_available:
             raise RuntimeError("C++ bindings not available")
         
         if tree is None:
@@ -178,11 +190,11 @@ class TraverseTreeTask(Task):
         root = tree.root()
         
         if self.traversal_mode == "dfs_pre":
-            cpf.TreeTraversal.depth_first_preorder(root, self.visitor, self.max_depth)
+            TreeTraversal.depth_first_preorder(root, self.visitor, self.max_depth)
         elif self.traversal_mode == "dfs_post":
-            cpf.TreeTraversal.depth_first_postorder(root, self.visitor, self.max_depth)
+            TreeTraversal.depth_first_postorder(root, self.visitor, self.max_depth)
         elif self.traversal_mode == "bfs":
-            cpf.TreeTraversal.breadth_first(root, self.visitor, self.max_depth)
+            TreeTraversal.breadth_first(root, self.visitor, self.max_depth)
         else:
             raise ValueError(f"Invalid traversal mode: {self.traversal_mode}")
         
@@ -207,12 +219,12 @@ class ExportVisualizationTask(Task):
         """
         super().__init__(name or "ExportVisualization")
         self.output_path = output_path
-        self.color_scheme = color_scheme or (cpf.ColorScheme.HEATMAP if cpf else None)
+        self.color_scheme = color_scheme or (ColorScheme.HEATMAP if cpf_available else None)
         self.max_depth = max_depth
     
     def execute(self, tree=None, **inputs) -> Any:
         """Execute the task."""
-        if cpf is None:
+        if not cpf_available:
             raise RuntimeError("C++ bindings not available")
         
         if tree is None:
@@ -222,7 +234,7 @@ class ExportVisualizationTask(Task):
         os.makedirs(os.path.dirname(self.output_path), exist_ok=True)
         
         # Export visualization
-        success = cpf.TreeVisualizer.generate_pdf(
+        success = TreeVisualizer.generate_pdf(
             tree, self.output_path, self.color_scheme, self.max_depth)
         
         if not success:
