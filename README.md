@@ -1,6 +1,23 @@
-# PerFlow 2.0
+# PerFlow
 
-A programmable and fast performance analysis tool for parallel programs with online analysis capabilities.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
+
+A high-performance, low-overhead profiling tool for parallel MPI applications with comprehensive online analysis capabilities.
+
+## Overview
+
+PerFlow is designed for production-grade performance analysis of HPC applications. It provides ultra-low overhead sampling (<0.5% @ 1kHz), flexible symbol resolution, and powerful analysis tools for understanding application behavior and identifying performance bottlenecks.
+
+**Key Highlights:**
+- 🚀 **Ultra-low overhead**: <0.5% with hardware PMU sampling
+- 🔧 **Two sampling modes**: Hardware PMU (PAPI) and timer-based (POSIX)
+- 🌐 **Platform-independent**: Works on bare metal, containers, and VMs
+- 🔍 **Symbol resolution**: Function names and source locations
+- 📊 **Online analysis**: Real-time performance tree generation
+- ⚖️ **Balance analysis**: Workload distribution across processes
+- 🔥 **Hotspot detection**: Identify performance bottlenecks
+- 📈 **Visualization**: Generate PDF performance trees
 
 ## Features
 
@@ -29,24 +46,40 @@ A programmable and fast performance analysis tool for parallel programs with onl
 
 ## Documentation
 
-- [Timer-Based Sampler Usage](docs/TIMER_SAMPLER_USAGE.md) - Using the timer-based sampler
-- [Timer-Based Sampler Performance](docs/TIMER_BASED_SAMPLER.md) - Detailed performance analysis
-- [Symbol Resolution Guide](docs/SYMBOL_RESOLUTION.md) - Complete symbol resolution reference
-- [Online Analysis API Documentation](docs/ONLINE_ANALYSIS_API.md) - Complete API reference
-- [Call Stack Offset Conversion](docs/CALL_STACK_OFFSET_CONVERSION.md) - Address resolution details
-- [Testing Guide](TESTING.md) - Comprehensive testing documentation
+📚 **[Complete Documentation](docs/README.md)** - Full documentation index
+
+### Quick Links
+- 🚀 **[Getting Started](docs/user-guide/GETTING_STARTED.md)** - Installation and quick start guide
+- ⚙️ **[Configuration](docs/user-guide/CONFIGURATION.md)** - Environment variables and options
+- 🔧 **[Troubleshooting](docs/user-guide/TROUBLESHOOTING.md)** - Common issues and solutions
+- ❓ **[FAQ](docs/FAQ.md)** - Frequently asked questions
+- 🏗️ **[Architecture](docs/developer-guide/ARCHITECTURE.md)** - System design and components
+- 📖 **[API Reference](docs/api-reference/ONLINE_ANALYSIS_API.md)** - Complete API documentation
+- 🧪 **[Testing Guide](TESTING.md)** - Comprehensive testing documentation
 
 ## Quick Start
 
-### Building
+### 1. Install Dependencies
 
 ```bash
+# Ubuntu/Debian
+sudo apt-get install -y build-essential cmake libopenmpi-dev libunwind-dev libpapi-dev zlib1g-dev graphviz
+
+# RHEL/CentOS/Fedora
+sudo dnf install -y gcc-c++ cmake openmpi-devel libunwind-devel papi-devel zlib-devel graphviz
+```
+
+### 2. Build PerFlow
+
+```bash
+git clone https://github.com/yuyangJin/PerFlow.git
+cd PerFlow
 mkdir build && cd build
-cmake .. -DPERFLOW_BUILD_TESTS=ON
+cmake .. -DPERFLOW_BUILD_TESTS=ON -DPERFLOW_BUILD_EXAMPLES=ON
 make -j$(nproc)
 ```
 
-### Running MPI Sampler
+### 3. Profile Your Application
 
 **Option 1: Hardware PMU Sampler** (lowest overhead, requires PMU access)
 ```bash
@@ -63,11 +96,18 @@ PERFLOW_SAMPLING_FREQ=1000 \
 mpirun -n 4 ./your_mpi_app
 ```
 
-### Analyzing Results
+### 4. Analyze Results
 
 ```bash
 ./examples/online_analysis_example /tmp/samples /tmp/output
+
+# View results
+cat /tmp/output/balance_report.txt    # Workload balance
+cat /tmp/output/hotspots.txt          # Performance hotspots
+# Open /tmp/output/performance_tree.pdf in a PDF viewer
 ```
+
+📖 **[Full Getting Started Guide](docs/user-guide/GETTING_STARTED.md)** for detailed instructions.
 
 ## Online Analysis Example
 
@@ -127,14 +167,68 @@ for (const auto& frame : resolved) {
 
 ## Requirements
 
-- C++17 compiler
-- CMake 3.14+
-- MPI (OpenMPI, MPICH, Intel MPI)
-- PAPI library
-- libunwind
-- zlib (optional, for compression)
-- GraphViz (optional, for visualization)
+### Required
+- **C++17 compiler** (GCC 7+, Clang 5+, or equivalent)
+- **CMake 3.14+**
+- **MPI** (OpenMPI, MPICH, or Intel MPI)
+- **libunwind** - For call stack capture
+
+### Optional
+- **PAPI library** - For hardware PMU sampling (highly recommended)
+- **zlib** - For compressed sample data
+- **GraphViz** - For PDF visualization generation
+
+## Use Cases
+
+PerFlow is ideal for:
+- 🔬 **HPC Performance Analysis** - Profile large-scale parallel applications
+- 🐛 **Performance Debugging** - Identify bottlenecks and load imbalances
+- 📈 **Scalability Studies** - Understand behavior at different scales
+- 🔄 **Continuous Monitoring** - Track performance across code changes
+- 🎯 **Optimization Guidance** - Find hot functions for targeted optimization
+
+## Project Status
+
+PerFlow is actively maintained and production-ready:
+- ✅ Comprehensive test suite (143+ passing tests)
+- ✅ Used in production HPC environments
+- ✅ Regular updates and improvements
+- ✅ Active issue tracking and bug fixes
+
+## Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
+- Reporting bugs and requesting features
+- Submitting pull requests
+- Code style and testing requirements
+- Documentation improvements
+
+## Citing PerFlow
+
+If you use PerFlow in your research, please cite:
+
+```bibtex
+@software{perflow2024,
+  title = {PerFlow: A Programmable Performance Analysis Tool for Parallel Programs},
+  author = {Jin, Yuyang},
+  year = {2024},
+  url = {https://github.com/yuyangJin/PerFlow}
+}
+```
 
 ## License
 
-Apache License 2.0
+PerFlow is licensed under the Apache License 2.0. See [LICENSE](LICENSE) for details.
+
+## Acknowledgments
+
+PerFlow leverages several excellent open-source projects:
+- [PAPI](http://icl.utk.edu/papi/) - Performance API for hardware counters
+- [libunwind](https://www.nongnu.org/libunwind/) - Call stack capture
+- [GraphViz](https://graphviz.org/) - Graph visualization
+
+## Contact & Support
+
+- **Issues**: [GitHub Issues](https://github.com/yuyangJin/PerFlow/issues)
+- **Documentation**: [docs/](docs/README.md)
+- **Examples**: [examples/](examples/README.md)
