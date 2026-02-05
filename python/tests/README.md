@@ -8,6 +8,7 @@ This directory contains unit and integration tests for the PerFlow Python fronte
 tests/
 ├── __init__.py              # Package initialization
 ├── test_dataflow.py         # Dataflow graph system tests
+├── test_bindings.py         # C++ Python bindings tests (NEW)
 ├── test_analysis.py         # Analysis task tests
 ├── test_workflows.py        # Workflow tests
 ├── run_tests.py             # Test runner script
@@ -27,6 +28,7 @@ python3 run_tests.py
 
 ```bash
 python3 test_dataflow.py
+python3 test_bindings.py
 python3 test_analysis.py
 python3 test_workflows.py
 ```
@@ -56,7 +58,7 @@ python3 -m unittest test_dataflow.TestGraph.test_topological_sort
 
 ## Test Coverage
 
-### test_dataflow.py
+### test_dataflow.py (16 tests)
 
 Tests for the dataflow graph system:
 - **TestTask**: Task base class functionality
@@ -71,7 +73,29 @@ Tests for the dataflow graph system:
   - Error handling
 - **TestGraphVisualization**: DOT format generation
 
-### test_analysis.py
+**Dependencies:** None (pure Python tests)
+
+### test_bindings.py (37 tests) - NEW
+
+Tests for the C++ Python bindings layer:
+- **TestEnums**: Enum bindings (TreeBuildMode, SampleCountMode, ColorScheme)
+- **TestResolvedFrame**: ResolvedFrame class binding and attributes
+- **TestTreeNode**: TreeNode class binding, frame access, sample counts
+- **TestPerformanceTree**: PerformanceTree class binding, root access, node count
+- **TestTreeBuilder**: TreeBuilder class binding with different modes
+- **TestTreeVisitor**: TreeVisitor abstract class and subclassing
+- **TestTreeTraversal**: TreeTraversal static methods (DFS, BFS, find)
+- **TestBalanceAnalysisResult**: BalanceAnalysisResult class binding
+- **TestHotspotInfo**: HotspotInfo class binding
+- **TestBalanceAnalyzer**: BalanceAnalyzer class binding
+- **TestHotspotAnalyzer**: HotspotAnalyzer class binding
+- **TestOnlineAnalysis**: OnlineAnalysis class binding
+- **TestTypeConversions**: Python-C++ type conversions (string, int, list, enum)
+- **TestErrorHandling**: Error handling in bindings (invalid enums, wrong arguments)
+
+**Dependencies:** Requires C++ bindings (auto-skipped if unavailable)
+
+### test_analysis.py (13 tests)
 
 Tests for analysis tasks:
 - **TestAnalysisTaskStructure**: Verifies all task classes exist
@@ -84,13 +108,23 @@ Tests for analysis tasks:
 - **TestExportVisualizationTask**: Visualization export
 - **TestAggregateResultsTask**: Result aggregation
 
-### test_workflows.py
+**Dependencies:** Requires C++ bindings (auto-skipped if unavailable)
+
+### test_workflows.py (16 tests)
 
 Tests for pre-built workflows:
 - **TestWorkflowsStructure**: Verifies workflow functions exist
 - **TestBasicAnalysisWorkflow**: Basic analysis workflow
 - **TestComparativeAnalysisWorkflow**: Comparative analysis
 - **TestHotspotFocusedWorkflow**: Hotspot-focused analysis
+
+**Dependencies:** Requires C++ bindings (auto-skipped if unavailable)
+
+## Total Test Count
+
+- **82 total tests** (16 + 37 + 13 + 16)
+- **16 tests** can run without C++ bindings
+- **66 tests** require C++ bindings (automatically skipped if unavailable)
 
 ## Test Requirements
 
