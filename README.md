@@ -80,11 +80,11 @@ sudo dnf install -y gcc-c++ cmake openmpi-devel libunwind-devel papi-devel zlib-
 ### 2. Build PerFlow
 
 ```bash
-git clone https://github.com/yuyangJin/PerFlow.git
+git clone --recurse-submodules https://github.com/yuyangJin/PerFlow.git
 cd PerFlow
 
-# Clone third-party dependencies (required for Python bindings)
-git clone --depth 1 --branch v2.11.1 https://github.com/pybind/pybind11.git third_party/pybind11
+# If you cloned without --recurse-submodules, initialize submodules:
+# git submodule update --init --recursive
 
 mkdir build && cd build
 cmake .. -DPERFLOW_BUILD_TESTS=ON -DPERFLOW_BUILD_EXAMPLES=ON
