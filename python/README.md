@@ -375,6 +375,92 @@ builder.build_from_files_parallel(
 
 ## Troubleshooting
 
+### Quick Diagnostic
+
+Run the diagnostic script to check your setup:
+
+```bash
+cd /path/to/PerFlow
+python/check_setup.sh
+```
+
+This will check:
+- Build directory exists
+- Python bindings compiled successfully
+- Module location is correct
+- PYTHONPATH is set properly
+- Python can import the module
+
+### Common Import Errors
+
+#### Error: "No module named 'perflow'"
+
+**Cause**: Python can't find the perflow package.
+
+**Solution**:
+1. Check if you've built PerFlow:
+   ```bash
+   ls build/python/perflow/_perflow_bindings*.so
+   ```
+   If not found, build it:
+   ```bash
+   mkdir build && cd build
+   cmake .. -DPERFLOW_BUILD_TESTS=ON
+   make -j$(nproc)
+   ```
+
+2. Set PYTHONPATH (from PerFlow root directory):
+   ```bash
+   export PYTHONPATH=$PWD/build/python:$PYTHONPATH
+   ```
+
+3. Verify the path is correct:
+   ```bash
+   echo $PYTHONPATH
+   python3 -c "import sys; print(sys.path)"
+   ```
+
+#### Error: "cannot import name '_perflow_bindings'"
+
+**Cause**: The C++ bindings module is not in the expected location.
+
+**Solution**:
+1. Verify the bindings were built:
+   ```bash
+   find build -name "_perflow_bindings*.so"
+   ```
+
+2. Check the expected location:
+   ```bash
+   ls -la build/python/perflow/
+   ```
+
+3. The file should be either:
+   - `_perflow_bindings.so`, or
+   - `_perflow_bindings.cpython-39-x86_64-linux-gnu.so` (with Python version)
+
+4. If not in `build/python/perflow/`, check CMake output:
+   ```bash
+   cd build
+   cmake .. 2>&1 | grep -i python
+   ```
+
+#### Error: "Python development libraries not found"
+
+**Cause**: Python dev headers are not installed.
+
+**Solution**: Install Python development package:
+```bash
+# Ubuntu/Debian
+sudo apt-get install python3-dev
+
+# RHEL/CentOS
+sudo dnf install python3-devel
+
+# Then rebuild
+cd build && cmake .. && make
+```
+
 ### Import Error
 
 If you get `ImportError` when importing perflow:
@@ -400,7 +486,46 @@ ls build/python/perflow/_perflow_bindings*.so
 # The .so file should be present in build/python/perflow/
 ```
 
-### Build Issues
+### Debugging Steps
+
+If the above doesn't work, debug step-by-step:
+
+1. **Verify your current directory**:
+   ```bash
+   pwd  # Should show /path/to/PerFlow
+   ```
+
+2. **Check if bindings exist**:
+   ```bash
+   ls -la build/python/perflow/
+   ```
+
+3. **Manually test Python path**:
+   ```bash
+   python3 -c "import sys; sys.path.insert(0, 'build/python'); import perflow; print('Success!')"
+   ```
+
+4. **Check for permission issues**:
+   ```bash
+   ls -l build/python/perflow/_perflow_bindings*.so
+   # Should be readable (r-- or rw-)
+   ```
+
+5. **Try with absolute path**:
+   ```bash
+   export PYTHONPATH=/absolute/path/to/PerFlow/build/python:$PYTHONPATH
+   python3 -c "import perflow"
+   ```
+
+### Still Having Issues?
+
+See the detailed troubleshooting guide: [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+Or run the diagnostic script:
+```bash
+cd /path/to/PerFlow
+bash python/check_setup.sh
+```
 
 If Python bindings don't build:
 
