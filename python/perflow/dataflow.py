@@ -11,7 +11,7 @@ directed acyclic graphs (DAGs) where:
 """
 
 import threading
-import multiprocessing
+from concurrent.futures import ThreadPoolExecutor
 from abc import ABC, abstractmethod
 from typing import Any, Dict, List, Optional, Set, Callable
 from collections import defaultdict, deque
@@ -339,7 +339,7 @@ class Graph:
                     def execute_node(n):
                         return (n, n.execute(results))
                     
-                    with threading.ThreadPoolExecutor(max_workers=len(group)) as executor:
+                    with ThreadPoolExecutor(max_workers=len(group)) as executor:
                         futures = [executor.submit(execute_node, node) for node in group]
                         for future in futures:
                             node, result = future.result()
