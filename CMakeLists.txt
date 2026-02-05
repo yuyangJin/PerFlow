@@ -187,6 +187,9 @@ if(PERFLOW_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
+# Python bindings (optional)
+add_subdirectory(python)
+
 # Installation
 include(GNUInstallDirs)
 

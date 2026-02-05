@@ -4,9 +4,11 @@
 #ifndef PERFLOW_ANALYSIS_TREE_BUILDER_H_
 #define PERFLOW_ANALYSIS_TREE_BUILDER_H_
 
+#include <atomic>
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <thread>
 #include <vector>
 
 #include "analysis/offset_converter.h"
@@ -136,6 +138,69 @@ class TreeBuilder {
     }
 
     return success_count;
+  }
+  
+  /// Build tree from multiple sample files in parallel
+  /// @param sample_files Vector of (file_path, process_id) pairs
+  /// @param time_per_sample Estimated time per sample in microseconds
+  /// @param num_threads Number of threads to use (0 = auto)
+  /// @return Number of files successfully processed
+  template <size_t MaxDepth = sampling::kDefaultMaxStackDepth,
+            size_t Capacity = 1048576>
+  size_t build_from_files_parallel(
+      const std::vector<std::pair<std::string, uint32_t>>& sample_files,
+      double time_per_sample = 1000.0,
+      size_t num_threads = 0) {
+    if (sample_files.empty()) {
+      return 0;
+    }
+    
+    // Determine total process count
+    size_t max_process_id = 0;
+    for (const auto& pair : sample_files) {
+      if (pair.second > max_process_id) {
+        max_process_id = pair.second;
+      }
+    }
+    tree_.set_process_count(max_process_id + 1);
+    
+    // Determine number of threads
+    size_t threads = num_threads;
+    if (threads == 0) {
+      threads = std::thread::hardware_concurrency();
+      if (threads == 0) threads = 4;  // Fallback
+    }
+    threads = std::min(threads, sample_files.size());
+    
+    // Process files in parallel
+    std::vector<std::thread> workers;
+    std::atomic<size_t> success_count{0};
+    std::atomic<size_t> next_file_idx{0};
+    
+    for (size_t i = 0; i < threads; ++i) {
+      workers.emplace_back([&]() {
+        while (true) {
+          size_t idx = next_file_idx.fetch_add(1);
+          if (idx >= sample_files.size()) {
+            break;
+          }
+          
+          const auto& [file_path, process_id] = sample_files[idx];
+          if (build_from_file<MaxDepth, Capacity>(file_path.c_str(), 
+                                                   process_id,
+                                                   time_per_sample)) {
+            success_count.fetch_add(1);
+          }
+        }
+      });
+    }
+    
+    // Wait for all threads to complete
+    for (auto& worker : workers) {
+      worker.join();
+    }
+    
+    return success_count.load();
   }
 
   /// Load library maps for address resolution
