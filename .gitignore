@@ -23,6 +23,14 @@ _codeql_detected_source_root
 __pycache__/
 *.pyc
 *.pyo
+*.py[cod]
+*$py.class
+*.egg-info/
+dist/
+.eggs/
+
+# Third-party
+third_party/pybind11/.git/
 
 # NPB benchmark workspace and results
 tests/npb_benchmark/npb_workspace/

@@ -29,6 +29,14 @@ PerFlow is designed for production-grade performance analysis of HPC application
 - Call stack capture with libunwind
 - Per-process sample data collection
 
+### Python Frontend (New!)
+- **Python Bindings**: Direct access to C++ backend with pybind11
+- **Dataflow Graphs**: Compose analysis workflows as directed acyclic graphs (DAGs)
+- **Pre-built Tasks**: Ready-to-use analysis tasks for common operations
+- **Optimization**: Automatic parallel execution, lazy evaluation, and result caching
+- **Extensible**: Easy to add custom analysis tasks
+- See [Python Documentation](python/README.md) for details
+
 ### Symbol Resolution (New!)
 - **Function Name Resolution**: Resolve memory addresses to function names
 - **Source Location Mapping**: Get source file paths and line numbers
