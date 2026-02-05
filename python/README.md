@@ -28,21 +28,45 @@ cmake .. -DPERFLOW_BUILD_TESTS=ON
 make -j$(nproc)
 ```
 
-The Python bindings will be built automatically if Python development libraries are found.
+The Python bindings will be built automatically if Python development libraries are found. The compiled module will be located at `build/python/perflow/_perflow_bindings.so`.
+
+### Running Without Installation
+
+To use the Python module without installing, set PYTHONPATH to include the build directory:
+
+```bash
+# From the PerFlow root directory
+export PYTHONPATH=$PWD/build/python:$PYTHONPATH
+
+# Now you can import perflow
+python3 -c "import perflow; print('Import successful')"
+
+# Run examples
+cd python/examples
+python3 dataflow_example.py
+```
 
 ### Install
 
+For permanent installation:
+
 ```bash
-# Install Python module
+# Install Python module system-wide
 cd build
 make install
 
-# Or install in development mode
+# Or install in development mode (links to source)
 cd python
 pip install -e .
 ```
 
+After installation, you can import perflow from anywhere without setting PYTHONPATH.
+
 ## Quick Start
+
+**Note**: Before running examples, ensure either:
+1. You have set `PYTHONPATH` to include the build directory: `export PYTHONPATH=/path/to/PerFlow/build/python:$PYTHONPATH`, or
+2. You have installed the module with `make install` or `pip install -e .`
 
 ### Example 1: Basic Analysis Workflow
 
@@ -261,12 +285,25 @@ See the `examples/` directory for complete examples:
 - `basic_workflow_example.py`: Basic analysis workflow
 - `dataflow_example.py`: Custom dataflow graph construction
 
-Run examples:
+### Running Examples
+
+**Option 1: Set PYTHONPATH** (if not installed)
+
+```bash
+# From PerFlow root directory
+export PYTHONPATH=$PWD/build/python:$PYTHONPATH
+
+cd python/examples
+python3 dataflow_example.py
+python3 basic_workflow_example.py /path/to/samples /path/to/output
+```
+
+**Option 2: After Installation**
 
 ```bash
 cd python/examples
-python3 basic_workflow_example.py /path/to/samples /path/to/output
 python3 dataflow_example.py
+python3 basic_workflow_example.py /path/to/samples /path/to/output
 ```
 
 ## Advanced Usage
@@ -342,12 +379,25 @@ builder.build_from_files_parallel(
 
 If you get `ImportError` when importing perflow:
 
+**Problem**: The C++ bindings module `_perflow_bindings.so` is not in Python's search path.
+
+**Solution 1**: Set PYTHONPATH to include the build directory:
+```bash
+export PYTHONPATH=/path/to/PerFlow/build/python:$PYTHONPATH
+```
+
+**Solution 2**: Install the module:
+```bash
+cd /path/to/PerFlow/build
+make install
+```
+
+**Verify the module location**:
 ```bash
 # Check if bindings are built
 ls build/python/perflow/_perflow_bindings*.so
 
-# Set PYTHONPATH if needed
-export PYTHONPATH=/path/to/PerFlow/build/python:$PYTHONPATH
+# The .so file should be present in build/python/perflow/
 ```
 
 ### Build Issues

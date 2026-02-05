@@ -4,6 +4,12 @@ Example: Basic Performance Analysis Workflow
 
 This script demonstrates how to use the PerFlow Python frontend
 to analyze performance data from sample files.
+
+IMPORTANT: Before running this script, ensure the Python bindings are built
+and accessible:
+  1. Build PerFlow with: cd build && cmake .. && make
+  2. Set PYTHONPATH: export PYTHONPATH=/path/to/PerFlow/build/python:$PYTHONPATH
+  3. Or install with: cd build && make install
 """
 
 import sys

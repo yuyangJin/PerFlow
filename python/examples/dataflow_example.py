@@ -4,6 +4,12 @@ Example: Dataflow Graph Construction
 
 This script demonstrates how to manually construct a dataflow graph
 for custom analysis workflows.
+
+IMPORTANT: This example works without C++ bindings (pure Python dataflow).
+To use analysis tasks that require C++ bindings:
+  1. Build PerFlow with: cd build && cmake .. && make
+  2. Set PYTHONPATH: export PYTHONPATH=/path/to/PerFlow/build/python:$PYTHONPATH
+  3. Or install with: cd build && make install
 """
 
 import sys
