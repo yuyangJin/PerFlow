@@ -119,17 +119,6 @@ const PerformanceTree& tree = builder.tree();
 - Debugging performance issues where the same function behaves differently depending on how it's called
 - Building more detailed calling-context trees for advanced analysis
 
-// Build tree from sample files
-std::vector<std::pair<std::string, uint32_t>> samples = {
-    {"/path/to/rank0.pflw", 0},
-    {"/path/to/rank1.pflw", 1}
-};
-size_t loaded = builder.build_from_files(samples, 1000.0);  // 1ms per sample
-
-// Access the tree
-const PerformanceTree& tree = builder.tree();
-```
-
 ### 3. Analysis Tasks (`analysis_tasks.h`)
 
 #### Balance Analyzer

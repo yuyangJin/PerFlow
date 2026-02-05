@@ -59,7 +59,7 @@ Only specific types of PRs will be reviewed. The PR title is prefixed appropriat
 
 ## Code Quality
 The PR needs to meet the following code quality standards:
-[Google Python style guide](https://google.github.io/styleguide/pyguide.html) and [Google C++ style guide](https://google.github.io/styleguide/cppguide.html).guide and Google C++ style guide.
+[Google Python style guide](https://google.github.io/styleguide/pyguide.html) and [Google C++ style guide](https://google.github.io/styleguide/cppguide.html).
 
 Pass all linter checks. Please use `pre-commit` to format your code. See [https://pre-commit.com/#usage](https://pre-commit.com/#usage) if `pre-commit` is new to you.
 
