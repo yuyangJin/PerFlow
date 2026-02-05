@@ -52,8 +52,9 @@ PerFlow is designed for production-grade performance analysis of HPC application
 - 🚀 **[Getting Started](docs/user-guide/GETTING_STARTED.md)** - Installation and quick start guide
 - ⚙️ **[Configuration](docs/user-guide/CONFIGURATION.md)** - Environment variables and options
 - 🔧 **[Troubleshooting](docs/user-guide/TROUBLESHOOTING.md)** - Common issues and solutions
+- ❓ **[FAQ](docs/FAQ.md)** - Frequently asked questions
 - 🏗️ **[Architecture](docs/developer-guide/ARCHITECTURE.md)** - System design and components
-- 📖 **[API Reference](docs/ONLINE_ANALYSIS_API.md)** - Complete API documentation
+- 📖 **[API Reference](docs/api-reference/ONLINE_ANALYSIS_API.md)** - Complete API documentation
 - 🧪 **[Testing Guide](TESTING.md)** - Comprehensive testing documentation
 
 ## Quick Start
@@ -196,7 +197,7 @@ PerFlow is actively maintained and production-ready:
 
 ## Contributing
 
-We welcome contributions! Please see our [Contributing Guidelines](docs/contributing.md) for details on:
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details on:
 - Reporting bugs and requesting features
 - Submitting pull requests
 - Code style and testing requirements
