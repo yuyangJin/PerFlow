@@ -11,6 +11,7 @@
 
 #include "analysis/offset_converter.h"
 #include "analysis/performance_tree.h"
+#include "analysis/symbol_resolver.h"
 #include "sampling/call_stack.h"
 #include "sampling/data_export.h"
 
@@ -23,7 +24,7 @@ class TreeBuilder {
   /// Constructor with optional build mode and sample count mode
   explicit TreeBuilder(TreeBuildMode mode = TreeBuildMode::kContextFree,
                       SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
-      : converter_(), tree_(mode, count_mode) {}
+      : converter_(std::make_shared<SymbolResolver>()), tree_(mode, count_mode) {}
 
   /// Get the performance tree
   PerformanceTree& tree() noexcept { return tree_; }
