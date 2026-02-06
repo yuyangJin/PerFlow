@@ -213,23 +213,27 @@ include(GNUInstallDirs)
 
 install(TARGETS perflow_sampling perflow_analysis
     EXPORT PerFlowTargets
-    INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    # INCLUDES DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    INCLUDES DESTINATION ${Python3_SITEARCH}/perflow/include
 )
 
 install(DIRECTORY include/sampling
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    # DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    DESTINATION ${Python3_SITEARCH}/perflow/include/sampling
     FILES_MATCHING PATTERN "*.h"
 )
 
 install(DIRECTORY include/analysis
-    DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    # DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
+    DESTINATION ${Python3_SITEARCH}/perflow/include/analysis
     FILES_MATCHING PATTERN "*.h"
 )
 
 install(EXPORT PerFlowTargets
     FILE PerFlowTargets.cmake
     NAMESPACE PerFlow::
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PerFlow
+    # DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PerFlow
+    DESTINATION ${Python3_SITEARCH}/perflow/lib/cmake/PerFlow
 )
 
 # Package configuration
@@ -244,13 +248,15 @@ write_basic_package_version_file(
 configure_package_config_file(
     "${CMAKE_CURRENT_SOURCE_DIR}/cmake/PerFlowConfig.cmake.in"
     "${CMAKE_CURRENT_BINARY_DIR}/PerFlowConfig.cmake"
-    INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PerFlow
+    # INSTALL_DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PerFlow
+    INSTALL_DESTINATION ${Python3_SITEARCH}/perflow/lib/cmake/PerFlow
 )
 
 install(FILES
     "${CMAKE_CURRENT_BINARY_DIR}/PerFlowConfig.cmake"
     "${CMAKE_CURRENT_BINARY_DIR}/PerFlowConfigVersion.cmake"
-    DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PerFlow
+    # DESTINATION ${CMAKE_INSTALL_LIBDIR}/cmake/PerFlow
+    DESTINATION ${Python3_SITEARCH}/perflow/lib/cmake/PerFlow
 )
 
 # Summary

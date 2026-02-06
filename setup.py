@@ -34,14 +34,17 @@ class CMakeBuild(build_ext):
     def build_extension(self, ext):
         extdir = os.path.abspath(os.path.dirname(self.get_ext_fullpath(ext.name)))
         
+        print(f"Building CMake extension {ext.name} in {extdir}")
+
         # Required for auto-detection of auxiliary "native" libs
         if not extdir.endswith(os.path.sep):
             extdir += os.path.sep
         
         cmake_args = [
             f'-DCMAKE_LIBRARY_OUTPUT_DIRECTORY={extdir}/perflow',
-            f'-DPYTHON_EXECUTABLE={sys.executable}',
             f'-DCMAKE_BUILD_TYPE=Release',
+            f'-DPERFLOW_BUILD_PYTHON=ON',
+            f'-DPERFLOW_BUILD_TESTS=OFF',
         ]
         
         build_args = ['--config', 'Release']
@@ -59,6 +62,10 @@ class CMakeBuild(build_ext):
         )
         subprocess.check_call(
             ['cmake', '--build', '.'] + build_args,
+            cwd=build_temp
+        )
+        subprocess.check_call(
+            ['cmake', '--install', '.'],
             cwd=build_temp
         )
 

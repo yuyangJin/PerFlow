@@ -28,10 +28,10 @@ set_target_properties(_perflow PROPERTIES
 
 # Install target
 install(TARGETS _perflow
-    LIBRARY DESTINATION perflow
+    LIBRARY DESTINATION ${Python3_SITEARCH}/perflow
 )
 
 # Install Python files
 install(FILES perflow/__init__.py
-    DESTINATION perflow
+    DESTINATION ${Python3_SITEARCH}/perflow
 )
