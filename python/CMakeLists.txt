@@ -35,3 +35,8 @@ install(TARGETS _perflow
 install(FILES perflow/__init__.py
     DESTINATION ${Python3_SITEARCH}/perflow
 )
+
+install(DIRECTORY perflow/dataflow
+    DESTINATION ${Python3_SITEARCH}/perflow
+    FILES_MATCHING PATTERN "*.py"
+)

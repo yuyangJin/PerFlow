@@ -3,6 +3,19 @@
 This document provides comprehensive documentation for the PerFlow Python bindings,
 which expose the C++ performance analysis library to Python.
 
+## Overview
+
+PerFlow provides two levels of Python APIs:
+
+1. **Low-level API** (this document): Direct bindings to C++ classes like `TreeBuilder`, `HotspotAnalyzer`, etc.
+2. **Dataflow API** (see [Dataflow API Reference](dataflow-api.md)): High-level dataflow-based programming framework for composing analysis workflows.
+
+For most use cases, we recommend using the **Dataflow API** as it provides:
+- Fluent, user-friendly workflow composition
+- Automatic parallel execution of independent tasks
+- Result caching and lazy evaluation
+- Pre-built analysis nodes
+
 ## Installation
 
 ### Building from Source
@@ -32,6 +45,29 @@ pip install -e .
 
 ## Quick Start
 
+### Using Dataflow API (Recommended)
+
+```python
+from perflow.dataflow import WorkflowBuilder
+
+# Create and execute a workflow in one fluent chain
+results = (
+    WorkflowBuilder("MyAnalysis")
+    .load_data([('rank_0.pflw', 0), ('rank_1.pflw', 1)])
+    .find_hotspots(top_n=10)
+    .analyze_balance()
+    .execute()
+)
+
+# Access results
+for node_id, output in results.items():
+    if 'hotspots' in output:
+        for h in output['hotspots']:
+            print(f"{h.function_name}: {h.self_percentage:.1f}%")
+```
+
+### Using Low-level API
+
 ```python
 import perflow
 
@@ -53,7 +89,7 @@ balance = perflow.BalanceAnalyzer.analyze(tree)
 print(f"Imbalance factor: {balance.imbalance_factor:.2f}")
 ```
 
-## API Reference
+## Low-level API Reference
 
 ### Enumerations
 
