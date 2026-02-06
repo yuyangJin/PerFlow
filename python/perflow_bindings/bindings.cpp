@@ -232,7 +232,7 @@ PYBIND11_MODULE(_perflow_bindings, m) {
              }
              converted.emplace_back(pair.first, static_cast<uint32_t>(pair.second));
            }
-           return self.build_from_files_parallel<>(converted, time_per_sample, num_threads);
+           return self.build_from_files_parallel(converted, time_per_sample, num_threads);
          },
          "Build tree from multiple sample files in parallel",
          py::arg("sample_files"),
