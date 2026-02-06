@@ -307,13 +307,15 @@ class TestBalanceAnalysisResult(unittest.TestCase):
         """Test BalanceAnalysisResult attributes."""
         result = BalanceAnalysisResult()
         
-        # Should have these attributes
-        self.assertTrue(hasattr(result, 'total_samples'))
-        self.assertTrue(hasattr(result, 'max_samples'))
+        # Should have these attributes matching the C++ struct
+        self.assertTrue(hasattr(result, 'mean_samples'))
+        self.assertTrue(hasattr(result, 'std_dev_samples'))
         self.assertTrue(hasattr(result, 'min_samples'))
-        self.assertTrue(hasattr(result, 'avg_samples'))
-        self.assertTrue(hasattr(result, 'imbalance_ratio'))
-        self.assertTrue(hasattr(result, 'per_rank_samples'))
+        self.assertTrue(hasattr(result, 'max_samples'))
+        self.assertTrue(hasattr(result, 'imbalance_factor'))
+        self.assertTrue(hasattr(result, 'most_loaded_process'))
+        self.assertTrue(hasattr(result, 'least_loaded_process'))
+        self.assertTrue(hasattr(result, 'process_samples'))
 
 
 @unittest.skipUnless(BINDINGS_AVAILABLE, "Requires C++ bindings")
@@ -329,43 +331,47 @@ class TestHotspotInfo(unittest.TestCase):
         """Test HotspotInfo attributes."""
         info = HotspotInfo()
         
-        # Should have these attributes
-        self.assertTrue(hasattr(info, 'node'))
-        self.assertTrue(hasattr(info, 'samples'))
+        # Should have these attributes matching the C++ struct
+        self.assertTrue(hasattr(info, 'function_name'))
+        self.assertTrue(hasattr(info, 'library_name'))
+        self.assertTrue(hasattr(info, 'source_location'))
+        self.assertTrue(hasattr(info, 'total_samples'))
         self.assertTrue(hasattr(info, 'percentage'))
-        self.assertTrue(hasattr(info, 'rank'))
+        self.assertTrue(hasattr(info, 'self_samples'))
+        self.assertTrue(hasattr(info, 'self_percentage'))
 
 
 @unittest.skipUnless(BINDINGS_AVAILABLE, "Requires C++ bindings")
 class TestBalanceAnalyzer(unittest.TestCase):
     """Test BalanceAnalyzer binding."""
     
-    def test_balance_analyzer_creation(self):
-        """Test creating a BalanceAnalyzer object."""
-        analyzer = BalanceAnalyzer()
-        self.assertIsNotNone(analyzer)
+    def test_balance_analyzer_is_static_class(self):
+        """Test BalanceAnalyzer provides static analyze method."""
+        # BalanceAnalyzer is a utility class with static methods only
+        self.assertTrue(hasattr(BalanceAnalyzer, 'analyze'))
     
-    def test_balance_analyzer_has_analyze_method(self):
-        """Test BalanceAnalyzer has analyze method."""
-        analyzer = BalanceAnalyzer()
-        self.assertTrue(hasattr(analyzer, 'analyze'))
+    def test_balance_analyzer_analyze_is_callable(self):
+        """Test BalanceAnalyzer.analyze is callable."""
+        # Should be callable as a static method
+        self.assertTrue(callable(BalanceAnalyzer.analyze))
 
 
 @unittest.skipUnless(BINDINGS_AVAILABLE, "Requires C++ bindings")
 class TestHotspotAnalyzer(unittest.TestCase):
     """Test HotspotAnalyzer binding."""
     
-    def test_hotspot_analyzer_creation(self):
-        """Test creating a HotspotAnalyzer object."""
-        analyzer = HotspotAnalyzer()
-        self.assertIsNotNone(analyzer)
+    def test_hotspot_analyzer_is_static_class(self):
+        """Test HotspotAnalyzer provides static analysis methods."""
+        # HotspotAnalyzer is a utility class with static methods only
+        self.assertTrue(hasattr(HotspotAnalyzer, 'find_hotspots'))
     
     def test_hotspot_analyzer_has_methods(self):
         """Test HotspotAnalyzer has analysis methods."""
-        analyzer = HotspotAnalyzer()
+        # Should have static methods
+        self.assertTrue(hasattr(HotspotAnalyzer, 'find_hotspots'))
         
-        self.assertTrue(hasattr(analyzer, 'find_hotspots_exclusive'))
-        self.assertTrue(hasattr(analyzer, 'find_hotspots_inclusive'))
+        # Methods should be callable
+        self.assertTrue(callable(HotspotAnalyzer.find_hotspots))
 
 
 @unittest.skipUnless(BINDINGS_AVAILABLE, "Requires C++ bindings")
@@ -454,12 +460,22 @@ class TestErrorHandling(unittest.TestCase):
     
     def test_wrong_argument_count(self):
         """Test that wrong argument count raises TypeError."""
-        # TreeBuilder requires 2 arguments
-        with self.assertRaises(TypeError):
-            TreeBuilder()
+        # TreeBuilder has default parameters, so it can be called with 0, 1, or 2 args
+        # This should work - no args (uses defaults)
+        builder1 = TreeBuilder()
+        self.assertIsNotNone(builder1)
         
+        # This should work - 1 arg
+        builder2 = TreeBuilder(TreeBuildMode.CONTEXT_FREE)
+        self.assertIsNotNone(builder2)
+        
+        # This should work - 2 args
+        builder3 = TreeBuilder(TreeBuildMode.CONTEXT_FREE, SampleCountMode.BOTH)
+        self.assertIsNotNone(builder3)
+        
+        # But too many args should fail
         with self.assertRaises(TypeError):
-            TreeBuilder(TreeBuildMode.CONTEXT_FREE)
+            TreeBuilder(TreeBuildMode.CONTEXT_FREE, SampleCountMode.BOTH, "extra")
 
 
 def run_tests():
