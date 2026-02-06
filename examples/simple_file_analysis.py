@@ -152,6 +152,16 @@ def analyze_from_files(data_dir, num_processes=None, top_n=10):
     print("-" * 70)
     
     hotspots = perflow.HotspotAnalyzer.find_hotspots(tree, top_n)
+    
+    # Debug: Check if hotspots have valid function names
+    if hotspots and not hotspots[0].function_name:
+        print("DEBUG: Function names appear to be empty.")
+        print("DEBUG: Checking tree nodes for function name data...")
+        # Check first few nodes
+        all_nodes = tree.all_nodes[:5] if hasattr(tree, 'all_nodes') else []
+        for node in all_nodes:
+            print(f"  Node: function='{node.function_name}', library='{node.library_name}', samples={node.total_samples}")
+    
     for i, h in enumerate(hotspots, 1):
         func = h.function_name[:33] if len(h.function_name) > 33 else h.function_name
         print(f"{i:<5} {func:<35} {h.self_samples:<12} {h.self_percentage:.2f}%")
