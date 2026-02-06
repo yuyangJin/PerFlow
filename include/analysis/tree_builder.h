@@ -45,7 +45,7 @@ class TreeBuilder {
   
   /// Set symbol resolver for offset-to-symbol conversion
   /// @param resolver Symbol resolver (nullptr to disable symbol resolution)
-  void set_symbol_resolver(std::shared_ptr<SymbolResolver> resolver) noexcept {
+  void set_symbol_resolver(const std::shared_ptr<SymbolResolver>& resolver) noexcept {
     converter_.set_symbol_resolver(resolver);
   }
   
