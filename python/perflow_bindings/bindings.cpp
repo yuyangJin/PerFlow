@@ -206,17 +206,50 @@ PYBIND11_MODULE(_perflow_bindings, m) {
          "Set the parallel build strategy for multi-threaded construction",
          py::arg("strategy"))
     .def("build_from_files", 
-         &TreeBuilder::build_from_files<>,
+         [](TreeBuilder& self, const std::vector<std::pair<std::string, int>>& sample_files, double time_per_sample) {
+           // Convert signed int to uint32_t
+           std::vector<std::pair<std::string, uint32_t>> converted;
+           converted.reserve(sample_files.size());
+           for (const auto& pair : sample_files) {
+             if (pair.second < 0) {
+               throw std::invalid_argument("Process/rank ID must be non-negative, got: " + std::to_string(pair.second));
+             }
+             converted.emplace_back(pair.first, static_cast<uint32_t>(pair.second));
+           }
+           return self.build_from_files<>(converted, time_per_sample);
+         },
          "Build tree from multiple sample files",
          py::arg("sample_files"),
          py::arg("time_per_sample") = 1000.0)
     .def("build_from_files_parallel",
-         &TreeBuilder::build_from_files_parallel<>,
+         [](TreeBuilder& self, const std::vector<std::pair<std::string, int>>& sample_files, double time_per_sample, unsigned int num_threads) {
+           // Convert signed int to uint32_t
+           std::vector<std::pair<std::string, uint32_t>> converted;
+           converted.reserve(sample_files.size());
+           for (const auto& pair : sample_files) {
+             if (pair.second < 0) {
+               throw std::invalid_argument("Process/rank ID must be non-negative, got: " + std::to_string(pair.second));
+             }
+             converted.emplace_back(pair.first, static_cast<uint32_t>(pair.second));
+           }
+           return self.build_from_files_parallel<>(converted, time_per_sample, num_threads);
+         },
          "Build tree from multiple sample files in parallel",
          py::arg("sample_files"),
          py::arg("time_per_sample") = 1000.0,
          py::arg("num_threads") = 0)
-    .def("load_library_maps", &TreeBuilder::load_library_maps,
+    .def("load_library_maps", 
+         [](TreeBuilder& self, const std::vector<std::pair<std::string, int>>& libmap_files) {
+           // Convert signed int to uint32_t
+           std::vector<std::pair<std::string, uint32_t>> converted;
+           converted.reserve(libmap_files.size());
+           for (const auto& pair : libmap_files) {
+             // Convert negative rank IDs (like -1) to special value or skip
+             uint32_t rank_id = (pair.second < 0) ? 0xFFFFFFFF : static_cast<uint32_t>(pair.second);
+             converted.emplace_back(pair.first, rank_id);
+           }
+           return self.load_library_maps(converted);
+         },
          "Load library maps for address resolution",
          py::arg("libmap_files"))
     .def("clear", &TreeBuilder::clear,
