@@ -11,6 +11,7 @@
 
 #include "analysis/offset_converter.h"
 #include "analysis/performance_tree.h"
+#include "analysis/symbol_resolver.h"
 #include "sampling/call_stack.h"
 #include "sampling/data_export.h"
 
@@ -24,6 +25,15 @@ class TreeBuilder {
   explicit TreeBuilder(TreeBuildMode mode = TreeBuildMode::kContextFree,
                       SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
       : converter_(), tree_(mode, count_mode) {}
+  
+  /// Constructor with symbol resolver
+  /// @param resolver Symbol resolver for function name and location resolution
+  /// @param mode Tree build mode
+  /// @param count_mode Sample count mode
+  explicit TreeBuilder(std::shared_ptr<SymbolResolver> resolver,
+                      TreeBuildMode mode = TreeBuildMode::kContextFree,
+                      SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
+      : converter_(resolver), tree_(mode, count_mode) {}
 
   /// Get the performance tree
   PerformanceTree& tree() noexcept { return tree_; }
@@ -32,6 +42,18 @@ class TreeBuilder {
   /// Get the offset converter
   OffsetConverter& converter() noexcept { return converter_; }
   const OffsetConverter& converter() const noexcept { return converter_; }
+  
+  /// Set symbol resolver for offset-to-symbol conversion
+  /// @param resolver Symbol resolver (nullptr to disable symbol resolution)
+  void set_symbol_resolver(std::shared_ptr<SymbolResolver> resolver) noexcept {
+    converter_.set_symbol_resolver(resolver);
+  }
+  
+  /// Check if symbol resolver is configured
+  /// @return True if symbol resolver is available, false otherwise
+  bool has_symbol_resolver() const noexcept {
+    return converter_.has_symbol_resolver();
+  }
   
   /// Set the tree build mode (must be called before building)
   void set_build_mode(TreeBuildMode mode) {

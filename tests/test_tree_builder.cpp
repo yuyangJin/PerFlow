@@ -170,3 +170,120 @@ TEST(TreeBuilderTest, Clear) {
   EXPECT_EQ(builder.tree().total_samples(), 0);
   EXPECT_EQ(builder.converter().snapshot_count(), 0);
 }
+
+// ============================================================================
+// Symbol Resolver Tests
+// ============================================================================
+
+TEST(TreeBuilderTest, ConstructionWithoutSymbolResolver) {
+  // Default construction should not have symbol resolver
+  TreeBuilder builder;
+  
+  EXPECT_FALSE(builder.has_symbol_resolver());
+  EXPECT_FALSE(builder.converter().has_symbol_resolver());
+}
+
+TEST(TreeBuilderTest, ConstructionWithSymbolResolver) {
+  // Create a symbol resolver
+  auto resolver = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kAutoFallback,
+      true  // Enable caching
+  );
+  
+  // Construct TreeBuilder with resolver
+  TreeBuilder builder(resolver);
+  
+  EXPECT_TRUE(builder.has_symbol_resolver());
+  EXPECT_TRUE(builder.converter().has_symbol_resolver());
+}
+
+TEST(TreeBuilderTest, SetSymbolResolverAfterConstruction) {
+  // Start without resolver
+  TreeBuilder builder;
+  EXPECT_FALSE(builder.has_symbol_resolver());
+  
+  // Create and set a symbol resolver
+  auto resolver = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kAddr2LineOnly,
+      false  // Disable caching
+  );
+  
+  builder.set_symbol_resolver(resolver);
+  
+  EXPECT_TRUE(builder.has_symbol_resolver());
+  EXPECT_TRUE(builder.converter().has_symbol_resolver());
+}
+
+TEST(TreeBuilderTest, ClearSymbolResolver) {
+  // Start with resolver
+  auto resolver = std::make_shared<SymbolResolver>();
+  TreeBuilder builder(resolver);
+  EXPECT_TRUE(builder.has_symbol_resolver());
+  
+  // Clear by setting nullptr
+  builder.set_symbol_resolver(nullptr);
+  
+  EXPECT_FALSE(builder.has_symbol_resolver());
+  EXPECT_FALSE(builder.converter().has_symbol_resolver());
+}
+
+TEST(TreeBuilderTest, SymbolResolverWithDifferentStrategies) {
+  // Test construction with different strategies
+  
+  // Strategy 1: DlAddr only
+  auto resolver1 = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kDlAddrOnly,
+      true
+  );
+  TreeBuilder builder1(resolver1);
+  EXPECT_TRUE(builder1.has_symbol_resolver());
+  
+  // Strategy 2: Addr2Line only
+  auto resolver2 = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kAddr2LineOnly,
+      true
+  );
+  TreeBuilder builder2(resolver2);
+  EXPECT_TRUE(builder2.has_symbol_resolver());
+  
+  // Strategy 3: Auto fallback
+  auto resolver3 = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kAutoFallback,
+      true
+  );
+  TreeBuilder builder3(resolver3);
+  EXPECT_TRUE(builder3.has_symbol_resolver());
+}
+
+TEST(TreeBuilderTest, SymbolResolverWithBuildModes) {
+  // Test that symbol resolver works with different build modes
+  auto resolver = std::make_shared<SymbolResolver>(
+      SymbolResolver::Strategy::kAutoFallback,
+      true
+  );
+  
+  // Context-free mode
+  TreeBuilder builder1(resolver, TreeBuildMode::kContextFree);
+  EXPECT_TRUE(builder1.has_symbol_resolver());
+  EXPECT_EQ(builder1.build_mode(), TreeBuildMode::kContextFree);
+  
+  // Context-aware mode
+  TreeBuilder builder2(resolver, TreeBuildMode::kContextAware);
+  EXPECT_TRUE(builder2.has_symbol_resolver());
+  EXPECT_EQ(builder2.build_mode(), TreeBuildMode::kContextAware);
+}
+
+TEST(TreeBuilderTest, SymbolResolverPersistsAfterClear) {
+  // Create builder with symbol resolver
+  auto resolver = std::make_shared<SymbolResolver>();
+  TreeBuilder builder(resolver);
+  EXPECT_TRUE(builder.has_symbol_resolver());
+  
+  // Clear tree data
+  builder.clear();
+  
+  // Symbol resolver should still be configured
+  EXPECT_TRUE(builder.has_symbol_resolver());
+  EXPECT_TRUE(builder.converter().has_symbol_resolver());
+}
+
