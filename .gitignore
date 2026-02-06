@@ -23,6 +23,12 @@ _codeql_detected_source_root
 __pycache__/
 *.pyc
 *.pyo
+*.egg-info/
+dist/
+
+# Python built extensions
+python/perflow/*.so
+python/perflow/*.pyd
 
 # NPB benchmark workspace and results
 tests/npb_benchmark/npb_workspace/

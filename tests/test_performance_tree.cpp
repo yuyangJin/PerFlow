@@ -347,3 +347,360 @@ TEST(PerformanceTreeTest, SampleCountModeSetAfterConstruction) {
   tree.set_sample_count_mode(SampleCountMode::kInclusive);
   EXPECT_EQ(tree.sample_count_mode(), SampleCountMode::kInclusive);
 }
+
+// ============================================================================
+// Tests for new tree-based data access APIs
+// ============================================================================
+
+TEST(TreeNodeTest, DepthCalculation) {
+  // Create a simple tree structure: root -> main -> compute -> kernel
+  ResolvedFrame root_frame;
+  root_frame.function_name = "[root]";
+  TreeNode root_node(root_frame);
+  
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  auto main_node = std::make_shared<TreeNode>(main_frame);
+  root_node.add_child(main_node);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  auto compute_node = std::make_shared<TreeNode>(compute_frame);
+  main_node->add_child(compute_node);
+  
+  ResolvedFrame kernel_frame;
+  kernel_frame.function_name = "kernel";
+  auto kernel_node = std::make_shared<TreeNode>(kernel_frame);
+  compute_node->add_child(kernel_node);
+  
+  EXPECT_EQ(root_node.depth(), 0);
+  EXPECT_EQ(main_node->depth(), 1);
+  EXPECT_EQ(compute_node->depth(), 2);
+  EXPECT_EQ(kernel_node->depth(), 3);
+}
+
+TEST(TreeNodeTest, IsLeafAndIsRoot) {
+  ResolvedFrame parent_frame;
+  parent_frame.function_name = "parent";
+  TreeNode parent_node(parent_frame);
+  
+  ResolvedFrame child_frame;
+  child_frame.function_name = "child";
+  auto child_node = std::make_shared<TreeNode>(child_frame);
+  parent_node.add_child(child_node);
+  
+  EXPECT_TRUE(parent_node.is_root());
+  EXPECT_FALSE(parent_node.is_leaf());
+  EXPECT_FALSE(child_node->is_root());
+  EXPECT_TRUE(child_node->is_leaf());
+}
+
+TEST(TreeNodeTest, Siblings) {
+  ResolvedFrame parent_frame;
+  parent_frame.function_name = "parent";
+  TreeNode parent_node(parent_frame);
+  
+  ResolvedFrame child1_frame;
+  child1_frame.function_name = "child1";
+  auto child1 = std::make_shared<TreeNode>(child1_frame);
+  parent_node.add_child(child1);
+  
+  ResolvedFrame child2_frame;
+  child2_frame.function_name = "child2";
+  auto child2 = std::make_shared<TreeNode>(child2_frame);
+  parent_node.add_child(child2);
+  
+  ResolvedFrame child3_frame;
+  child3_frame.function_name = "child3";
+  auto child3 = std::make_shared<TreeNode>(child3_frame);
+  parent_node.add_child(child3);
+  
+  auto siblings_of_child1 = child1->siblings();
+  EXPECT_EQ(siblings_of_child1.size(), 2);
+  
+  auto siblings_of_child2 = child2->siblings();
+  EXPECT_EQ(siblings_of_child2.size(), 2);
+  
+  // Parent has no siblings (is root)
+  auto siblings_of_parent = parent_node.siblings();
+  EXPECT_EQ(siblings_of_parent.size(), 0);
+}
+
+TEST(TreeNodeTest, GetPath) {
+  ResolvedFrame root_frame;
+  root_frame.function_name = "[root]";
+  TreeNode root_node(root_frame);
+  
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  auto main_node = std::make_shared<TreeNode>(main_frame);
+  root_node.add_child(main_node);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  auto compute_node = std::make_shared<TreeNode>(compute_frame);
+  main_node->add_child(compute_node);
+  
+  auto path = compute_node->get_path();
+  ASSERT_EQ(path.size(), 3);
+  EXPECT_EQ(path[0], "[root]");
+  EXPECT_EQ(path[1], "main");
+  EXPECT_EQ(path[2], "compute");
+}
+
+TEST(TreeNodeTest, FindChildByName) {
+  ResolvedFrame parent_frame;
+  parent_frame.function_name = "parent";
+  TreeNode parent_node(parent_frame);
+  
+  ResolvedFrame child1_frame;
+  child1_frame.function_name = "child1";
+  auto child1 = std::make_shared<TreeNode>(child1_frame);
+  parent_node.add_child(child1);
+  
+  ResolvedFrame child2_frame;
+  child2_frame.function_name = "child2";
+  auto child2 = std::make_shared<TreeNode>(child2_frame);
+  parent_node.add_child(child2);
+  
+  auto found = parent_node.find_child_by_name("child2");
+  ASSERT_NE(found, nullptr);
+  EXPECT_EQ(found->frame().function_name, "child2");
+  
+  auto not_found = parent_node.find_child_by_name("nonexistent");
+  EXPECT_EQ(not_found, nullptr);
+}
+
+TEST(PerformanceTreeTest, NodeCount) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  // Insert a call stack: main -> compute -> kernel
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  frames.push_back(compute_frame);
+  
+  ResolvedFrame kernel_frame;
+  kernel_frame.function_name = "kernel";
+  frames.push_back(kernel_frame);
+  
+  tree.insert_call_stack(frames, 0, 10);
+  
+  // Should have 4 nodes: root + main + compute + kernel
+  EXPECT_EQ(tree.node_count(), 4);
+}
+
+TEST(PerformanceTreeTest, MaxDepth) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  // Insert a call stack of depth 3
+  std::vector<ResolvedFrame> frames;
+  for (int i = 0; i < 3; ++i) {
+    ResolvedFrame frame;
+    frame.function_name = "func" + std::to_string(i);
+    frames.push_back(frame);
+  }
+  
+  tree.insert_call_stack(frames, 0, 10);
+  
+  // Max depth should be 3 (0 for root, 1 for func0, 2 for func1, 3 for func2)
+  EXPECT_EQ(tree.max_depth(), 3);
+}
+
+TEST(PerformanceTreeTest, AllNodes) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  frames.push_back(compute_frame);
+  
+  tree.insert_call_stack(frames, 0, 10);
+  
+  auto all = tree.all_nodes();
+  EXPECT_EQ(all.size(), 3);  // root + main + compute
+}
+
+TEST(PerformanceTreeTest, LeafNodes) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  // Insert two different call stacks
+  std::vector<ResolvedFrame> frames1;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames1.push_back(main_frame);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  frames1.push_back(compute_frame);
+  tree.insert_call_stack(frames1, 0, 10);
+  
+  std::vector<ResolvedFrame> frames2;
+  frames2.push_back(main_frame);
+  
+  ResolvedFrame io_frame;
+  io_frame.function_name = "io";
+  frames2.push_back(io_frame);
+  tree.insert_call_stack(frames2, 0, 5);
+  
+  auto leaves = tree.leaf_nodes();
+  EXPECT_EQ(leaves.size(), 2);  // compute and io are both leaves
+}
+
+TEST(PerformanceTreeTest, FindNodesByName) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  frames.push_back(compute_frame);
+  tree.insert_call_stack(frames, 0, 10);
+  
+  auto found = tree.find_nodes_by_name("compute");
+  EXPECT_EQ(found.size(), 1);
+  EXPECT_EQ(found[0]->frame().function_name, "compute");
+  
+  auto not_found = tree.find_nodes_by_name("nonexistent");
+  EXPECT_EQ(not_found.size(), 0);
+}
+
+TEST(PerformanceTreeTest, FilterBySamples) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth);
+  tree.set_process_count(1);
+  
+  // Insert multiple call stacks
+  std::vector<ResolvedFrame> frames1;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames1.push_back(main_frame);
+  
+  ResolvedFrame hot_frame;
+  hot_frame.function_name = "hot_function";
+  frames1.push_back(hot_frame);
+  tree.insert_call_stack(frames1, 0, 100);
+  
+  std::vector<ResolvedFrame> frames2;
+  frames2.push_back(main_frame);
+  
+  ResolvedFrame cold_frame;
+  cold_frame.function_name = "cold_function";
+  frames2.push_back(cold_frame);
+  tree.insert_call_stack(frames2, 0, 5);
+  
+  // Filter for nodes with at least 50 samples
+  auto hot_nodes = tree.filter_by_samples(50);
+  
+  // Should include main (105 total) and hot_function (100 total)
+  bool found_hot = false;
+  for (const auto& node : hot_nodes) {
+    if (node->frame().function_name == "hot_function") {
+      found_hot = true;
+    }
+  }
+  EXPECT_TRUE(found_hot);
+}
+
+TEST(PerformanceTreeTest, NodesAtDepth) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  for (int i = 0; i < 3; ++i) {
+    ResolvedFrame frame;
+    frame.function_name = "func" + std::to_string(i);
+    frames.push_back(frame);
+  }
+  tree.insert_call_stack(frames, 0, 10);
+  
+  auto depth0 = tree.nodes_at_depth(0);
+  EXPECT_EQ(depth0.size(), 1);  // Only root
+  
+  auto depth1 = tree.nodes_at_depth(1);
+  EXPECT_EQ(depth1.size(), 1);  // func0
+  
+  auto depth2 = tree.nodes_at_depth(2);
+  EXPECT_EQ(depth2.size(), 1);  // func1
+  
+  auto depth3 = tree.nodes_at_depth(3);
+  EXPECT_EQ(depth3.size(), 1);  // func2
+}
+
+TEST(PerformanceTreeTest, TraversePreorder) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  frames.push_back(compute_frame);
+  tree.insert_call_stack(frames, 0, 10);
+  
+  std::vector<std::string> visited;
+  tree.traverse_preorder([&visited](const std::shared_ptr<TreeNode>& node) {
+    visited.push_back(node->frame().function_name);
+    return true;
+  });
+  
+  // Preorder: root, main, compute
+  ASSERT_EQ(visited.size(), 3);
+  EXPECT_EQ(visited[0], "[root]");
+  EXPECT_EQ(visited[1], "main");
+  EXPECT_EQ(visited[2], "compute");
+}
+
+TEST(PerformanceTreeTest, TraverseLevelorder) {
+  PerformanceTree tree;
+  tree.set_process_count(1);
+  
+  // Create a tree with branching: root -> main -> (compute, io)
+  std::vector<ResolvedFrame> frames1;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  frames1.push_back(main_frame);
+  
+  ResolvedFrame compute_frame;
+  compute_frame.function_name = "compute";
+  frames1.push_back(compute_frame);
+  tree.insert_call_stack(frames1, 0, 10);
+  
+  std::vector<ResolvedFrame> frames2;
+  frames2.push_back(main_frame);
+  
+  ResolvedFrame io_frame;
+  io_frame.function_name = "io";
+  frames2.push_back(io_frame);
+  tree.insert_call_stack(frames2, 0, 5);
+  
+  std::vector<std::string> visited;
+  tree.traverse_levelorder([&visited](const std::shared_ptr<TreeNode>& node) {
+    visited.push_back(node->frame().function_name);
+    return true;
+  });
+  
+  // Level order: root, main, then compute and io
+  ASSERT_EQ(visited.size(), 4);
+  EXPECT_EQ(visited[0], "[root]");
+  EXPECT_EQ(visited[1], "main");
+  // compute and io are at same level, order depends on insertion
+}

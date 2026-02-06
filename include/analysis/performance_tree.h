@@ -4,6 +4,7 @@
 #ifndef PERFLOW_ANALYSIS_PERFORMANCE_TREE_H_
 #define PERFLOW_ANALYSIS_PERFORMANCE_TREE_H_
 
+#include <algorithm>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -151,6 +152,87 @@ class TreeNode {
     call_counts_[child.get()] += count;
   }
 
+  /// Get the depth of this node in the tree (root = 0)
+  size_t depth() const noexcept {
+    size_t d = 0;
+    TreeNode* p = parent_;
+    while (p != nullptr) {
+      ++d;
+      p = p->parent_;
+    }
+    return d;
+  }
+
+  /// Get the number of children
+  size_t child_count() const noexcept { return children_.size(); }
+
+  /// Check if this is a leaf node (no children)
+  bool is_leaf() const noexcept { return children_.empty(); }
+
+  /// Check if this is the root node (no parent)
+  bool is_root() const noexcept { return parent_ == nullptr; }
+
+  /// Get all sibling nodes (nodes with the same parent)
+  std::vector<std::shared_ptr<TreeNode>> siblings() const {
+    std::vector<std::shared_ptr<TreeNode>> result;
+    if (parent_ == nullptr) {
+      return result;
+    }
+    for (const auto& child : parent_->children_) {
+      if (child.get() != this) {
+        result.push_back(child);
+      }
+    }
+    return result;
+  }
+
+  /// Get the path from root to this node as a vector of function names
+  std::vector<std::string> get_path() const {
+    std::vector<std::string> path;
+    const TreeNode* current = this;
+    while (current != nullptr) {
+      path.push_back(current->frame_.function_name);
+      current = current->parent_;
+    }
+    std::reverse(path.begin(), path.end());
+    return path;
+  }
+
+  /// Find child by function name
+  std::shared_ptr<TreeNode> find_child_by_name(const std::string& func_name) const {
+    for (const auto& child : children_) {
+      if (child->frame_.function_name == func_name) {
+        return child;
+      }
+    }
+    return nullptr;
+  }
+
+  /// Get total execution time across all processes (in microseconds)
+  double total_execution_time() const noexcept {
+    double total = 0.0;
+    for (double t : execution_times_) {
+      total += t;
+    }
+    return total;
+  }
+
+  /// Get execution time for a specific process
+  double execution_time(size_t process_id) const noexcept {
+    if (process_id >= execution_times_.size()) {
+      return 0.0;
+    }
+    return execution_times_[process_id];
+  }
+
+  /// Get sampling count for a specific process
+  uint64_t sampling_count(size_t process_id) const noexcept {
+    if (process_id >= sampling_counts_.size()) {
+      return 0;
+    }
+    return sampling_counts_[process_id];
+  }
+
  private:
   sampling::ResolvedFrame frame_;
   std::vector<uint64_t> sampling_counts_;   // Per-process sample counts
@@ -292,10 +374,257 @@ class PerformanceTree {
     root_->set_process_count(process_count_);
   }
 
+  // ============================================================================
+  // Tree-based Data Access APIs
+  // ============================================================================
+
+  /// Get the total number of nodes in the tree
+  size_t node_count() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return count_nodes_recursive(root_);
+  }
+
+  /// Get all nodes in the tree as a flat list
+  std::vector<std::shared_ptr<TreeNode>> all_nodes() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    collect_nodes_recursive(root_, result);
+    return result;
+  }
+
+  /// Get all leaf nodes (nodes with no children)
+  std::vector<std::shared_ptr<TreeNode>> leaf_nodes() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    collect_leaf_nodes_recursive(root_, result);
+    return result;
+  }
+
+  /// Find all nodes matching a function name
+  std::vector<std::shared_ptr<TreeNode>> find_nodes_by_name(
+      const std::string& func_name) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    find_nodes_by_name_recursive(root_, func_name, result);
+    return result;
+  }
+
+  /// Find all nodes matching a library name
+  std::vector<std::shared_ptr<TreeNode>> find_nodes_by_library(
+      const std::string& lib_name) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    find_nodes_by_library_recursive(root_, lib_name, result);
+    return result;
+  }
+
+  /// Traverse tree in pre-order (depth-first, parent before children)
+  /// @param visitor Function called for each node, return false to stop traversal
+  template <typename Visitor>
+  void traverse_preorder(Visitor visitor) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    traverse_preorder_recursive(root_, visitor);
+  }
+
+  /// Traverse tree in post-order (depth-first, children before parent)
+  /// @param visitor Function called for each node, return false to stop traversal
+  template <typename Visitor>
+  void traverse_postorder(Visitor visitor) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    traverse_postorder_recursive(root_, visitor);
+  }
+
+  /// Traverse tree level-by-level (breadth-first)
+  /// @param visitor Function called for each node, return false to stop traversal
+  template <typename Visitor>
+  void traverse_levelorder(Visitor visitor) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> queue;
+    queue.push_back(root_);
+    size_t idx = 0;
+    while (idx < queue.size()) {
+      auto node = queue[idx++];
+      if (!visitor(node)) {
+        return;
+      }
+      for (const auto& child : node->children()) {
+        queue.push_back(child);
+      }
+    }
+  }
+
+  /// Get nodes with samples above a threshold
+  std::vector<std::shared_ptr<TreeNode>> filter_by_samples(
+      uint64_t min_samples) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    filter_nodes_recursive(root_, [min_samples](const std::shared_ptr<TreeNode>& node) {
+      return node->total_samples() >= min_samples;
+    }, result);
+    return result;
+  }
+
+  /// Get nodes with self samples above a threshold
+  std::vector<std::shared_ptr<TreeNode>> filter_by_self_samples(
+      uint64_t min_self_samples) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    filter_nodes_recursive(root_, [min_self_samples](const std::shared_ptr<TreeNode>& node) {
+      return node->self_samples() >= min_self_samples;
+    }, result);
+    return result;
+  }
+
+  /// Get nodes at a specific depth
+  std::vector<std::shared_ptr<TreeNode>> nodes_at_depth(size_t depth) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    collect_nodes_at_depth_recursive(root_, 0, depth, result);
+    return result;
+  }
+
+  /// Get the maximum depth of the tree
+  size_t max_depth() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return calculate_max_depth_recursive(root_, 0);
+  }
+
+  /// Filter nodes using a custom predicate
+  template <typename Predicate>
+  std::vector<std::shared_ptr<TreeNode>> filter_nodes(Predicate pred) const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    std::vector<std::shared_ptr<TreeNode>> result;
+    filter_nodes_recursive(root_, pred, result);
+    return result;
+  }
+
  private:
   void set_process_count_nolock(size_t count) {
     process_count_ = count;
     root_->set_process_count(count);
+  }
+
+  static size_t count_nodes_recursive(const std::shared_ptr<TreeNode>& node) {
+    if (!node) return 0;
+    size_t count = 1;
+    for (const auto& child : node->children()) {
+      count += count_nodes_recursive(child);
+    }
+    return count;
+  }
+
+  static void collect_nodes_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      std::vector<std::shared_ptr<TreeNode>>& result) {
+    if (!node) return;
+    result.push_back(node);
+    for (const auto& child : node->children()) {
+      collect_nodes_recursive(child, result);
+    }
+  }
+
+  static void collect_leaf_nodes_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      std::vector<std::shared_ptr<TreeNode>>& result) {
+    if (!node) return;
+    if (node->children().empty()) {
+      result.push_back(node);
+    } else {
+      for (const auto& child : node->children()) {
+        collect_leaf_nodes_recursive(child, result);
+      }
+    }
+  }
+
+  static void find_nodes_by_name_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      const std::string& func_name,
+      std::vector<std::shared_ptr<TreeNode>>& result) {
+    if (!node) return;
+    if (node->frame().function_name == func_name) {
+      result.push_back(node);
+    }
+    for (const auto& child : node->children()) {
+      find_nodes_by_name_recursive(child, func_name, result);
+    }
+  }
+
+  static void find_nodes_by_library_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      const std::string& lib_name,
+      std::vector<std::shared_ptr<TreeNode>>& result) {
+    if (!node) return;
+    if (node->frame().library_name == lib_name) {
+      result.push_back(node);
+    }
+    for (const auto& child : node->children()) {
+      find_nodes_by_library_recursive(child, lib_name, result);
+    }
+  }
+
+  template <typename Visitor>
+  static bool traverse_preorder_recursive(
+      const std::shared_ptr<TreeNode>& node, Visitor& visitor) {
+    if (!node) return true;
+    if (!visitor(node)) return false;
+    for (const auto& child : node->children()) {
+      if (!traverse_preorder_recursive(child, visitor)) return false;
+    }
+    return true;
+  }
+
+  template <typename Visitor>
+  static bool traverse_postorder_recursive(
+      const std::shared_ptr<TreeNode>& node, Visitor& visitor) {
+    if (!node) return true;
+    for (const auto& child : node->children()) {
+      if (!traverse_postorder_recursive(child, visitor)) return false;
+    }
+    return visitor(node);
+  }
+
+  template <typename Predicate>
+  static void filter_nodes_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      Predicate pred,
+      std::vector<std::shared_ptr<TreeNode>>& result) {
+    if (!node) return;
+    if (pred(node)) {
+      result.push_back(node);
+    }
+    for (const auto& child : node->children()) {
+      filter_nodes_recursive(child, pred, result);
+    }
+  }
+
+  static void collect_nodes_at_depth_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      size_t current_depth,
+      size_t target_depth,
+      std::vector<std::shared_ptr<TreeNode>>& result) {
+    if (!node) return;
+    if (current_depth == target_depth) {
+      result.push_back(node);
+      return;
+    }
+    for (const auto& child : node->children()) {
+      collect_nodes_at_depth_recursive(child, current_depth + 1, target_depth, result);
+    }
+  }
+
+  static size_t calculate_max_depth_recursive(
+      const std::shared_ptr<TreeNode>& node,
+      size_t current_depth) {
+    if (!node) return current_depth;
+    if (node->children().empty()) return current_depth;
+    size_t max_child_depth = current_depth;
+    for (const auto& child : node->children()) {
+      size_t child_depth = calculate_max_depth_recursive(child, current_depth + 1);
+      if (child_depth > max_child_depth) {
+        max_child_depth = child_depth;
+      }
+    }
+    return max_child_depth;
   }
 
   std::shared_ptr<TreeNode> root_;

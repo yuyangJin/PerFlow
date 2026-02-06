@@ -27,6 +27,7 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 # Options
 option(PERFLOW_BUILD_TESTS "Build unit tests" ON)
 option(PERFLOW_BUILD_EXAMPLES "Build example programs" ON)
+option(PERFLOW_BUILD_PYTHON "Build Python bindings" OFF)
 option(PERFLOW_ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
 
 # Sanitizers for development
@@ -187,6 +188,26 @@ if(PERFLOW_BUILD_EXAMPLES)
     add_subdirectory(examples)
 endif()
 
+# Python bindings
+if(PERFLOW_BUILD_PYTHON)
+    # Find Python
+    find_package(Python3 COMPONENTS Interpreter Development QUIET)
+    
+    if(Python3_FOUND AND EXISTS "${CMAKE_SOURCE_DIR}/third_party/pybind11")
+        message(STATUS "Python and pybind11 found - building Python bindings")
+        add_subdirectory(${CMAKE_SOURCE_DIR}/third_party/pybind11)
+        add_subdirectory(python)
+    else()
+        if(NOT Python3_FOUND)
+            message(STATUS "Python3 not found - skipping Python bindings")
+        endif()
+        if(NOT EXISTS "${CMAKE_SOURCE_DIR}/third_party/pybind11")
+            message(STATUS "pybind11 not found - skipping Python bindings")
+            message(STATUS "  Run: git submodule add https://github.com/pybind/pybind11.git third_party/pybind11")
+        endif()
+    endif()
+endif()
+
 # Installation
 include(GNUInstallDirs)
 
@@ -236,10 +257,11 @@ install(FILES
 message(STATUS "")
 message(STATUS "PerFlow Configuration Summary")
 message(STATUS "==============================")
-message(STATUS "Version:        ${PROJECT_VERSION}")
-message(STATUS "Build type:     ${CMAKE_BUILD_TYPE}")
-message(STATUS "C++ standard:   C++${CMAKE_CXX_STANDARD}")
-message(STATUS "Build tests:    ${PERFLOW_BUILD_TESTS}")
-message(STATUS "Build examples: ${PERFLOW_BUILD_EXAMPLES}")
-message(STATUS "Sanitizers:     ${PERFLOW_ENABLE_SANITIZERS}")
+message(STATUS "Version:         ${PROJECT_VERSION}")
+message(STATUS "Build type:      ${CMAKE_BUILD_TYPE}")
+message(STATUS "C++ standard:    C++${CMAKE_CXX_STANDARD}")
+message(STATUS "Build tests:     ${PERFLOW_BUILD_TESTS}")
+message(STATUS "Build examples:  ${PERFLOW_BUILD_EXAMPLES}")
+message(STATUS "Build Python:    ${PERFLOW_BUILD_PYTHON}")
+message(STATUS "Sanitizers:      ${PERFLOW_ENABLE_SANITIZERS}")
 message(STATUS "")
