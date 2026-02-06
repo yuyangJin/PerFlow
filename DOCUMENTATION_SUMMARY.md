@@ -117,14 +117,16 @@ docs/
 - `MPI_SAMPLER.md` → `api-reference/`
 - `ONLINE_ANALYSIS_API.md` → `api-reference/`
 - `SYMBOL_RESOLUTION.md` → `api-reference/`
-- `python-api.md` → `api-reference/` (existing)
-- `dataflow-api.md` → `api-reference/` (existing)
 - `TIMER_SAMPLER_USAGE.md` → `user-guide/`
 - `TIMER_BASED_SAMPLER.md` → `user-guide/`
 - `FORTRAN_MPI_SUPPORT.md` → `developer-guide/`
 - `sampling_framework.md` → `developer-guide/`
 - `IMPLEMENTATION_SUMMARY.md` → `developer-guide/`
 - `contributing.md` → `developer-guide/` (also copied to root)
+
+#### Files in api-reference/ (pre-existing)
+- `python-api.md` - Python bindings API reference
+- `dataflow-api.md` - Python dataflow framework API
 
 #### Files Removed
 - `call_stack_offset_conversion.md` (duplicate, lowercase version)
