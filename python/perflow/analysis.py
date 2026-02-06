@@ -13,7 +13,8 @@ from .dataflow import Task
 try:
     from ._perflow_bindings import (
         TreeBuilder, TreeBuildMode, SampleCountMode, ColorScheme,
-        BalanceAnalyzer, HotspotAnalyzer, TreeTraversal, TreeVisualizer
+        ParallelBuildStrategy, BalanceAnalyzer, HotspotAnalyzer, 
+        TreeTraversal, TreeVisualizer
     )
     cpf_available = True
 except ImportError:
@@ -21,6 +22,7 @@ except ImportError:
     TreeBuildMode = None
     SampleCountMode = None
     ColorScheme = None
+    ParallelBuildStrategy = None
     BalanceAnalyzer = None
     HotspotAnalyzer = None
     TreeTraversal = None
@@ -37,6 +39,7 @@ class LoadTreeTask(Task):
                  build_mode = None,
                  count_mode = None,
                  parallel: bool = True,
+                 parallel_strategy = None,
                  name: str = None):
         """
         Initialize LoadTreeTask.
@@ -48,6 +51,8 @@ class LoadTreeTask(Task):
             build_mode: TreeBuildMode (CONTEXT_FREE or CONTEXT_AWARE)
             count_mode: SampleCountMode (EXCLUSIVE, INCLUSIVE, or BOTH)
             parallel: Whether to load files in parallel
+            parallel_strategy: ParallelBuildStrategy (COARSE_LOCK, FINE_GRAINED_LOCK, 
+                              THREAD_LOCAL_MERGE, or LOCK_FREE)
             name: Optional task name
         """
         super().__init__(name or "LoadTree")
@@ -57,6 +62,8 @@ class LoadTreeTask(Task):
         self.build_mode = build_mode or (TreeBuildMode.CONTEXT_FREE if cpf_available else None)
         self.count_mode = count_mode or (SampleCountMode.EXCLUSIVE if cpf_available else None)
         self.parallel = parallel
+        self.parallel_strategy = parallel_strategy or (
+            ParallelBuildStrategy.THREAD_LOCAL_MERGE if cpf_available and parallel else None)
     
     def execute(self, **inputs) -> Any:
         """Execute the task."""
@@ -65,6 +72,10 @@ class LoadTreeTask(Task):
         
         # Create tree builder
         builder = TreeBuilder(self.build_mode, self.count_mode)
+        
+        # Set parallel strategy if doing parallel build
+        if self.parallel and self.parallel_strategy:
+            builder.set_parallel_strategy(self.parallel_strategy)
         
         # Load library maps if provided
         if self.libmap_files:

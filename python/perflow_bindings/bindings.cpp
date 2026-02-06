@@ -69,6 +69,18 @@ PYBIND11_MODULE(_perflow_bindings, m) {
            "Rainbow colors")
     .export_values();
   
+  py::enum_<ParallelBuildStrategy>(m, "ParallelBuildStrategy",
+      "Strategy for parallel tree construction")
+    .value("COARSE_LOCK", ParallelBuildStrategy::kCoarseLock,
+           "Single mutex for entire tree (simplest, highest contention)")
+    .value("FINE_GRAINED_LOCK", ParallelBuildStrategy::kFineGrainedLock,
+           "Per-node mutexes (medium contention)")
+    .value("THREAD_LOCAL_MERGE", ParallelBuildStrategy::kThreadLocalMerge,
+           "Thread-local trees with merge (lowest contention, best for high parallelism)")
+    .value("LOCK_FREE", ParallelBuildStrategy::kLockFree,
+           "Atomic counters with locks only for structure changes")
+    .export_values();
+  
   // ========================================================================
   // ResolvedFrame
   // ========================================================================
@@ -188,6 +200,11 @@ PYBIND11_MODULE(_perflow_bindings, m) {
     .def("set_sample_count_mode", &TreeBuilder::set_sample_count_mode,
          "Set the sample count mode",
          py::arg("mode"))
+    .def("parallel_strategy", &TreeBuilder::parallel_strategy,
+         "Get the parallel build strategy")
+    .def("set_parallel_strategy", &TreeBuilder::set_parallel_strategy,
+         "Set the parallel build strategy for multi-threaded construction",
+         py::arg("strategy"))
     .def("build_from_files", 
          &TreeBuilder::build_from_files<>,
          "Build tree from multiple sample files",

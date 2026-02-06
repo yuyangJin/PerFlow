@@ -291,11 +291,80 @@ class PerformanceTree {
     root_ = std::make_shared<TreeNode>(root_frame);
     root_->set_process_count(process_count_);
   }
+  
+  /// Enable fine-grained locking (per-node mutexes)
+  /// @param enable True to enable, false to disable
+  void enable_fine_grained_locking(bool enable) {
+    use_fine_grained_locking_ = enable;
+  }
+  
+  /// Enable lock-free operations (atomic counters)
+  /// @param enable True to enable, false to disable
+  void enable_lock_free(bool enable) {
+    use_lock_free_ = enable;
+  }
+  
+  /// Merge another tree into this tree
+  /// @param other The tree to merge from
+  void merge(const PerformanceTree& other) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (!other.root_) {
+      return;
+    }
+    
+    // Ensure process counts match
+    if (other.process_count_ > process_count_) {
+      set_process_count_nolock(other.process_count_);
+    }
+    
+    // Recursively merge starting from children of root
+    for (const auto& child : other.root_->children()) {
+      merge_node(root_, child);
+    }
+  }
 
  private:
   void set_process_count_nolock(size_t count) {
     process_count_ = count;
     root_->set_process_count(count);
+  }
+  
+  /// Recursively merge a node from another tree into this tree
+  void merge_node(std::shared_ptr<TreeNode> parent,
+                  const std::shared_ptr<TreeNode>& source_node) {
+    // Find or create matching child
+    std::shared_ptr<TreeNode> target_node;
+    if (build_mode_ == TreeBuildMode::kContextAware) {
+      target_node = parent->find_child_context_aware(source_node->frame());
+    } else {
+      target_node = parent->find_child(source_node->frame());
+    }
+    
+    if (!target_node) {
+      // Create new node
+      target_node = std::make_shared<TreeNode>(source_node->frame());
+      target_node->set_process_count(process_count_);
+      parent->add_child(target_node);
+    }
+    
+    // Merge sample counts and execution times
+    const auto& src_counts = source_node->sampling_counts();
+    const auto& src_times = source_node->execution_times();
+    for (size_t i = 0; i < src_counts.size() && i < process_count_; ++i) {
+      if (src_counts[i] > 0 || src_times[i] > 0.0) {
+        target_node->add_sample(i, src_counts[i], src_times[i]);
+      }
+    }
+    
+    // Merge self samples
+    if (source_node->self_samples() > 0) {
+      target_node->add_self_sample(source_node->self_samples());
+    }
+    
+    // Recursively merge children
+    for (const auto& child : source_node->children()) {
+      merge_node(target_node, child);
+    }
   }
 
   std::shared_ptr<TreeNode> root_;
@@ -303,6 +372,8 @@ class PerformanceTree {
   TreeBuildMode build_mode_;  // Tree building mode
   SampleCountMode sample_count_mode_;  // Sample counting mode
   mutable std::mutex mutex_;
+  bool use_fine_grained_locking_ = false;
+  bool use_lock_free_ = false;
 };
 
 }  // namespace analysis
