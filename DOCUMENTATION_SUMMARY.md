@@ -18,7 +18,9 @@ docs/
 │   ├── CALL_STACK_OFFSET_CONVERSION.md
 │   ├── MPI_SAMPLER.md
 │   ├── ONLINE_ANALYSIS_API.md
-│   └── SYMBOL_RESOLUTION.md
+│   ├── SYMBOL_RESOLUTION.md
+│   ├── python-api.md                  # Python bindings API
+│   └── dataflow-api.md                # Python dataflow framework API
 ├── developer-guide/                   # Developer documentation
 │   ├── ARCHITECTURE.md
 │   ├── FORTRAN_MPI_SUPPORT.md
@@ -115,6 +117,8 @@ docs/
 - `MPI_SAMPLER.md` → `api-reference/`
 - `ONLINE_ANALYSIS_API.md` → `api-reference/`
 - `SYMBOL_RESOLUTION.md` → `api-reference/`
+- `python-api.md` → `api-reference/` (existing)
+- `dataflow-api.md` → `api-reference/` (existing)
 - `TIMER_SAMPLER_USAGE.md` → `user-guide/`
 - `TIMER_BASED_SAMPLER.md` → `user-guide/`
 - `FORTRAN_MPI_SUPPORT.md` → `developer-guide/`
@@ -148,7 +152,7 @@ docs/
 ### Coverage
 - **User documentation**: 5 files covering installation, configuration, usage, troubleshooting
 - **Developer documentation**: 5 files covering architecture, implementation, contributing
-- **API documentation**: 4 files covering all major APIs
+- **API documentation**: 6 files covering C++ APIs and Python APIs (both low-level and dataflow framework)
 - **General documentation**: 3 files (README, FAQ, Style Guide)
 
 ## Benefits
