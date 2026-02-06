@@ -22,9 +22,10 @@ namespace analysis {
 class TreeBuilder {
  public:
   /// Constructor with optional build mode and sample count mode
+  /// Automatically creates a SymbolResolver with default settings (auto-fallback strategy, caching enabled)
   explicit TreeBuilder(TreeBuildMode mode = TreeBuildMode::kContextFree,
                       SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
-      : converter_(), tree_(mode, count_mode) {}
+      : converter_(std::make_shared<SymbolResolver>()), tree_(mode, count_mode) {}
   
   /// Constructor with symbol resolver
   /// @param resolver Symbol resolver for function name and location resolution

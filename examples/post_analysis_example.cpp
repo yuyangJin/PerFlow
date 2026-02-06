@@ -263,16 +263,9 @@ void process_rank_data(const char* data_dir, uint32_t rank) {
 void process_all_ranks(const char* data_dir, int num_ranks) {
     std::cout << "Processing data from " << num_ranks << " ranks into a single tree\n\n";
     
-    // Create symbol resolver for function name and location resolution
-    std::cout << "Creating symbol resolver...\n";
-    auto resolver = std::make_shared<SymbolResolver>(
-        SymbolResolver::Strategy::kAutoFallback,  // Try dladdr first, fallback to addr2line
-        true  // Enable caching
-    );
-    std::cout << "  Symbol resolver created with auto-fallback strategy\n\n";
-    
-    // Create TreeBuilder with symbol resolver
-    TreeBuilder builder(resolver);
+    // Create TreeBuilder - automatically creates a symbol resolver with default settings
+    // (auto-fallback strategy, caching enabled)
+    TreeBuilder builder;
     
     // 1. Load library maps for all ranks
     std::cout << "Loading library maps...\n";

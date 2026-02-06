@@ -175,12 +175,12 @@ TEST(TreeBuilderTest, Clear) {
 // Symbol Resolver Tests
 // ============================================================================
 
-TEST(TreeBuilderTest, ConstructionWithoutSymbolResolver) {
-  // Default construction should not have symbol resolver
+TEST(TreeBuilderTest, DefaultConstructionHasSymbolResolver) {
+  // Default construction should automatically create a symbol resolver
   TreeBuilder builder;
   
-  EXPECT_FALSE(builder.has_symbol_resolver());
-  EXPECT_FALSE(builder.converter().has_symbol_resolver());
+  EXPECT_TRUE(builder.has_symbol_resolver());
+  EXPECT_TRUE(builder.converter().has_symbol_resolver());
 }
 
 TEST(TreeBuilderTest, ConstructionWithSymbolResolver) {
@@ -198,11 +198,11 @@ TEST(TreeBuilderTest, ConstructionWithSymbolResolver) {
 }
 
 TEST(TreeBuilderTest, SetSymbolResolverAfterConstruction) {
-  // Start without resolver
+  // Start with default resolver
   TreeBuilder builder;
-  EXPECT_FALSE(builder.has_symbol_resolver());
+  EXPECT_TRUE(builder.has_symbol_resolver());
   
-  // Create and set a symbol resolver
+  // Create and set a custom symbol resolver
   auto resolver = std::make_shared<SymbolResolver>(
       SymbolResolver::Strategy::kAddr2LineOnly,
       false  // Disable caching
