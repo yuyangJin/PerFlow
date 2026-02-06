@@ -5,7 +5,6 @@
 #define PERFLOW_ANALYSIS_OFFSET_CONVERTER_H_
 
 #include <cstdint>
-#include <cstdio>
 #include <map>
 #include <memory>
 #include <vector>
@@ -124,20 +123,11 @@ std::vector<sampling::ResolvedFrame> OffsetConverter::convert(
         frame.function_name = symbol_info.function_name;
         frame.filename = symbol_info.filename;
         frame.line_number = symbol_info.line_number;
-      } else {
-        // No symbol resolver - use hex offset as function identifier
-        char buf[32];
-        std::snprintf(buf, sizeof(buf), "0x%lx", static_cast<unsigned long>(frame.offset));
-        frame.function_name = buf;
       }
     } else {
       // Could not resolve - address not in any known library
       frame.library_name = "[unresolved]";
       frame.offset = addr;
-      // Use hex address as function name
-      char buf[32];
-      std::snprintf(buf, sizeof(buf), "0x%lx", static_cast<unsigned long>(addr));
-      frame.function_name = buf;
     }
 
     resolved_frames.push_back(frame);

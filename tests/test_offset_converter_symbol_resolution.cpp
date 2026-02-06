@@ -40,9 +40,8 @@ TEST_F(OffsetConverterSymbolResolutionTest, ConverterWithoutSymbolResolver) {
   EXPECT_EQ(resolved[0].library_name, "/test/lib1.so");
   EXPECT_EQ(resolved[0].offset, 0x500u);
   
-  // Function name should be hex offset when no resolver (not empty)
-  EXPECT_FALSE(resolved[0].function_name.empty());
-  EXPECT_EQ(resolved[0].function_name, "0x500");
+  // Symbol fields should be empty (no resolver)
+  EXPECT_TRUE(resolved[0].function_name.empty());
   EXPECT_TRUE(resolved[0].filename.empty());
   EXPECT_EQ(resolved[0].line_number, 0u);
 }
@@ -147,12 +146,12 @@ TEST_F(OffsetConverterSymbolResolutionTest, SymbolResolutionRequestedButNoResolv
   CallStack<> stack(addresses, 1);
   
   // Request symbol resolution but no resolver is set
-  // Should not crash, just use hex offset as function name
+  // Should not crash, just skip symbol resolution
   auto resolved = converter.convert(stack, 0, true);
   
   ASSERT_EQ(resolved.size(), 1u);
   EXPECT_EQ(resolved[0].library_name, "/test/lib1.so");
-  EXPECT_EQ(resolved[0].function_name, "0x500");
+  EXPECT_TRUE(resolved[0].function_name.empty());
 }
 
 TEST_F(OffsetConverterSymbolResolutionTest, BackwardCompatibilityWithExistingCode) {
@@ -194,8 +193,8 @@ TEST_F(OffsetConverterSymbolResolutionTest, UnresolvedAddressWithSymbolResolver)
   ASSERT_EQ(resolved.size(), 1u);
   EXPECT_EQ(resolved[0].library_name, "[unresolved]");
   EXPECT_EQ(resolved[0].offset, 0x9999u);
-  // For unresolved addresses, function_name is the hex address
-  EXPECT_EQ(resolved[0].function_name, "0x9999");
+  // No symbol resolution should be attempted for unresolved addresses
+  EXPECT_TRUE(resolved[0].function_name.empty());
 }
 
 TEST_F(OffsetConverterSymbolResolutionTest, SymbolCachingAcrossMultipleCalls) {
