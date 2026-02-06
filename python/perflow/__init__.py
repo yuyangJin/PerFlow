@@ -4,9 +4,10 @@
 """
 PerFlow - Programmable and Fast Performance Analysis for Parallel Programs
 
-This module provides Python bindings for the PerFlow C++ performance analysis library.
+This module provides Python bindings for the PerFlow C++ performance analysis library,
+along with a dataflow-based programming framework for user-friendly analysis.
 
-Example usage:
+Basic usage with low-level API:
     >>> import perflow
     >>> builder = perflow.TreeBuilder()
     >>> builder.build_from_file("samples.pflw", process_id=0)
@@ -14,6 +15,18 @@ Example usage:
     >>> hotspots = perflow.HotspotAnalyzer.find_hotspots(tree, top_n=10)
     >>> for h in hotspots:
     ...     print(f"{h.function_name}: {h.self_percentage:.1f}%")
+
+Dataflow-based analysis (recommended):
+    >>> from perflow.dataflow import WorkflowBuilder
+    >>> 
+    >>> # Create and execute a workflow
+    >>> results = (
+    ...     WorkflowBuilder("MyAnalysis")
+    ...     .load_data([('rank_0.pflw', 0), ('rank_1.pflw', 1)])
+    ...     .find_hotspots(top_n=10)
+    ...     .analyze_balance()
+    ...     .execute()
+    ... )
 """
 
 from ._perflow import (
@@ -71,7 +84,13 @@ __all__ = [
     
     # Functions
     'version',
+    
+    # Dataflow module
+    'dataflow',
 ]
+
+# Import dataflow module
+from . import dataflow
 
 
 def analyze_samples(sample_files, libmap_files=None, top_n=10, mode=TreeBuildMode.ContextFree):
