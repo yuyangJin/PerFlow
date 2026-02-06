@@ -25,10 +25,10 @@ import os
 import glob
 
 # Add the python directory to path if running from source
-script_dir = os.path.dirname(os.path.abspath(__file__))
-python_dir = os.path.join(os.path.dirname(script_dir), 'python')
-if os.path.exists(python_dir):
-    sys.path.insert(0, python_dir)
+# script_dir = os.path.dirname(os.path.abspath(__file__))
+# python_dir = os.path.join(os.path.dirname(script_dir), 'python')
+# if os.path.exists(python_dir):
+#     sys.path.insert(0, python_dir)
 
 
 def find_sample_files(data_dir, num_processes=None):
