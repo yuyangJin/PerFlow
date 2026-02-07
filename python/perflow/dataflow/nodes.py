@@ -126,13 +126,7 @@ class LoadDataNode(DataflowNode):
             if concurrency != ConcurrencyMode.Serial and self._num_threads != 1:
                 # Use parallel file reader for parallel modes
                 reader = ParallelFileReader(self._num_threads, concurrency)
-                converter = OffsetConverter()
-                
-                # Load library maps into converter if provided
-                if self._libmap_files:
-                    for filepath, process_id in self._libmap_files:
-                        # Note: library maps need to be loaded separately for converter
-                        pass
+                converter = builder.converter()  # Use the builder's converter which already has libmaps loaded
                 
                 reader.read_files_parallel(
                     self._sample_files, 

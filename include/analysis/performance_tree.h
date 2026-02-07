@@ -651,7 +651,8 @@ class PerformanceTree {
     auto start = std::chrono::high_resolution_clock::now();
     
     std::lock_guard<std::mutex> lock(mutex_);
-    merge_node_recursive(other.root(), root_, std::vector<sampling::ResolvedFrame>());
+    std::vector<sampling::ResolvedFrame> initial_path;
+    merge_node_recursive(other.root(), root_, initial_path);
     
     stats_.trees_merged.fetch_add(1, std::memory_order_relaxed);
     
@@ -880,13 +881,15 @@ class PerformanceTree {
   void merge_node_recursive(
       const std::shared_ptr<TreeNode>& source_node,
       std::shared_ptr<TreeNode>& dest_node,
-      std::vector<sampling::ResolvedFrame> current_path) {
+      const std::vector<sampling::ResolvedFrame>& current_path) {
     
     if (!source_node) return;
 
     // Skip root node
     if (source_node->frame().function_name != "[root]") {
-      current_path.push_back(source_node->frame());
+      // Create a local copy with the new frame appended
+      std::vector<sampling::ResolvedFrame> new_path = current_path;
+      new_path.push_back(source_node->frame());
       
       // If this is a leaf, insert the call stack with its samples
       if (source_node->is_leaf()) {
@@ -895,17 +898,22 @@ class PerformanceTree {
         
         for (size_t pid = 0; pid < counts.size(); ++pid) {
           if (counts[pid] > 0) {
-            insert_call_stack_nolock(current_path, pid, counts[pid], 
+            insert_call_stack_nolock(new_path, pid, counts[pid], 
                 times.size() > pid ? times[pid] : 0.0);
             stats_.nodes_merged.fetch_add(1, std::memory_order_relaxed);
           }
         }
       }
-    }
-
-    // Recurse to children
-    for (const auto& child : source_node->children()) {
-      merge_node_recursive(child, dest_node, current_path);
+      
+      // Recurse to children with the extended path
+      for (const auto& child : source_node->children()) {
+        merge_node_recursive(child, dest_node, new_path);
+      }
+    } else {
+      // For root node, recurse with empty path
+      for (const auto& child : source_node->children()) {
+        merge_node_recursive(child, dest_node, current_path);
+      }
     }
   }
 
