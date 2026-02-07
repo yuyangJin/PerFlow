@@ -9,7 +9,6 @@
 #include <pybind11/functional.h>
 
 #include "analysis/analysis_tasks.h"
-#include "analysis/parallel_file_reader.h"
 #include "analysis/performance_tree.h"
 #include "analysis/tree_builder.h"
 #include "sampling/call_stack.h"
@@ -405,41 +404,7 @@ PYBIND11_MODULE(_perflow, m) {
             "Find hotspots by total samples (inclusive)");
 
     // ========================================================================
-    // Parallel File Reader
-    // ========================================================================
-
-    py::class_<ParallelFileReader::FileReadResult>(m, "FileReadResult",
-        "Status of a file read operation")
-        .def_readonly("filepath", &ParallelFileReader::FileReadResult::filepath)
-        .def_readonly("process_id", &ParallelFileReader::FileReadResult::process_id)
-        .def_readonly("success", &ParallelFileReader::FileReadResult::success)
-        .def_readonly("samples_read", &ParallelFileReader::FileReadResult::samples_read)
-        .def_readonly("error_message", &ParallelFileReader::FileReadResult::error_message)
-        .def("__repr__", [](const ParallelFileReader::FileReadResult& r) {
-            return "<FileReadResult path='" + r.filepath + 
-                   "' success=" + (r.success ? "true" : "false") + ">";
-        });
-
-    py::class_<ParallelFileReader>(m, "ParallelFileReader",
-        "Provides parallel file reading for sample data")
-        .def(py::init<size_t>(),
-            py::arg("num_threads") = 0,
-            "Create parallel file reader (0 = auto-detect thread count)")
-        .def_property_readonly("thread_count", &ParallelFileReader::thread_count,
-            "Number of threads used")
-        .def("set_progress_callback", &ParallelFileReader::set_progress_callback,
-            py::arg("callback"),
-            "Set progress callback function(completed, total)")
-        .def("read_files_parallel",
-            &ParallelFileReader::read_files_parallel<>,
-            py::arg("sample_files"),
-            py::arg("tree"),
-            py::arg("converter"),
-            py::arg("time_per_sample") = 1000.0,
-            "Read multiple sample files in parallel");
-
-    // ========================================================================
-    // Offset Converter (basic binding for parallel reader)
+    // Offset Converter
     // ========================================================================
 
     py::class_<OffsetConverter>(m, "OffsetConverter",

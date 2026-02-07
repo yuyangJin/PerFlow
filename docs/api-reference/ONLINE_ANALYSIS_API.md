@@ -363,7 +363,6 @@ The online analysis module is designed to work with PerFlow's MPI sampler:
 - Web-based real-time dashboard
 - Plugin system for custom analysis
 - Result caching for repeated queries
-- Parallel file processing with thread pools
 
 ## See Also
 
