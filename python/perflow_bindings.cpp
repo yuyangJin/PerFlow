@@ -44,6 +44,18 @@ PYBIND11_MODULE(_perflow, m) {
             "Track both inclusive and exclusive samples")
         .export_values();
 
+    py::enum_<ConcurrencyModel>(m, "ConcurrencyModel",
+        "Defines how concurrent tree building is handled")
+        .value("Serial", ConcurrencyModel::kSerial,
+            "Single global lock for all operations (simple, no parallelism)")
+        .value("FineGrainedLock", ConcurrencyModel::kFineGrainedLock,
+            "Per-node locks allowing parallel subtree insertion (O(depth) locks)")
+        .value("ThreadLocalMerge", ConcurrencyModel::kThreadLocalMerge,
+            "Thread-local trees merged after construction (no contention during build)")
+        .value("LockFree", ConcurrencyModel::kLockFree,
+            "Atomic operations for counters, locks only for structural changes")
+        .export_values();
+
     // ========================================================================
     // ResolvedFrame - Stack frame information
     // ========================================================================
@@ -150,9 +162,10 @@ PYBIND11_MODULE(_perflow, m) {
 
     py::class_<PerformanceTree>(m, "PerformanceTree",
         "Aggregates call stack samples into a tree structure")
-        .def(py::init<TreeBuildMode, SampleCountMode>(),
+        .def(py::init<TreeBuildMode, SampleCountMode, ConcurrencyModel>(),
             py::arg("mode") = TreeBuildMode::kContextFree,
             py::arg("count_mode") = SampleCountMode::kExclusive,
+            py::arg("concurrency_model") = ConcurrencyModel::kSerial,
             "Create a new performance tree")
         
         // Basic properties
@@ -168,6 +181,19 @@ PYBIND11_MODULE(_perflow, m) {
             "Tree build mode (ContextFree or ContextAware)")
         .def_property_readonly("sample_count_mode", &PerformanceTree::sample_count_mode,
             "Sample count mode")
+        
+        // Concurrency configuration
+        .def_property_readonly("concurrency_model", &PerformanceTree::concurrency_model,
+            "Concurrency model for parallel tree building")
+        .def("set_concurrency_model", &PerformanceTree::set_concurrency_model,
+            py::arg("model"),
+            "Set the concurrency model (must be called before inserting)")
+        .def_property("num_threads",
+            &PerformanceTree::num_threads,
+            &PerformanceTree::set_num_threads,
+            "Number of threads for parallel operations")
+        .def("consolidate_atomic_counters", &PerformanceTree::consolidate_atomic_counters,
+            "Consolidate atomic counters after parallel insertion (for lock-free model)")
         
         // Tree operations
         .def("clear", &PerformanceTree::clear,
@@ -242,9 +268,10 @@ PYBIND11_MODULE(_perflow, m) {
 
     py::class_<TreeBuilder>(m, "TreeBuilder",
         "Constructs performance trees from sample data files")
-        .def(py::init<TreeBuildMode, SampleCountMode>(),
+        .def(py::init<TreeBuildMode, SampleCountMode, ConcurrencyModel>(),
             py::arg("mode") = TreeBuildMode::kContextFree,
             py::arg("count_mode") = SampleCountMode::kExclusive,
+            py::arg("concurrency_model") = ConcurrencyModel::kSerial,
             "Create a new tree builder")
         
         .def_property_readonly("tree", 
@@ -255,6 +282,8 @@ PYBIND11_MODULE(_perflow, m) {
             "Get the build mode")
         .def_property_readonly("sample_count_mode", &TreeBuilder::sample_count_mode,
             "Get the sample count mode")
+        .def_property_readonly("concurrency_model", &TreeBuilder::concurrency_model,
+            "Get the concurrency model")
         
         .def("set_build_mode", &TreeBuilder::set_build_mode,
             py::arg("mode"),
@@ -262,6 +291,14 @@ PYBIND11_MODULE(_perflow, m) {
         .def("set_sample_count_mode", &TreeBuilder::set_sample_count_mode,
             py::arg("mode"),
             "Set the sample count mode (must be called before building)")
+        .def("set_concurrency_model", &TreeBuilder::set_concurrency_model,
+            py::arg("model"),
+            "Set the concurrency model (must be called before building)")
+        .def("set_num_threads", &TreeBuilder::set_num_threads,
+            py::arg("num_threads"),
+            "Set the number of threads for parallel operations")
+        .def_property_readonly("num_threads", &TreeBuilder::num_threads,
+            "Get the number of threads for parallel operations")
         
         .def("build_from_file", 
             &TreeBuilder::build_from_file<>,
@@ -275,6 +312,12 @@ PYBIND11_MODULE(_perflow, m) {
             py::arg("sample_files"),
             py::arg("time_per_sample") = 1000.0,
             "Build tree from multiple sample files (list of (path, process_id) tuples)")
+        
+        .def("build_from_files_parallel",
+            &TreeBuilder::build_from_files_parallel<>,
+            py::arg("sample_files"),
+            py::arg("time_per_sample") = 1000.0,
+            "Build tree from multiple sample files in parallel using the configured concurrency model")
         
         .def("load_library_maps", &TreeBuilder::load_library_maps,
             py::arg("libmap_files"),

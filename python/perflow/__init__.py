@@ -33,6 +33,7 @@ from ._perflow import (
     # Enumerations
     TreeBuildMode,
     SampleCountMode,
+    ConcurrencyModel,
     
     # Core classes
     ResolvedFrame,
@@ -62,6 +63,7 @@ __all__ = [
     # Enums
     'TreeBuildMode',
     'SampleCountMode',
+    'ConcurrencyModel',
     
     # Core classes
     'ResolvedFrame',

@@ -3,6 +3,8 @@
 
 #include <gtest/gtest.h>
 
+#include <thread>
+
 #include "analysis/performance_tree.h"
 
 using namespace perflow::analysis;
@@ -703,4 +705,241 @@ TEST(PerformanceTreeTest, TraverseLevelorder) {
   EXPECT_EQ(visited[0], "[root]");
   EXPECT_EQ(visited[1], "main");
   // compute and io are at same level, order depends on insertion
+}
+
+// ============================================================================
+// Tests for Concurrency Models
+// ============================================================================
+
+TEST(ConcurrencyModelTest, DefaultConcurrencyModel) {
+  PerformanceTree tree;
+  EXPECT_EQ(tree.concurrency_model(), ConcurrencyModel::kSerial);
+}
+
+TEST(ConcurrencyModelTest, SetConcurrencyModel) {
+  PerformanceTree tree;
+  
+  tree.set_concurrency_model(ConcurrencyModel::kFineGrainedLock);
+  EXPECT_EQ(tree.concurrency_model(), ConcurrencyModel::kFineGrainedLock);
+  
+  tree.set_concurrency_model(ConcurrencyModel::kThreadLocalMerge);
+  EXPECT_EQ(tree.concurrency_model(), ConcurrencyModel::kThreadLocalMerge);
+  
+  tree.set_concurrency_model(ConcurrencyModel::kLockFree);
+  EXPECT_EQ(tree.concurrency_model(), ConcurrencyModel::kLockFree);
+  
+  tree.set_concurrency_model(ConcurrencyModel::kSerial);
+  EXPECT_EQ(tree.concurrency_model(), ConcurrencyModel::kSerial);
+}
+
+TEST(ConcurrencyModelTest, SerialModeBasic) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth, 
+                       ConcurrencyModel::kSerial);
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "test";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame work_frame;
+  work_frame.function_name = "work";
+  work_frame.library_name = "test";
+  frames.push_back(work_frame);
+  
+  tree.insert_call_stack(frames, 0, 100, 1000.0);
+  
+  EXPECT_EQ(tree.total_samples(), 100);
+  EXPECT_EQ(tree.root()->children().size(), 1);
+}
+
+TEST(ConcurrencyModelTest, FineGrainedLockBasic) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth,
+                       ConcurrencyModel::kFineGrainedLock);
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "test";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame work_frame;
+  work_frame.function_name = "work";
+  work_frame.library_name = "test";
+  frames.push_back(work_frame);
+  
+  tree.insert_call_stack(frames, 0, 100, 1000.0);
+  
+  EXPECT_EQ(tree.total_samples(), 100);
+  EXPECT_EQ(tree.root()->children().size(), 1);
+}
+
+TEST(ConcurrencyModelTest, LockFreeBasic) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth,
+                       ConcurrencyModel::kLockFree);
+  tree.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "test";
+  frames.push_back(main_frame);
+  
+  ResolvedFrame work_frame;
+  work_frame.function_name = "work";
+  work_frame.library_name = "test";
+  frames.push_back(work_frame);
+  
+  tree.insert_call_stack(frames, 0, 100, 1000.0);
+  tree.consolidate_atomic_counters();
+  
+  EXPECT_EQ(tree.total_samples(), 100);
+  EXPECT_EQ(tree.root()->children().size(), 1);
+}
+
+TEST(ConcurrencyModelTest, ThreadLocalMergeBasic) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth,
+                       ConcurrencyModel::kThreadLocalMerge);
+  tree.set_process_count(2);
+  
+  // Create two thread-local trees
+  auto local_tree1 = tree.create_thread_local_tree();
+  auto local_tree2 = tree.create_thread_local_tree();
+  
+  // Insert into first tree
+  std::vector<ResolvedFrame> frames1;
+  ResolvedFrame main_frame;
+  main_frame.function_name = "main";
+  main_frame.library_name = "test";
+  frames1.push_back(main_frame);
+  
+  ResolvedFrame work1_frame;
+  work1_frame.function_name = "work1";
+  work1_frame.library_name = "test";
+  frames1.push_back(work1_frame);
+  
+  local_tree1->insert_call_stack(frames1, 0, 50, 500.0);
+  
+  // Insert into second tree
+  std::vector<ResolvedFrame> frames2;
+  frames2.push_back(main_frame);
+  
+  ResolvedFrame work2_frame;
+  work2_frame.function_name = "work2";
+  work2_frame.library_name = "test";
+  frames2.push_back(work2_frame);
+  
+  local_tree2->insert_call_stack(frames2, 1, 30, 300.0);
+  
+  // Merge trees
+  tree.merge_thread_local_tree(*local_tree1);
+  tree.merge_thread_local_tree(*local_tree2);
+  
+  EXPECT_EQ(tree.total_samples(), 80);  // 50 + 30
+  EXPECT_EQ(tree.root()->children().size(), 1);  // Only main
+  auto main_node = tree.root()->children()[0];
+  EXPECT_EQ(main_node->children().size(), 2);  // work1 and work2
+}
+
+// Test concurrent insertion with fine-grained locking
+TEST(ConcurrencyModelTest, FineGrainedLockConcurrent) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth,
+                       ConcurrencyModel::kFineGrainedLock);
+  tree.set_process_count(4);
+  
+  // Create call stack template
+  auto create_frames = [](const std::string& leaf_name) {
+    std::vector<ResolvedFrame> frames;
+    ResolvedFrame main_frame;
+    main_frame.function_name = "main";
+    main_frame.library_name = "test";
+    frames.push_back(main_frame);
+    
+    ResolvedFrame leaf_frame;
+    leaf_frame.function_name = leaf_name;
+    leaf_frame.library_name = "test";
+    frames.push_back(leaf_frame);
+    return frames;
+  };
+  
+  // Insert from multiple threads
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < 4; ++i) {
+    threads.emplace_back([&tree, &create_frames, i]() {
+      auto frames = create_frames("worker" + std::to_string(i));
+      for (int j = 0; j < 100; ++j) {
+        tree.insert_call_stack(frames, i, 1, 10.0);
+      }
+    });
+  }
+  
+  for (auto& t : threads) {
+    t.join();
+  }
+  
+  // Verify results
+  EXPECT_EQ(tree.total_samples(), 400);  // 4 threads * 100 insertions
+  auto main_node = tree.root()->children()[0];
+  EXPECT_EQ(main_node->children().size(), 4);  // 4 different workers
+}
+
+// Test concurrent insertion with lock-free model
+TEST(ConcurrencyModelTest, LockFreeConcurrent) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, SampleCountMode::kBoth,
+                       ConcurrencyModel::kLockFree);
+  tree.set_process_count(4);
+  
+  // Create call stack template - all threads insert to same leaf
+  auto create_frames = []() {
+    std::vector<ResolvedFrame> frames;
+    ResolvedFrame main_frame;
+    main_frame.function_name = "main";
+    main_frame.library_name = "test";
+    frames.push_back(main_frame);
+    
+    ResolvedFrame leaf_frame;
+    leaf_frame.function_name = "shared_worker";
+    leaf_frame.library_name = "test";
+    frames.push_back(leaf_frame);
+    return frames;
+  };
+  
+  // Insert from multiple threads to same node
+  std::vector<std::thread> threads;
+  for (size_t i = 0; i < 4; ++i) {
+    threads.emplace_back([&tree, &create_frames, i]() {
+      auto frames = create_frames();
+      for (int j = 0; j < 100; ++j) {
+        tree.insert_call_stack(frames, i, 1, 10.0);
+      }
+    });
+  }
+  
+  for (auto& t : threads) {
+    t.join();
+  }
+  
+  // Consolidate atomic counters
+  tree.consolidate_atomic_counters();
+  
+  // Verify results
+  EXPECT_EQ(tree.total_samples(), 400);  // 4 threads * 100 insertions
+  auto main_node = tree.root()->children()[0];
+  EXPECT_EQ(main_node->children().size(), 1);  // Only shared_worker
+  auto worker_node = main_node->children()[0];
+  EXPECT_EQ(worker_node->total_samples(), 400);  // All samples converged
+}
+
+TEST(ConcurrencyModelTest, NumThreadsConfiguration) {
+  PerformanceTree tree;
+  
+  EXPECT_GT(tree.num_threads(), 0);  // Should have at least 1 thread
+  
+  tree.set_num_threads(8);
+  EXPECT_EQ(tree.num_threads(), 8);
+  
+  tree.set_num_threads(0);  // Should fall back to 1
+  EXPECT_EQ(tree.num_threads(), 1);
 }
