@@ -36,7 +36,8 @@ class LoadDataNode(DataflowNode):
         >>> node = LoadDataNode(
         ...     sample_files=[('rank_0.pflw', 0), ('rank_1.pflw', 1)],
         ...     libmap_files=[('rank_0.libmap', 0), ('rank_1.libmap', 1)],
-        ...     mode='ContextFree'
+        ...     mode='ContextFree',
+        ...     concurrency_model='FineGrainedLock'
         ... )
     """
     
@@ -46,6 +47,8 @@ class LoadDataNode(DataflowNode):
         libmap_files: Optional[List[Tuple[str, int]]] = None,
         mode: str = 'ContextFree',
         count_mode: str = 'Both',
+        concurrency_model: str = 'Serial',
+        num_threads: int = 0,
         time_per_sample: float = 1000.0,
         name: str = "LoadData"
     ):
@@ -57,6 +60,9 @@ class LoadDataNode(DataflowNode):
             libmap_files: Optional list of (filepath, process_id) tuples for library maps
             mode: Tree build mode ('ContextFree' or 'ContextAware')
             count_mode: Sample count mode ('Exclusive', 'Inclusive', or 'Both')
+            concurrency_model: Concurrency model for parallel tree building
+                             ('Serial', 'FineGrainedLock', 'ThreadLocalMerge', or 'LockFree')
+            num_threads: Number of threads for parallel operations (0 = auto-detect)
             time_per_sample: Estimated time per sample in microseconds
             name: Node name
         """
@@ -69,13 +75,15 @@ class LoadDataNode(DataflowNode):
         self._libmap_files = libmap_files or []
         self._mode = mode
         self._count_mode = count_mode
+        self._concurrency_model = concurrency_model
+        self._num_threads = num_threads
         self._time_per_sample = time_per_sample
     
     def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Load sample data and build the performance tree."""
         # Import here to avoid circular imports
         try:
-            from .. import TreeBuilder, TreeBuildMode, SampleCountMode
+            from .. import TreeBuilder, TreeBuildMode, SampleCountMode, ConcurrencyModel
         except ImportError:
             raise RuntimeError(
                 "PerFlow native module not available. "
@@ -92,12 +100,23 @@ class LoadDataNode(DataflowNode):
             'Inclusive': SampleCountMode.Inclusive,
             'Both': SampleCountMode.Both,
         }
+        concurrency_model_map = {
+            'Serial': ConcurrencyModel.Serial,
+            'FineGrainedLock': ConcurrencyModel.FineGrainedLock,
+            'ThreadLocalMerge': ConcurrencyModel.ThreadLocalMerge,
+            'LockFree': ConcurrencyModel.LockFree,
+        }
         
         build_mode = mode_map.get(self._mode, TreeBuildMode.ContextFree)
         sample_count_mode = count_mode_map.get(self._count_mode, SampleCountMode.Both)
+        concurrency = concurrency_model_map.get(self._concurrency_model, ConcurrencyModel.Serial)
         
-        # Create builder
-        builder = TreeBuilder(build_mode, sample_count_mode)
+        # Create builder with concurrency model
+        builder = TreeBuilder(build_mode, sample_count_mode, concurrency)
+        
+        # Set number of threads if specified
+        if self._num_threads > 0:
+            builder.set_num_threads(self._num_threads)
         
         # Load library maps if provided
         if self._libmap_files:
@@ -105,7 +124,11 @@ class LoadDataNode(DataflowNode):
         
         # Build tree from sample files
         if self._sample_files:
-            builder.build_from_files(self._sample_files, self._time_per_sample)
+            # Use parallel build if concurrency model is not Serial
+            if concurrency != ConcurrencyModel.Serial:
+                builder.build_from_files_parallel(self._sample_files, self._time_per_sample)
+            else:
+                builder.build_from_files(self._sample_files, self._time_per_sample)
         
         return {
             'tree': builder.tree,

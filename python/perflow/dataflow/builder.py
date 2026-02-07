@@ -61,6 +61,8 @@ class WorkflowBuilder:
         libmap_files: Optional[List[Tuple[str, int]]] = None,
         mode: str = 'ContextFree',
         count_mode: str = 'Both',
+        concurrency_model: str = 'Serial',
+        num_threads: int = 0,
         time_per_sample: float = 1000.0
     ) -> 'WorkflowBuilder':
         """
@@ -71,6 +73,9 @@ class WorkflowBuilder:
             libmap_files: Optional list of (filepath, process_id) tuples for library maps
             mode: Tree build mode ('ContextFree' or 'ContextAware')
             count_mode: Sample count mode ('Exclusive', 'Inclusive', or 'Both')
+            concurrency_model: Concurrency model ('Serial', 'FineGrainedLock', 
+                             'ThreadLocalMerge', or 'LockFree')
+            num_threads: Number of threads for parallel operations (0 = auto-detect)
             time_per_sample: Estimated time per sample in microseconds
         
         Returns:
@@ -81,6 +86,8 @@ class WorkflowBuilder:
             libmap_files=libmap_files,
             mode=mode,
             count_mode=count_mode,
+            concurrency_model=concurrency_model,
+            num_threads=num_threads,
             time_per_sample=time_per_sample,
             name="LoadData"
         )
