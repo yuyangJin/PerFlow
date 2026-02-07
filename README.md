@@ -36,6 +36,14 @@ PerFlow is designed for production-grade performance analysis of HPC application
 - **Symbol Caching**: High-performance caching for repeated lookups
 - **Backward Compatible**: Optional feature, existing code works unchanged
 
+### Python Dataflow Framework (New!)
+- **Dataflow Programming**: Compose workflows as directed acyclic graphs (DAGs)
+- **Automatic Optimization**: Parallel execution, result caching, lazy evaluation
+- **Fluent API**: Easy-to-use WorkflowBuilder for quick analysis
+- **Pre-built Nodes**: LoadData, HotspotAnalysis, BalanceAnalysis, Filter, and more
+- **Extensible**: Create custom analysis nodes with simple Python functions
+- **Multiple Executors**: Sequential, parallel, and caching execution strategies
+
 ### Online Analysis Module
 - **Performance Tree Generation**: Aggregate call stack samples into hierarchical trees
 - **Balance Analysis**: Identify workload distribution and load imbalance across processes
@@ -54,7 +62,9 @@ PerFlow is designed for production-grade performance analysis of HPC application
 - 🔧 **[Troubleshooting](docs/user-guide/TROUBLESHOOTING.md)** - Common issues and solutions
 - ❓ **[FAQ](docs/FAQ.md)** - Frequently asked questions
 - 🏗️ **[Architecture](docs/developer-guide/ARCHITECTURE.md)** - System design and components
-- 📖 **[API Reference](docs/api-reference/ONLINE_ANALYSIS_API.md)** - Complete API documentation
+- 📖 **[C++ API Reference](docs/api-reference/ONLINE_ANALYSIS_API.md)** - Complete C++ API documentation
+- 🐍 **[Python API Reference](docs/api-reference/python-api.md)** - Python bindings documentation
+- 🔄 **[Dataflow API Reference](docs/api-reference/dataflow-api.md)** - Python dataflow framework
 - 🧪 **[Testing Guide](TESTING.md)** - Comprehensive testing documentation
 
 ## Quick Start
@@ -109,7 +119,78 @@ cat /tmp/output/hotspots.txt          # Performance hotspots
 
 📖 **[Full Getting Started Guide](docs/user-guide/GETTING_STARTED.md)** for detailed instructions.
 
-## Online Analysis Example
+## Python Dataflow-based Analysis Framework (New!)
+
+PerFlow provides a powerful Python frontend with **dataflow-based programming** for flexible composition of analysis workflows. The framework uses a **directed acyclic graph (DAG)** abstraction where:
+- **Nodes** represent analysis subtasks (load data, find hotspots, analyze balance, etc.)
+- **Edges** represent data flow between subtasks
+
+### Key Features
+- 🔄 **Dataflow Graph Abstraction**: Compose complex workflows as DAGs
+- ⚡ **Automatic Optimization**: Parallel execution, caching, lazy evaluation
+- 🛠️ **Fluent API**: User-friendly WorkflowBuilder for quick analysis
+- 🧩 **Extensible**: Create custom analysis nodes easily
+- 📊 **Pre-built Nodes**: LoadData, HotspotAnalysis, BalanceAnalysis, Filter, and more
+
+### Quick Python Example
+
+```python
+from perflow.dataflow import WorkflowBuilder
+
+# Build and execute a complete analysis workflow with one fluent chain
+results = (
+    WorkflowBuilder("MyAnalysis")
+    .load_data([('rank_0.pflw', 0), ('rank_1.pflw', 1)])
+    .find_hotspots(top_n=10)
+    .analyze_balance()
+    .execute()
+)
+
+# Access results
+for node_id, output in results.items():
+    if 'hotspots' in output:
+        print("\nTop Hotspots:")
+        for h in output['hotspots']:
+            print(f"  {h.function_name}: {h.self_percentage:.1f}%")
+    
+    if 'balance' in output:
+        balance = output['balance']
+        print(f"\nWorkload Imbalance: {balance.imbalance_factor:.2f}")
+```
+
+### Advanced: Manual Graph Construction
+
+```python
+from perflow.dataflow import (
+    DataflowGraph, LoadDataNode, 
+    HotspotAnalysisNode, BalanceAnalysisNode
+)
+
+# Create nodes
+load_node = LoadDataNode(sample_files=[('rank_0.pflw', 0)])
+hotspot_node = HotspotAnalysisNode(top_n=10, mode='exclusive')
+balance_node = BalanceAnalysisNode()
+
+# Build graph
+graph = DataflowGraph(name="MyWorkflow")
+graph.add_node(load_node).add_node(hotspot_node).add_node(balance_node)
+graph.connect(load_node, hotspot_node, 'tree')
+graph.connect(load_node, balance_node, 'tree')
+
+# Execute with parallel executor
+from perflow.dataflow import ParallelExecutor
+results = graph.execute(executor=ParallelExecutor(max_workers=4))
+```
+
+### Python Examples
+
+See comprehensive Python examples in [`examples/`](examples/):
+- **[dataflow_analysis_example.py](examples/dataflow_analysis_example.py)** - Complete dataflow framework demonstration
+- **[simple_file_analysis.py](examples/simple_file_analysis.py)** - Basic file-based analysis
+
+📖 **[Python API Reference](docs/api-reference/python-api.md)** | **[Dataflow API Reference](docs/api-reference/dataflow-api.md)**
+
+## C++ Online Analysis Example
 
 ```cpp
 #include "analysis/online_analysis.h"
@@ -177,15 +258,18 @@ for (const auto& frame : resolved) {
 - **PAPI library** - For hardware PMU sampling (highly recommended)
 - **zlib** - For compressed sample data
 - **GraphViz** - For PDF visualization generation
+- **Python 3.6+** - For Python dataflow-based analysis framework
+- **pybind11** - For Python bindings (included as submodule)
 
 ## Use Cases
 
 PerFlow is ideal for:
-- 🔬 **HPC Performance Analysis** - Profile large-scale parallel applications
+- 🔬 **HPC Performance Analysis** - Profile large-scale parallel applications (C++/Fortran/Python workflows)
 - 🐛 **Performance Debugging** - Identify bottlenecks and load imbalances
 - 📈 **Scalability Studies** - Understand behavior at different scales
 - 🔄 **Continuous Monitoring** - Track performance across code changes
 - 🎯 **Optimization Guidance** - Find hot functions for targeted optimization
+- 🐍 **Flexible Analysis** - Compose custom analysis workflows with Python dataflow framework
 
 ## Project Status
 

@@ -1,10 +1,100 @@
 # PerFlow Examples
 
-This directory contains example programs demonstrating various features of PerFlow.
+This directory contains example programs demonstrating various features of PerFlow, including both C++ and Python examples.
 
-## Building Examples
+## Overview
 
-Examples are built when the `PERFLOW_BUILD_EXAMPLES` CMake option is enabled:
+PerFlow provides examples in two categories:
+- **Python Examples** (Recommended): Dataflow-based analysis workflows using Python API
+- **C++ Examples**: Low-level sampling, analysis, and visualization using C++ API
+
+## Python Examples (Recommended for Analysis)
+
+### 🐍 Dataflow Analysis Example (`dataflow_analysis_example.py`) - **Most Comprehensive**
+
+**NEW**: Demonstrates the complete Python dataflow-based analysis framework with multiple workflow patterns.
+
+**Purpose**: Shows how to use the dataflow framework to compose flexible, reusable analysis workflows as directed acyclic graphs (DAGs).
+
+**Usage**:
+```bash
+python3 examples/dataflow_analysis_example.py <data_directory> [num_processes]
+```
+
+**Example**:
+```bash
+# Analyze sample data from 4 MPI processes
+python3 examples/dataflow_analysis_example.py /tmp/perflow_samples 4
+```
+
+**What it demonstrates**:
+1. **Basic Workflow with WorkflowBuilder** - Fluent API for quick analysis
+2. **Manual Graph Construction** - Full control over node connections
+3. **Parallel Execution** - Automatic parallelization of independent tasks
+4. **Caching Execution** - Result caching for repeated analyses
+5. **Custom Analysis Nodes** - Creating reusable analysis components
+6. **Tree Traversal** - Advanced tree filtering and transformation
+
+**Key Features Shown**:
+- ✅ Dataflow graph abstraction (nodes and edges)
+- ✅ WorkflowBuilder fluent API
+- ✅ Pre-built nodes: LoadData, HotspotAnalysis, BalanceAnalysis, Filter
+- ✅ Parallel execution with ParallelExecutor
+- ✅ Result caching with CachingExecutor
+- ✅ Custom node creation
+- ✅ Tree traversal and filtering
+
+**Sample Output**:
+```
+======================================================================
+Example 1: Basic Workflow with WorkflowBuilder
+======================================================================
+
+Workflow Results:
+----------------------------------------
+
+Top 5 Hotspots:
+  1. compute_kernel: 54.0%
+  2. MPI_Allreduce: 22.4%
+  3. initialization: 12.3%
+  4. finalization: 8.1%
+  5. main: 3.2%
+
+Workload Balance:
+  Imbalance factor: 0.09
+  Most loaded: process 0
+  Least loaded: process 2
+```
+
+### 🐍 Simple File Analysis Example (`simple_file_analysis.py`)
+
+Demonstrates basic file-based analysis using the Python API.
+
+**Purpose**: Simple introduction to loading sample files and performing hotspot analysis.
+
+**Usage**:
+```bash
+python3 examples/simple_file_analysis.py <data_directory> [num_processes]
+```
+
+**Example**:
+```bash
+python3 examples/simple_file_analysis.py /tmp/perflow_samples
+```
+
+**What it does**:
+- Loads .pflw sample files and .libmap library maps
+- Performs hotspot analysis (exclusive and inclusive time)
+- Shows workload balance across processes
+- Good starting point for custom Python analysis scripts
+
+## C++ Examples
+
+These examples demonstrate the low-level C++ API and are useful for understanding the internal workings or integrating PerFlow into native applications.
+
+### Building C++ Examples
+
+C++ examples are built when the `PERFLOW_BUILD_EXAMPLES` CMake option is enabled:
 
 ```bash
 mkdir build && cd build
@@ -13,8 +103,6 @@ make -j$(nproc)
 ```
 
 Built executables will be in `build/examples/`.
-
-## Available Examples
 
 ### 1. PMU Sampler Demo (`pmu_sampler_demo`)
 
@@ -203,9 +291,56 @@ Analysis complete!
 
 ## Typical Workflow
 
-### 1. Data Collection Phase
+### Recommended: Python Dataflow Analysis
+
+The Python dataflow API is the recommended way to perform analysis:
+
+#### 1. Data Collection Phase
 
 Run your MPI application with the PerFlow sampler:
+
+```bash
+LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \
+PERFLOW_OUTPUT_DIR=/tmp/perflow_samples \
+PERFLOW_SAMPLING_FREQ=1000 \
+mpirun -n 4 ./your_mpi_app
+```
+
+This generates:
+- `perflow_mpi_rank_0.pflw`, `perflow_mpi_rank_1.pflw`, ... (sample data)
+- `perflow_mpi_rank_0.libmap`, `perflow_mpi_rank_1.libmap`, ... (library maps)
+
+#### 2. Python Analysis Phase
+
+Use the dataflow example for comprehensive analysis:
+
+```bash
+python3 examples/dataflow_analysis_example.py /tmp/perflow_samples 4
+```
+
+Or write your own analysis script:
+
+```python
+from perflow.dataflow import WorkflowBuilder
+
+results = (
+    WorkflowBuilder("MyAnalysis")
+    .load_data(sample_files, libmap_files)
+    .find_hotspots(top_n=10)
+    .analyze_balance()
+    .execute()
+)
+
+# Process results as needed
+for node_id, output in results.items():
+    if 'hotspots' in output:
+        for h in output['hotspots']:
+            print(f"{h.function_name}: {h.self_percentage:.1f}%")
+```
+
+### Alternative: C++ Online Analysis
+
+For C++ integration or lower-level control, use the online analysis example:
 
 ```bash
 LD_PRELOAD=build/lib/libperflow_mpi_sampler.so \
@@ -327,5 +462,7 @@ Or the example will skip PDF generation and only create text/binary outputs.
 ## See Also
 
 - [Main README](../README.md) - Project overview
-- [API Documentation](../docs/ONLINE_ANALYSIS_API.md) - Complete API reference
+- [Python API Reference](../docs/api-reference/python-api.md) - Python bindings documentation
+- [Dataflow API Reference](../docs/api-reference/dataflow-api.md) - Python dataflow framework
+- [C++ API Documentation](../docs/api-reference/ONLINE_ANALYSIS_API.md) - Complete C++ API reference
 - [Testing Guide](../TESTING.md) - Testing documentation
