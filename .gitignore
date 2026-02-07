@@ -1,0 +1,35 @@
+build/
+_codeql_build_dir/
+_codeql_detected_source_root
+
+# Test output directories
+/tmp/perflow_test_results/
+*.pflw
+*.txt.perflow
+*.libmap
+*.ptree
+*.ptree.gz
+*.ptree.txt
+*.libmap.txt
+
+# Visualization outputs
+*.dot
+*.pdf
+
+# Temporary files
+*.tmp
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.egg-info/
+dist/
+
+# Python built extensions
+python/perflow/*.so
+python/perflow/*.pyd
+
+# NPB benchmark workspace and results
+tests/npb_benchmark/npb_workspace/
+tests/npb_benchmark/npb_results/

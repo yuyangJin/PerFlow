@@ -1,0 +1,298 @@
+// Copyright 2024 PerFlow Authors
+// Licensed under the Apache License, Version 2.0
+
+#ifndef PERFLOW_ANALYSIS_ONLINE_ANALYSIS_H_
+#define PERFLOW_ANALYSIS_ONLINE_ANALYSIS_H_
+
+#include <cctype>
+#include <fstream>
+#include <mutex>
+#include <unordered_map>
+#include <unordered_set>
+
+#include "analysis/analysis_tasks.h"
+#include "analysis/directory_monitor.h"
+#include "analysis/performance_tree.h"
+#include "analysis/tree_builder.h"
+#include "analysis/tree_serializer.h"
+#include "analysis/tree_visualizer.h"
+
+namespace perflow {
+namespace analysis {
+
+/// OnlineAnalysis provides a complete online analysis framework
+/// It monitors directories, builds performance trees, and performs analysis
+class OnlineAnalysis {
+ public:
+  /// User callback type for file processing notifications
+  /// Args: (file_path, file_type, is_new_file)
+  using FileProcessCallback =
+      std::function<void(const std::string&, FileType, bool)>;
+
+  /// Constructor
+  OnlineAnalysis() noexcept : builder_(), monitor_(nullptr), monitor_directory_(),
+                               pending_libmaps_(), processed_files_(),
+                               file_callback_(), mutex_(), builder_mutex_() {}
+
+  /// Set the directory to monitor
+  /// @param directory Directory path
+  /// @param poll_interval_ms Polling interval in milliseconds
+  void set_monitor_directory(const std::string& directory,
+                            uint32_t poll_interval_ms = 1000) {
+    monitor_directory_ = directory;
+    monitor_ = std::make_unique<DirectoryMonitor>(directory, poll_interval_ms);
+    
+    // Set up callback to handle new files
+    monitor_->set_callback([this](const std::string& path, FileType type,
+                                  bool is_new) { handle_file(path, type, is_new); });
+  }
+
+  /// Start monitoring
+  bool start_monitoring() {
+    if (monitor_) {
+      return monitor_->start();
+    }
+    return false;
+  }
+
+  /// Stop monitoring
+  void stop_monitoring() {
+    if (monitor_) {
+      monitor_->stop();
+    }
+  }
+  
+  /// Set user callback for file processing notifications
+  void set_file_callback(FileProcessCallback callback) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    file_callback_ = callback;
+  }
+  
+  /// Get the monitored directory
+  const std::string& monitor_directory() const { return monitor_directory_; }
+
+  /// Get the tree builder (thread-safe access)
+  TreeBuilder& builder() noexcept {
+    // Note: Caller is responsible for thread safety when modifying builder
+    return builder_;
+  }
+  const TreeBuilder& builder() const noexcept { return builder_; }
+
+  /// Get the performance tree (thread-safe access)
+  PerformanceTree& tree() noexcept {
+    // Note: Caller is responsible for thread safety when modifying tree
+    return builder_.tree();
+  }
+  const PerformanceTree& tree() const noexcept { return builder_.tree(); }
+  
+  /// Set the sample count mode (must be called before building)
+  void set_sample_count_mode(SampleCountMode mode) {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    builder_.set_sample_count_mode(mode);
+  }
+  
+  /// Get the sample count mode
+  SampleCountMode sample_count_mode() const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return builder_.sample_count_mode();
+  }
+
+  /// Perform balance analysis (thread-safe)
+  BalanceAnalysisResult analyze_balance() const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return BalanceAnalyzer::analyze(tree());
+  }
+
+  /// Find performance hotspots by exclusive/self time (thread-safe, default)
+  std::vector<HotspotInfo> find_hotspots(size_t top_n = 10) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return HotspotAnalyzer::find_hotspots(tree(), top_n);
+  }
+
+  /// Find self-time hotspots (thread-safe) - alias for find_hotspots()
+  std::vector<HotspotInfo> find_self_hotspots(size_t top_n = 10) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return HotspotAnalyzer::find_self_hotspots(tree(), top_n);
+  }
+
+  /// Find total/inclusive time hotspots (thread-safe)
+  std::vector<HotspotInfo> find_total_hotspots(size_t top_n = 10) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return HotspotAnalyzer::find_total_hotspots(tree(), top_n);
+  }
+
+  /// Export tree visualization (thread-safe)
+  bool export_visualization(const char* output_pdf,
+                           ColorScheme scheme = ColorScheme::kHeatmap,
+                           size_t max_depth = 0) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return TreeVisualizer::generate_pdf(tree(), output_pdf, scheme, max_depth);
+  }
+
+  /// Export tree data (thread-safe)
+  bool export_tree(const char* directory, const char* filename,
+                  bool compressed = false) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return TreeSerializer::export_tree(tree(), directory, filename, compressed);
+  }
+
+  /// Export tree as text (thread-safe)
+  bool export_tree_text(const char* directory, const char* filename) const {
+    std::lock_guard<std::mutex> lock(builder_mutex_);
+    return TreeSerializer::export_tree_text(tree(), directory, filename);
+  }
+
+ private:
+  void handle_file(const std::string& path, FileType type, bool is_new) {
+    // Make a local copy of the path to avoid reference issues
+    std::string path_copy = path;
+    
+    // Check if already processed (with lock)
+    {
+      std::lock_guard<std::mutex> lock(mutex_);
+      if (processed_files_.find(path_copy) != processed_files_.end() && is_new) {
+        return;  // Already processed this file
+      }
+    }
+    
+    switch (type) {
+      case FileType::kLibraryMap: {
+        // Extract rank ID from filename (e.g., "perflow_mpi_rank_0.libmap")
+        uint32_t rank_id = extract_rank_from_filename(path_copy);
+        if (rank_id != UINT32_MAX) {
+          {
+            std::lock_guard<std::mutex> lock(mutex_);
+            pending_libmaps_[rank_id] = path_copy;
+          }
+          if (file_callback_) {
+            file_callback_(path_copy, type, is_new);
+          }
+        }
+        break;
+      }
+      
+      case FileType::kSampleData: {
+        // Extract rank ID from filename (e.g., "perflow_mpi_rank_0.pflw")
+        uint32_t rank_id = extract_rank_from_filename(path_copy);
+        if (rank_id != UINT32_MAX) {
+          // Check for library map and prepare data (with lock)
+          std::string libmap_path;
+          bool has_libmap = false;
+          {
+            std::lock_guard<std::mutex> lock(mutex_);
+            auto libmap_it = pending_libmaps_.find(rank_id);
+            if (libmap_it != pending_libmaps_.end()) {
+              libmap_path = libmap_it->second;
+              has_libmap = true;
+              pending_libmaps_.erase(libmap_it);
+            }
+          }
+          
+          // If not in pending, try to find libmap file in the same directory
+          if (!has_libmap && !monitor_directory_.empty()) {
+            libmap_path = find_libmap_for_rank(monitor_directory_, rank_id);
+            has_libmap = !libmap_path.empty();
+          }
+          
+          // Load library map and build tree with builder mutex protection
+          {
+            std::lock_guard<std::mutex> lock(builder_mutex_);
+            
+            // Load library map if available
+            if (has_libmap) {
+              std::vector<std::pair<std::string, uint32_t>> libmaps = {{libmap_path, rank_id}};
+              builder_.load_library_maps(libmaps);
+            }
+            
+            // Build tree from this sample file
+            std::vector<std::pair<std::string, uint32_t>> files = {{path_copy, rank_id}};
+            builder_.build_from_files(files, 1000.0);
+          }
+          
+          // Mark as processed (with lock)
+          {
+            std::lock_guard<std::mutex> lock(mutex_);
+            processed_files_.insert(path_copy);
+          }
+          
+          if (file_callback_) {
+            file_callback_(path_copy, type, is_new);
+          }
+        }
+        break;
+      }
+      
+      case FileType::kPerformanceTree:
+        // Could be used for loading pre-built trees in the future
+        if (file_callback_) {
+          file_callback_(path_copy, type, is_new);
+        }
+        break;
+        
+      default:
+        break;
+    }
+  }
+  
+  /// Extract rank ID from filename like "perflow_mpi_rank_0.pflw"
+  static uint32_t extract_rank_from_filename(const std::string& path) {
+    // Find "rank_" in the filename
+    size_t pos = path.find("rank_");
+    if (pos == std::string::npos) {
+      return UINT32_MAX;  // Not found
+    }
+    
+    pos += 5;  // Move past "rank_"
+    
+    // Extract digits
+    size_t end_pos = pos;
+    while (end_pos < path.length() && std::isdigit(path[end_pos])) {
+      ++end_pos;
+    }
+    
+    if (end_pos > pos) {
+      try {
+        return static_cast<uint32_t>(std::stoul(path.substr(pos, end_pos - pos)));
+      } catch (...) {
+        return UINT32_MAX;
+      }
+    }
+    
+    return UINT32_MAX;
+  }
+  
+  /// Find libmap file for a given rank in a directory
+  static std::string find_libmap_for_rank(const std::string& directory, uint32_t rank_id) {
+    // Try common patterns for libmap files
+    std::vector<std::string> patterns = {
+      "/perflow_mpi_rank_" + std::to_string(rank_id) + ".libmap",
+      "/rank_" + std::to_string(rank_id) + ".libmap",
+      "/perflow_rank_" + std::to_string(rank_id) + ".libmap"
+    };
+    
+    for (const auto& pattern : patterns) {
+      std::string path = directory + pattern;
+      // Check if file exists by trying to open it
+      std::ifstream file(path);
+      if (file.good()) {
+        return path;
+      }
+    }
+    
+    return "";  // Not found
+  }
+
+  TreeBuilder builder_;
+  std::unique_ptr<DirectoryMonitor> monitor_;
+  std::string monitor_directory_;
+  std::unordered_map<uint32_t, std::string> pending_libmaps_;
+  std::unordered_set<std::string> processed_files_;
+  FileProcessCallback file_callback_;
+  mutable std::mutex mutex_;  // For general state
+  mutable std::mutex builder_mutex_;  // For builder access
+};
+
+}  // namespace analysis
+}  // namespace perflow
+
+#endif  // PERFLOW_ANALYSIS_ONLINE_ANALYSIS_H_
