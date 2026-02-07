@@ -34,11 +34,6 @@ add_executable(npb_hotspot_analyzer npb_hotspot_analyzer.cpp)
 target_link_libraries(npb_hotspot_analyzer PRIVATE perflow_sampling perflow_analysis ${CMAKE_DL_LIBS})
 target_compile_options(npb_hotspot_analyzer PRIVATE -g)
 
-# Parallel Tree Building Example (demonstrating concurrency models)
-add_executable(parallel_tree_building_example parallel_tree_building_example.cpp)
-target_link_libraries(parallel_tree_building_example PRIVATE perflow_sampling perflow_analysis ${CMAKE_DL_LIBS})
-target_compile_options(parallel_tree_building_example PRIVATE -g)
-
 # Set output directory for examples
 set_target_properties(
     pmu_sampler_demo
@@ -47,7 +42,6 @@ set_target_properties(
     online_analysis_example
     symbol_resolution_example
     npb_hotspot_analyzer
-    parallel_tree_building_example
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/examples
 )
