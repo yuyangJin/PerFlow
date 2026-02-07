@@ -5,6 +5,7 @@
 #define PERFLOW_ANALYSIS_PARALLEL_FILE_READER_H_
 
 #include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <future>
 #include <memory>
@@ -21,7 +22,7 @@ namespace perflow {
 namespace analysis {
 
 /// ParallelFileReader provides parallel file reading capabilities for sample data
-/// Files are processed in parallel threads and results are merged into a single tree
+/// Files are processed in parallel threads with configurable concurrency models
 class ParallelFileReader {
  public:
   /// Status of a file read operation
@@ -36,11 +37,43 @@ class ParallelFileReader {
         : filepath(), process_id(0), success(false), 
           samples_read(0), error_message() {}
   };
+  
+  /// Performance statistics for parallel file reading
+  struct ParallelReadStats {
+    /// Total time for reading all files (microseconds)
+    uint64_t total_time_us{0};
+    /// Time spent in parallel read phase (microseconds)
+    uint64_t read_time_us{0};
+    /// Time spent in merge phase (microseconds) - for THREAD_LOCAL_MERGE
+    uint64_t merge_time_us{0};
+    /// Number of files successfully read
+    size_t files_read{0};
+    /// Total samples processed
+    size_t total_samples{0};
+    /// Throughput in files per second
+    double files_per_second{0.0};
+    /// Throughput in samples per second
+    double samples_per_second{0.0};
+    /// Concurrency model used
+    ConcurrencyMode concurrency_mode{ConcurrencyMode::kSerial};
+    /// Tree concurrency statistics
+    ConcurrencyStats tree_stats;
+    
+    void compute_throughput() {
+      if (total_time_us > 0) {
+        files_per_second = static_cast<double>(files_read) * 1000000.0 / total_time_us;
+        samples_per_second = static_cast<double>(total_samples) * 1000000.0 / total_time_us;
+      }
+    }
+  };
 
-  /// Constructor with optional thread count
+  /// Constructor with optional thread count and concurrency mode
   /// @param num_threads Number of threads to use (0 = auto-detect)
-  explicit ParallelFileReader(size_t num_threads = 0) noexcept
+  /// @param mode Concurrency mode for tree building
+  explicit ParallelFileReader(size_t num_threads = 0,
+                              ConcurrencyMode mode = ConcurrencyMode::kThreadLocalMerge) noexcept
       : num_threads_(num_threads == 0 ? std::thread::hardware_concurrency() : num_threads),
+        concurrency_mode_(mode),
         progress_callback_() {
     if (num_threads_ == 0) {
       num_threads_ = 1;  // Fallback if hardware_concurrency returns 0
@@ -52,6 +85,17 @@ class ParallelFileReader {
   void set_progress_callback(std::function<void(size_t, size_t)> callback) {
     progress_callback_ = callback;
   }
+  
+  /// Set concurrency mode
+  void set_concurrency_mode(ConcurrencyMode mode) {
+    concurrency_mode_ = mode;
+  }
+  
+  /// Get concurrency mode
+  ConcurrencyMode concurrency_mode() const noexcept { return concurrency_mode_; }
+  
+  /// Get the last read statistics
+  const ParallelReadStats& stats() const noexcept { return stats_; }
 
   /// Read multiple sample files in parallel and build a performance tree
   /// @tparam MaxDepth Maximum stack depth
@@ -69,11 +113,123 @@ class ParallelFileReader {
       OffsetConverter& converter,
       double time_per_sample = 1000.0) {
     
+    // Reset stats
+    stats_ = ParallelReadStats{};
+    stats_.concurrency_mode = concurrency_mode_;
+    
+    auto total_start = std::chrono::high_resolution_clock::now();
+    
+    std::vector<FileReadResult> results;
+    
+    // Dispatch to the appropriate implementation based on concurrency mode
+    switch (concurrency_mode_) {
+      case ConcurrencyMode::kSerial:
+        results = read_files_serial<MaxDepth, Capacity>(sample_files, tree, converter, time_per_sample);
+        break;
+      case ConcurrencyMode::kFineGrainedLock:
+        results = read_files_fine_grained<MaxDepth, Capacity>(sample_files, tree, converter, time_per_sample);
+        break;
+      case ConcurrencyMode::kThreadLocalMerge:
+        results = read_files_thread_local_merge<MaxDepth, Capacity>(sample_files, tree, converter, time_per_sample);
+        break;
+      case ConcurrencyMode::kLockFree:
+        results = read_files_lock_free<MaxDepth, Capacity>(sample_files, tree, converter, time_per_sample);
+        break;
+    }
+    
+    auto total_end = std::chrono::high_resolution_clock::now();
+    stats_.total_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        total_end - total_start).count();
+    
+    // Copy tree stats
+    stats_.tree_stats = tree.stats();
+    stats_.tree_stats.build_time_us = stats_.read_time_us;
+    
+    // Compute throughput
+    stats_.compute_throughput();
+    
+    return results;
+  }
+
+  /// Get the number of threads used
+  size_t thread_count() const noexcept { return num_threads_; }
+  
+  /// Set the number of threads
+  void set_thread_count(size_t num_threads) {
+    num_threads_ = num_threads == 0 ? std::thread::hardware_concurrency() : num_threads;
+    if (num_threads_ == 0) {
+      num_threads_ = 1;
+    }
+  }
+
+ private:
+  /// Serial file reading (no parallelism)
+  template <size_t MaxDepth, size_t Capacity>
+  std::vector<FileReadResult> read_files_serial(
+      const std::vector<std::pair<std::string, uint32_t>>& sample_files,
+      PerformanceTree& tree,
+      OffsetConverter& converter,
+      double time_per_sample) {
+    
     std::vector<FileReadResult> results(sample_files.size());
     
     if (sample_files.empty()) {
       return results;
     }
+    
+    auto read_start = std::chrono::high_resolution_clock::now();
+
+    // Determine max process ID for tree initialization
+    size_t max_process_id = 0;
+    for (const auto& pair : sample_files) {
+      if (pair.second > max_process_id) {
+        max_process_id = pair.second;
+      }
+    }
+    tree.set_process_count(max_process_id + 1);
+
+    // Process files sequentially
+    for (size_t i = 0; i < sample_files.size(); ++i) {
+      const auto& file_pair = sample_files[i];
+      results[i] = read_single_file<MaxDepth, Capacity>(
+          file_pair.first, file_pair.second, tree, converter, time_per_sample);
+      
+      if (results[i].success) {
+        stats_.files_read++;
+        stats_.total_samples += results[i].samples_read;
+      }
+      
+      if (progress_callback_) {
+        progress_callback_(i + 1, sample_files.size());
+      }
+    }
+    
+    auto read_end = std::chrono::high_resolution_clock::now();
+    stats_.read_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        read_end - read_start).count();
+
+    return results;
+  }
+  
+  /// Fine-grained locking parallel file reading
+  /// All threads insert into a shared tree with per-node locking
+  template <size_t MaxDepth, size_t Capacity>
+  std::vector<FileReadResult> read_files_fine_grained(
+      const std::vector<std::pair<std::string, uint32_t>>& sample_files,
+      PerformanceTree& tree,
+      OffsetConverter& converter,
+      double time_per_sample) {
+    
+    std::vector<FileReadResult> results(sample_files.size());
+    
+    if (sample_files.empty()) {
+      return results;
+    }
+    
+    auto read_start = std::chrono::high_resolution_clock::now();
+
+    // Set tree to use fine-grained locking
+    tree.set_concurrency_mode(ConcurrencyMode::kFineGrainedLock);
 
     // Determine max process ID for tree initialization
     size_t max_process_id = 0;
@@ -86,6 +242,86 @@ class ParallelFileReader {
 
     // Progress tracking
     std::atomic<size_t> completed_files(0);
+    std::atomic<size_t> total_samples_read(0);
+    size_t total_files = sample_files.size();
+
+    // Process files in parallel, all inserting into the shared tree
+    std::vector<std::future<void>> futures;
+    size_t files_per_thread = (sample_files.size() + num_threads_ - 1) / num_threads_;
+    
+    for (size_t t = 0; t < num_threads_; ++t) {
+      size_t start_idx = t * files_per_thread;
+      size_t end_idx = std::min(start_idx + files_per_thread, sample_files.size());
+      
+      if (start_idx >= sample_files.size()) {
+        break;
+      }
+      
+      futures.push_back(std::async(std::launch::async, [&, start_idx, end_idx]() {
+        for (size_t i = start_idx; i < end_idx; ++i) {
+          const auto& file_pair = sample_files[i];
+          results[i] = read_single_file<MaxDepth, Capacity>(
+              file_pair.first, file_pair.second, tree, converter, time_per_sample);
+          
+          if (results[i].success) {
+            total_samples_read.fetch_add(results[i].samples_read, std::memory_order_relaxed);
+          }
+          
+          size_t current = ++completed_files;
+          if (progress_callback_) {
+            progress_callback_(current, total_files);
+          }
+        }
+      }));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures) {
+      future.wait();
+    }
+    
+    auto read_end = std::chrono::high_resolution_clock::now();
+    stats_.read_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        read_end - read_start).count();
+    
+    stats_.files_read = completed_files.load();
+    stats_.total_samples = total_samples_read.load();
+
+    return results;
+  }
+  
+  /// Thread-local merge parallel file reading (original implementation)
+  /// Each thread builds a separate tree, then trees are merged
+  template <size_t MaxDepth, size_t Capacity>
+  std::vector<FileReadResult> read_files_thread_local_merge(
+      const std::vector<std::pair<std::string, uint32_t>>& sample_files,
+      PerformanceTree& tree,
+      OffsetConverter& converter,
+      double time_per_sample) {
+    
+    std::vector<FileReadResult> results(sample_files.size());
+    
+    if (sample_files.empty()) {
+      return results;
+    }
+    
+    auto read_start = std::chrono::high_resolution_clock::now();
+
+    // Use serial mode for individual tree insertions (no contention)
+    tree.set_concurrency_mode(ConcurrencyMode::kSerial);
+
+    // Determine max process ID for tree initialization
+    size_t max_process_id = 0;
+    for (const auto& pair : sample_files) {
+      if (pair.second > max_process_id) {
+        max_process_id = pair.second;
+      }
+    }
+    tree.set_process_count(max_process_id + 1);
+
+    // Progress tracking
+    std::atomic<size_t> completed_files(0);
+    std::atomic<size_t> total_samples_read(0);
     size_t total_files = sample_files.size();
 
     // Create per-file trees to avoid contention
@@ -93,7 +329,7 @@ class ParallelFileReader {
     per_file_trees.reserve(sample_files.size());
     for (size_t i = 0; i < sample_files.size(); ++i) {
       per_file_trees.push_back(std::make_unique<PerformanceTree>(
-          tree.build_mode(), tree.sample_count_mode()));
+          tree.build_mode(), tree.sample_count_mode(), ConcurrencyMode::kSerial));
       per_file_trees[i]->set_process_count(max_process_id + 1);
     }
 
@@ -116,6 +352,10 @@ class ParallelFileReader {
               file_pair.first, file_pair.second,
               *per_file_trees[i], converter, time_per_sample);
           
+          if (results[i].success) {
+            total_samples_read.fetch_add(results[i].samples_read, std::memory_order_relaxed);
+          }
+          
           size_t current = ++completed_files;
           if (progress_callback_) {
             progress_callback_(current, total_files);
@@ -128,21 +368,109 @@ class ParallelFileReader {
     for (auto& future : futures) {
       future.wait();
     }
+    
+    auto read_end = std::chrono::high_resolution_clock::now();
+    stats_.read_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        read_end - read_start).count();
 
     // Merge per-file trees into main tree
+    auto merge_start = std::chrono::high_resolution_clock::now();
     for (size_t i = 0; i < sample_files.size(); ++i) {
       if (results[i].success) {
-        merge_tree(*per_file_trees[i], tree);
+        tree.merge_tree(*per_file_trees[i]);
       }
     }
+    auto merge_end = std::chrono::high_resolution_clock::now();
+    stats_.merge_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        merge_end - merge_start).count();
+    
+    stats_.files_read = completed_files.load();
+    stats_.total_samples = total_samples_read.load();
 
     return results;
   }
+  
+  /// Lock-free parallel file reading
+  /// Uses atomic operations for counter updates, locks only for structural changes
+  template <size_t MaxDepth, size_t Capacity>
+  std::vector<FileReadResult> read_files_lock_free(
+      const std::vector<std::pair<std::string, uint32_t>>& sample_files,
+      PerformanceTree& tree,
+      OffsetConverter& converter,
+      double time_per_sample) {
+    
+    std::vector<FileReadResult> results(sample_files.size());
+    
+    if (sample_files.empty()) {
+      return results;
+    }
+    
+    auto read_start = std::chrono::high_resolution_clock::now();
 
-  /// Get the number of threads used
-  size_t thread_count() const noexcept { return num_threads_; }
+    // Set tree to use lock-free mode
+    tree.set_concurrency_mode(ConcurrencyMode::kLockFree);
 
- private:
+    // Determine max process ID for tree initialization
+    size_t max_process_id = 0;
+    for (const auto& pair : sample_files) {
+      if (pair.second > max_process_id) {
+        max_process_id = pair.second;
+      }
+    }
+    tree.set_process_count(max_process_id + 1);
+
+    // Progress tracking
+    std::atomic<size_t> completed_files(0);
+    std::atomic<size_t> total_samples_read(0);
+    size_t total_files = sample_files.size();
+
+    // Process files in parallel, all inserting into the shared tree
+    std::vector<std::future<void>> futures;
+    size_t files_per_thread = (sample_files.size() + num_threads_ - 1) / num_threads_;
+    
+    for (size_t t = 0; t < num_threads_; ++t) {
+      size_t start_idx = t * files_per_thread;
+      size_t end_idx = std::min(start_idx + files_per_thread, sample_files.size());
+      
+      if (start_idx >= sample_files.size()) {
+        break;
+      }
+      
+      futures.push_back(std::async(std::launch::async, [&, start_idx, end_idx]() {
+        for (size_t i = start_idx; i < end_idx; ++i) {
+          const auto& file_pair = sample_files[i];
+          results[i] = read_single_file<MaxDepth, Capacity>(
+              file_pair.first, file_pair.second, tree, converter, time_per_sample);
+          
+          if (results[i].success) {
+            total_samples_read.fetch_add(results[i].samples_read, std::memory_order_relaxed);
+          }
+          
+          size_t current = ++completed_files;
+          if (progress_callback_) {
+            progress_callback_(current, total_files);
+          }
+        }
+      }));
+    }
+
+    // Wait for all threads to complete
+    for (auto& future : futures) {
+      future.wait();
+    }
+    
+    // Synchronize atomic counters with regular counters
+    tree.sync_all_atomic_counters();
+    
+    auto read_end = std::chrono::high_resolution_clock::now();
+    stats_.read_time_us = std::chrono::duration_cast<std::chrono::microseconds>(
+        read_end - read_start).count();
+    
+    stats_.files_read = completed_files.load();
+    stats_.total_samples = total_samples_read.load();
+
+    return results;
+  }
   /// Read a single sample file
   template <size_t MaxDepth, size_t Capacity>
   FileReadResult read_single_file(
@@ -242,6 +570,8 @@ class ParallelFileReader {
   }
 
   size_t num_threads_;
+  ConcurrencyMode concurrency_mode_;
+  mutable ParallelReadStats stats_;
   std::function<void(size_t, size_t)> progress_callback_;
 };
 

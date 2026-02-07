@@ -5,6 +5,8 @@
 #define PERFLOW_ANALYSIS_PERFORMANCE_TREE_H_
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <cstdint>
 #include <memory>
 #include <mutex>
@@ -44,6 +46,74 @@ enum class SampleCountMode {
   kBoth = 2
 };
 
+/// ConcurrencyMode defines the synchronization strategy for concurrent tree building
+enum class ConcurrencyMode {
+  /// Serial: No concurrency, single-threaded execution (default, backward compatible)
+  kSerial = 0,
+  
+  /// Fine-grained locking: Each tree node has its own mutex
+  /// Pros: Allows parallel subtree insertion
+  /// Cons: O(depth) locks per operation, lock overhead
+  kFineGrainedLock = 1,
+  
+  /// Thread-local merge: Each thread builds a separate tree, merged after construction
+  /// Pros: No contention during build phase
+  /// Cons: O(nodes) single-threaded merge at the end, higher memory usage
+  kThreadLocalMerge = 2,
+  
+  /// Lock-free: Uses atomic operations for node attribute updates
+  /// Locks only for structural changes (adding new nodes)
+  /// Pros: Minimizes contention on existing nodes
+  /// Cons: Higher complexity, potential for retries on contention
+  kLockFree = 3
+};
+
+/// Statistics about concurrent tree building performance
+struct ConcurrencyStats {
+  /// Total number of insert operations
+  std::atomic<uint64_t> total_insertions{0};
+  /// Number of lock acquisitions (for FINE_GRAINED_LOCK)
+  std::atomic<uint64_t> lock_acquisitions{0};
+  /// Number of lock contentions (failed immediate acquisitions)
+  std::atomic<uint64_t> lock_contentions{0};
+  /// Number of atomic CAS retries (for LOCK_FREE)
+  std::atomic<uint64_t> cas_retries{0};
+  /// Number of trees merged (for THREAD_LOCAL_MERGE)
+  std::atomic<uint64_t> trees_merged{0};
+  /// Total nodes merged (for THREAD_LOCAL_MERGE)
+  std::atomic<uint64_t> nodes_merged{0};
+  /// Build time in microseconds
+  std::atomic<uint64_t> build_time_us{0};
+  /// Merge time in microseconds (for THREAD_LOCAL_MERGE)
+  std::atomic<uint64_t> merge_time_us{0};
+  
+  /// Reset all statistics
+  void reset() {
+    total_insertions = 0;
+    lock_acquisitions = 0;
+    lock_contentions = 0;
+    cas_retries = 0;
+    trees_merged = 0;
+    nodes_merged = 0;
+    build_time_us = 0;
+    merge_time_us = 0;
+  }
+  
+  /// Get lock contention ratio
+  double contention_ratio() const {
+    uint64_t acqs = lock_acquisitions.load();
+    if (acqs == 0) return 0.0;
+    return static_cast<double>(lock_contentions.load()) / acqs;
+  }
+  
+  /// Get throughput (insertions per second)
+  double throughput() const {
+    uint64_t time = build_time_us.load();
+    if (time == 0) return 0.0;
+    return static_cast<double>(total_insertions.load()) * 1000000.0 / time;
+  }
+};
+
 /// TreeNode represents a vertex in the performance tree
 /// Each node corresponds to a function/program structure
 class TreeNode {
@@ -56,7 +126,10 @@ class TreeNode {
         children_(),
         parent_(nullptr),
         total_samples_(0),
-        self_samples_(0) {}
+        self_samples_(0),
+        atomic_total_samples_(0),
+        atomic_self_samples_(0),
+        node_mutex_() {}
 
   /// Get the resolved frame
   const sampling::ResolvedFrame& frame() const noexcept { return frame_; }
@@ -78,6 +151,12 @@ class TreeNode {
       execution_times_.resize(count, 0.0);
     }
   }
+  
+  /// Thread-safe version of set_process_count for fine-grained locking
+  void set_process_count_locked(size_t count) {
+    std::lock_guard<std::mutex> lock(node_mutex_);
+    set_process_count(count);
+  }
 
   /// Add a sample for a specific process
   void add_sample(size_t process_id, uint64_t count = 1,
@@ -89,15 +168,78 @@ class TreeNode {
     execution_times_[process_id] += time_us;
     total_samples_ += count;
   }
+  
+  /// Thread-safe version of add_sample for fine-grained locking
+  void add_sample_locked(size_t process_id, uint64_t count = 1,
+                         double time_us = 0.0) {
+    std::lock_guard<std::mutex> lock(node_mutex_);
+    add_sample(process_id, count, time_us);
+  }
+  
+  /// Atomic version of add_sample for lock-free mode
+  /// Only updates atomic counters, per-process arrays need separate handling
+  void add_sample_atomic(size_t process_id, uint64_t count = 1,
+                         double time_us = 0.0) {
+    // Use lock for per-process arrays (structural change)
+    {
+      std::lock_guard<std::mutex> lock(node_mutex_);
+      if (process_id >= sampling_counts_.size()) {
+        set_process_count(process_id + 1);
+      }
+      sampling_counts_[process_id] += count;
+      execution_times_[process_id] += time_us;
+    }
+    // Use atomic for total samples (most contended)
+    atomic_total_samples_.fetch_add(count, std::memory_order_relaxed);
+  }
 
   /// Add self samples (leaf node samples)
   void add_self_sample(uint64_t count = 1) { self_samples_ += count; }
+  
+  /// Thread-safe version of add_self_sample for fine-grained locking
+  void add_self_sample_locked(uint64_t count = 1) {
+    std::lock_guard<std::mutex> lock(node_mutex_);
+    self_samples_ += count;
+  }
+  
+  /// Atomic version of add_self_sample for lock-free mode
+  void add_self_sample_atomic(uint64_t count = 1) {
+    atomic_self_samples_.fetch_add(count, std::memory_order_relaxed);
+  }
 
   /// Get total samples across all processes
   uint64_t total_samples() const noexcept { return total_samples_; }
+  
+  /// Get total samples using atomic counter (for lock-free mode)
+  uint64_t total_samples_atomic() const noexcept { 
+    return atomic_total_samples_.load(std::memory_order_relaxed); 
+  }
 
   /// Get self samples (samples at this leaf)
   uint64_t self_samples() const noexcept { return self_samples_; }
+  
+  /// Get self samples using atomic counter (for lock-free mode)
+  uint64_t self_samples_atomic() const noexcept {
+    return atomic_self_samples_.load(std::memory_order_relaxed);
+  }
+  
+  /// Synchronize atomic counters with regular counters
+  /// Call this after parallel build phase is complete
+  void sync_atomic_counters() {
+    total_samples_ = atomic_total_samples_.load(std::memory_order_relaxed);
+    self_samples_ = atomic_self_samples_.load(std::memory_order_relaxed);
+  }
+  
+  /// Lock this node's mutex (for fine-grained locking)
+  std::unique_lock<std::mutex> lock() {
+    return std::unique_lock<std::mutex>(node_mutex_);
+  }
+  
+  /// Try to lock this node's mutex (returns immediately)
+  bool try_lock(std::unique_lock<std::mutex>& lock_ref) {
+    lock_ref = std::unique_lock<std::mutex>(node_mutex_, std::try_to_lock);
+    return lock_ref.owns_lock();
+  }
 
   /// Get children nodes
   const std::vector<std::shared_ptr<TreeNode>>& children() const noexcept {
@@ -242,17 +384,24 @@ class TreeNode {
   std::unordered_map<TreeNode*, uint64_t> call_counts_;  // Edge weights
   uint64_t total_samples_;
   uint64_t self_samples_;
+  // Atomic counters for lock-free mode
+  std::atomic<uint64_t> atomic_total_samples_;
+  std::atomic<uint64_t> atomic_self_samples_;
+  // Per-node mutex for fine-grained locking
+  mutable std::mutex node_mutex_;
 };
 
 /// PerformanceTree aggregates call stack samples into a tree structure
-/// Thread-safe for concurrent insertions
+/// Thread-safe for concurrent insertions with configurable concurrency modes
 class PerformanceTree {
  public:
-  /// Constructor with optional build mode and sample count mode
+  /// Constructor with optional build mode, sample count mode, and concurrency mode
   explicit PerformanceTree(TreeBuildMode mode = TreeBuildMode::kContextFree,
-                          SampleCountMode count_mode = SampleCountMode::kExclusive) noexcept 
+                          SampleCountMode count_mode = SampleCountMode::kExclusive,
+                          ConcurrencyMode concurrency_mode = ConcurrencyMode::kSerial) noexcept 
       : root_(nullptr), process_count_(0), build_mode_(mode), 
-        sample_count_mode_(count_mode), mutex_() {
+        sample_count_mode_(count_mode), concurrency_mode_(concurrency_mode),
+        stats_(), mutex_() {
     // Create a virtual root node
     sampling::ResolvedFrame root_frame;
     root_frame.function_name = "[root]";
@@ -290,8 +439,27 @@ class PerformanceTree {
   
   /// Get the sample count mode
   SampleCountMode sample_count_mode() const noexcept { return sample_count_mode_; }
+  
+  /// Get the concurrency mode
+  ConcurrencyMode concurrency_mode() const noexcept { return concurrency_mode_; }
+  
+  /// Set the concurrency mode (must be called before inserting call stacks)
+  void set_concurrency_mode(ConcurrencyMode mode) {
+    std::lock_guard<std::mutex> lock(mutex_);
+    concurrency_mode_ = mode;
+  }
+  
+  /// Get concurrency statistics
+  const ConcurrencyStats& stats() const noexcept { return stats_; }
+  
+  /// Get mutable reference to concurrency statistics (for testing/benchmarking)
+  ConcurrencyStats& stats() noexcept { return stats_; }
+  
+  /// Reset concurrency statistics
+  void reset_stats() { stats_.reset(); }
 
   /// Insert a call stack into the tree
+  /// Uses the configured concurrency mode for thread safety
   /// @param frames Resolved frames from bottom (main) to top (leaf)
   /// @param process_id Process/rank ID
   /// @param count Sample count
@@ -299,27 +467,68 @@ class PerformanceTree {
   void insert_call_stack(const std::vector<sampling::ResolvedFrame>& frames,
                          size_t process_id, uint64_t count = 1,
                          double time_us = 0.0) {
+    // Dispatch based on concurrency mode
+    switch (concurrency_mode_) {
+      case ConcurrencyMode::kSerial:
+        insert_call_stack_serial(frames, process_id, count, time_us);
+        break;
+      case ConcurrencyMode::kFineGrainedLock:
+        insert_call_stack_fine_grained(frames, process_id, count, time_us);
+        break;
+      case ConcurrencyMode::kThreadLocalMerge:
+        // For thread-local merge, we still use serial insert into this tree
+        // The parallel aspect is handled by creating separate trees per thread
+        insert_call_stack_serial(frames, process_id, count, time_us);
+        break;
+      case ConcurrencyMode::kLockFree:
+        insert_call_stack_lock_free(frames, process_id, count, time_us);
+        break;
+    }
+    stats_.total_insertions.fetch_add(1, std::memory_order_relaxed);
+  }
+  
+  /// Serial insertion (original implementation with global lock)
+  void insert_call_stack_serial(const std::vector<sampling::ResolvedFrame>& frames,
+                                size_t process_id, uint64_t count = 1,
+                                double time_us = 0.0) {
     std::lock_guard<std::mutex> lock(mutex_);
-
+    insert_call_stack_nolock(frames, process_id, count, time_us);
+  }
+  
+  /// Fine-grained locking insertion (per-node locks)
+  void insert_call_stack_fine_grained(const std::vector<sampling::ResolvedFrame>& frames,
+                                       size_t process_id, uint64_t count = 1,
+                                       double time_us = 0.0) {
     if (frames.empty()) {
       return;
     }
 
-    // Ensure process count is sufficient
-    if (process_id >= process_count_) {
-      set_process_count_nolock(process_id + 1);
+    // First, ensure process count is sufficient (needs global lock)
+    {
+      std::lock_guard<std::mutex> global_lock(mutex_);
+      if (process_id >= process_count_) {
+        set_process_count_nolock(process_id + 1);
+      }
     }
 
-    // Add samples to root
-    root_->add_sample(process_id, count, time_us);
+    // Lock root and add samples
+    {
+      auto root_lock = root_->lock();
+      stats_.lock_acquisitions.fetch_add(1, std::memory_order_relaxed);
+      root_->add_sample(process_id, count, time_us);
+    }
 
     std::shared_ptr<TreeNode> current = root_;
 
-    // Traverse from bottom to top (forward iteration since frames are already bottom-to-top)
+    // Traverse tree with fine-grained locking
     for (const auto& frame : frames) {
-      // Try to find existing child with this frame
-      // Use context-aware or context-free search based on build mode
       std::shared_ptr<TreeNode> child;
+      
+      // Lock current node to search/modify children
+      auto current_lock = current->lock();
+      stats_.lock_acquisitions.fetch_add(1, std::memory_order_relaxed);
+      
+      // Find existing child
       if (build_mode_ == TreeBuildMode::kContextAware) {
         child = current->find_child_context_aware(frame);
       } else {
@@ -327,7 +536,7 @@ class PerformanceTree {
       }
       
       if (!child) {
-        // Create new child node
+        // Create new child node (while holding parent lock)
         child = std::make_shared<TreeNode>(frame);
         child->set_process_count(process_count_);
         current->add_child(child);
@@ -335,28 +544,120 @@ class PerformanceTree {
 
       // Update call count edge
       current->increment_call_count(child, count);
-
-      // Add samples based on sample count mode
+      
+      // Release parent lock before locking child
+      current_lock.unlock();
+      
+      // Lock child and add samples
+      auto child_lock = child->lock();
+      stats_.lock_acquisitions.fetch_add(1, std::memory_order_relaxed);
+      
       if (sample_count_mode_ == SampleCountMode::kInclusive || 
           sample_count_mode_ == SampleCountMode::kBoth) {
-        // Track inclusive (total) samples - add to all nodes in path
         child->add_sample(process_id, count, time_us);
+      }
+
+      // Move to child (release lock when child_lock goes out of scope on next iteration)
+      current = child;
+    }
+
+    // Mark self samples at the leaf
+    auto leaf_lock = current->lock();
+    stats_.lock_acquisitions.fetch_add(1, std::memory_order_relaxed);
+    
+    if (sample_count_mode_ == SampleCountMode::kExclusive || 
+        sample_count_mode_ == SampleCountMode::kBoth) {
+      current->add_self_sample(count);
+    }
+    if (sample_count_mode_ == SampleCountMode::kExclusive) {
+      current->add_sample(process_id, count, time_us);
+    }
+  }
+  
+  /// Lock-free insertion (atomic counters, locks only for structural changes)
+  void insert_call_stack_lock_free(const std::vector<sampling::ResolvedFrame>& frames,
+                                    size_t process_id, uint64_t count = 1,
+                                    double time_us = 0.0) {
+    if (frames.empty()) {
+      return;
+    }
+
+    // Ensure process count is sufficient (needs global lock for structural change)
+    {
+      std::lock_guard<std::mutex> global_lock(mutex_);
+      if (process_id >= process_count_) {
+        set_process_count_nolock(process_id + 1);
+      }
+    }
+
+    // Add samples to root using atomic operations
+    root_->add_sample_atomic(process_id, count, time_us);
+
+    std::shared_ptr<TreeNode> current = root_;
+
+    for (const auto& frame : frames) {
+      std::shared_ptr<TreeNode> child;
+      
+      // Find or create child node (needs lock for structural changes)
+      {
+        auto current_lock = current->lock();
+        stats_.lock_acquisitions.fetch_add(1, std::memory_order_relaxed);
+        
+        if (build_mode_ == TreeBuildMode::kContextAware) {
+          child = current->find_child_context_aware(frame);
+        } else {
+          child = current->find_child(frame);
+        }
+        
+        if (!child) {
+          // Create new child node while holding lock
+          child = std::make_shared<TreeNode>(frame);
+          child->set_process_count(process_count_);
+          current->add_child(child);
+        }
+        
+        // Update call count edge while holding lock
+        current->increment_call_count(child, count);
+      }
+
+      // Add samples using atomic operations (no lock needed)
+      if (sample_count_mode_ == SampleCountMode::kInclusive || 
+          sample_count_mode_ == SampleCountMode::kBoth) {
+        child->add_sample_atomic(process_id, count, time_us);
       }
 
       current = child;
     }
 
-    // Mark self samples at the leaf based on sample count mode
+    // Mark self samples at the leaf using atomic operations
     if (sample_count_mode_ == SampleCountMode::kExclusive || 
         sample_count_mode_ == SampleCountMode::kBoth) {
-      // Track exclusive (self) samples - only at leaf node
-      current->add_self_sample(count);
+      current->add_self_sample_atomic(count);
     }
-    
-    // For exclusive mode, also set total_samples at leaf to match self_samples
     if (sample_count_mode_ == SampleCountMode::kExclusive) {
-      current->add_sample(process_id, count, time_us);
+      current->add_sample_atomic(process_id, count, time_us);
     }
+  }
+  
+  /// Synchronize atomic counters with regular counters for all nodes
+  /// Call this after parallel build phase is complete when using lock-free mode
+  void sync_all_atomic_counters() {
+    sync_atomic_counters_recursive(root_);
+  }
+  
+  /// Merge another tree into this one
+  /// Used for THREAD_LOCAL_MERGE mode where each thread builds a separate tree
+  void merge_tree(const PerformanceTree& other) {
+    auto start = std::chrono::high_resolution_clock::now();
+    
+    std::lock_guard<std::mutex> lock(mutex_);
+    merge_node_recursive(other.root(), root_, std::vector<sampling::ResolvedFrame>());
+    
+    stats_.trees_merged.fetch_add(1, std::memory_order_relaxed);
+    
+    auto end = std::chrono::high_resolution_clock::now();
+    auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start);
+    stats_.merge_time_us.fetch_add(duration.count(), std::memory_order_relaxed);
   }
 
   /// Get total number of samples in the tree
@@ -503,6 +804,110 @@ class PerformanceTree {
     process_count_ = count;
     root_->set_process_count(count);
   }
+  
+  /// Internal implementation of insert without any locking
+  void insert_call_stack_nolock(const std::vector<sampling::ResolvedFrame>& frames,
+                                size_t process_id, uint64_t count = 1,
+                                double time_us = 0.0) {
+    if (frames.empty()) {
+      return;
+    }
+
+    // Ensure process count is sufficient
+    if (process_id >= process_count_) {
+      set_process_count_nolock(process_id + 1);
+    }
+
+    // Add samples to root
+    root_->add_sample(process_id, count, time_us);
+
+    std::shared_ptr<TreeNode> current = root_;
+
+    // Traverse from bottom to top (forward iteration since frames are already bottom-to-top)
+    for (const auto& frame : frames) {
+      // Try to find existing child with this frame
+      // Use context-aware or context-free search based on build mode
+      std::shared_ptr<TreeNode> child;
+      if (build_mode_ == TreeBuildMode::kContextAware) {
+        child = current->find_child_context_aware(frame);
+      } else {
+        child = current->find_child(frame);
+      }
+      
+      if (!child) {
+        // Create new child node
+        child = std::make_shared<TreeNode>(frame);
+        child->set_process_count(process_count_);
+        current->add_child(child);
+      }
+
+      // Update call count edge
+      current->increment_call_count(child, count);
+
+      // Add samples based on sample count mode
+      if (sample_count_mode_ == SampleCountMode::kInclusive || 
+          sample_count_mode_ == SampleCountMode::kBoth) {
+        // Track inclusive (total) samples - add to all nodes in path
+        child->add_sample(process_id, count, time_us);
+      }
+
+      current = child;
+    }
+
+    // Mark self samples at the leaf based on sample count mode
+    if (sample_count_mode_ == SampleCountMode::kExclusive || 
+        sample_count_mode_ == SampleCountMode::kBoth) {
+      // Track exclusive (self) samples - only at leaf node
+      current->add_self_sample(count);
+    }
+    
+    // For exclusive mode, also set total_samples at leaf to match self_samples
+    if (sample_count_mode_ == SampleCountMode::kExclusive) {
+      current->add_sample(process_id, count, time_us);
+    }
+  }
+  
+  /// Recursively sync atomic counters for all nodes
+  static void sync_atomic_counters_recursive(const std::shared_ptr<TreeNode>& node) {
+    if (!node) return;
+    node->sync_atomic_counters();
+    for (const auto& child : node->children()) {
+      sync_atomic_counters_recursive(child);
+    }
+  }
+  
+  /// Recursively merge nodes from source tree into destination
+  void merge_node_recursive(
+      const std::shared_ptr<TreeNode>& source_node,
+      std::shared_ptr<TreeNode>& dest_node,
+      std::vector<sampling::ResolvedFrame> current_path) {
+    
+    if (!source_node) return;
+
+    // Skip root node
+    if (source_node->frame().function_name != "[root]") {
+      current_path.push_back(source_node->frame());
+      
+      // If this is a leaf, insert the call stack with its samples
+      if (source_node->is_leaf()) {
+        const auto& counts = source_node->sampling_counts();
+        const auto& times = source_node->execution_times();
+        
+        for (size_t pid = 0; pid < counts.size(); ++pid) {
+          if (counts[pid] > 0) {
+            insert_call_stack_nolock(current_path, pid, counts[pid], 
+                times.size() > pid ? times[pid] : 0.0);
+            stats_.nodes_merged.fetch_add(1, std::memory_order_relaxed);
+          }
+        }
+      }
+    }
+
+    // Recurse to children
+    for (const auto& child : source_node->children()) {
+      merge_node_recursive(child, dest_node, current_path);
+    }
+  }
 
   static size_t count_nodes_recursive(const std::shared_ptr<TreeNode>& node) {
     if (!node) return 0;
@@ -631,6 +1036,8 @@ class PerformanceTree {
   size_t process_count_;
   TreeBuildMode build_mode_;  // Tree building mode
   SampleCountMode sample_count_mode_;  // Sample counting mode
+  ConcurrencyMode concurrency_mode_;  // Concurrency mode for parallel building
+  ConcurrencyStats stats_;  // Statistics about concurrent operations
   mutable std::mutex mutex_;
 };
 

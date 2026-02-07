@@ -33,6 +33,7 @@ from ._perflow import (
     # Enumerations
     TreeBuildMode,
     SampleCountMode,
+    ConcurrencyMode,
     
     # Core classes
     ResolvedFrame,
@@ -52,6 +53,10 @@ from ._perflow import (
     # Parallel processing
     ParallelFileReader,
     FileReadResult,
+    ParallelReadStats,
+    
+    # Concurrency statistics
+    ConcurrencyStats,
     
     # Utility functions
     version,
@@ -62,6 +67,7 @@ __all__ = [
     # Enums
     'TreeBuildMode',
     'SampleCountMode',
+    'ConcurrencyMode',
     
     # Core classes
     'ResolvedFrame',
@@ -81,6 +87,10 @@ __all__ = [
     # Parallel processing
     'ParallelFileReader',
     'FileReadResult',
+    'ParallelReadStats',
+    
+    # Concurrency statistics
+    'ConcurrencyStats',
     
     # Functions
     'version',

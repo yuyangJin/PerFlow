@@ -44,6 +44,60 @@ PYBIND11_MODULE(_perflow, m) {
             "Track both inclusive and exclusive samples")
         .export_values();
 
+    py::enum_<ConcurrencyMode>(m, "ConcurrencyMode",
+        "Defines the synchronization strategy for concurrent tree building")
+        .value("Serial", ConcurrencyMode::kSerial,
+            "No concurrency, single-threaded execution (default)")
+        .value("FineGrainedLock", ConcurrencyMode::kFineGrainedLock,
+            "Each tree node has its own mutex, allows parallel subtree insertion")
+        .value("ThreadLocalMerge", ConcurrencyMode::kThreadLocalMerge,
+            "Each thread builds a separate tree, merged after construction")
+        .value("LockFree", ConcurrencyMode::kLockFree,
+            "Uses atomic operations for counter updates, locks only for structural changes")
+        .export_values();
+
+    // ========================================================================
+    // ConcurrencyStats - Statistics for concurrent tree building
+    // ========================================================================
+
+    py::class_<ConcurrencyStats>(m, "ConcurrencyStats",
+        "Statistics about concurrent tree building performance")
+        .def(py::init<>())
+        .def_property_readonly("total_insertions", 
+            [](const ConcurrencyStats& s) { return s.total_insertions.load(); },
+            "Total number of insert operations")
+        .def_property_readonly("lock_acquisitions",
+            [](const ConcurrencyStats& s) { return s.lock_acquisitions.load(); },
+            "Number of lock acquisitions (for FINE_GRAINED_LOCK)")
+        .def_property_readonly("lock_contentions",
+            [](const ConcurrencyStats& s) { return s.lock_contentions.load(); },
+            "Number of lock contentions")
+        .def_property_readonly("cas_retries",
+            [](const ConcurrencyStats& s) { return s.cas_retries.load(); },
+            "Number of atomic CAS retries (for LOCK_FREE)")
+        .def_property_readonly("trees_merged",
+            [](const ConcurrencyStats& s) { return s.trees_merged.load(); },
+            "Number of trees merged (for THREAD_LOCAL_MERGE)")
+        .def_property_readonly("nodes_merged",
+            [](const ConcurrencyStats& s) { return s.nodes_merged.load(); },
+            "Total nodes merged (for THREAD_LOCAL_MERGE)")
+        .def_property_readonly("build_time_us",
+            [](const ConcurrencyStats& s) { return s.build_time_us.load(); },
+            "Build time in microseconds")
+        .def_property_readonly("merge_time_us",
+            [](const ConcurrencyStats& s) { return s.merge_time_us.load(); },
+            "Merge time in microseconds (for THREAD_LOCAL_MERGE)")
+        .def_property_readonly("contention_ratio", &ConcurrencyStats::contention_ratio,
+            "Lock contention ratio")
+        .def_property_readonly("throughput", &ConcurrencyStats::throughput,
+            "Throughput (insertions per second)")
+        .def("reset", &ConcurrencyStats::reset,
+            "Reset all statistics")
+        .def("__repr__", [](const ConcurrencyStats& s) {
+            return "<ConcurrencyStats insertions=" + std::to_string(s.total_insertions.load()) +
+                   " throughput=" + std::to_string(s.throughput()) + "/s>";
+        });
+
     // ========================================================================
     // ResolvedFrame - Stack frame information
     // ========================================================================
@@ -150,9 +204,10 @@ PYBIND11_MODULE(_perflow, m) {
 
     py::class_<PerformanceTree>(m, "PerformanceTree",
         "Aggregates call stack samples into a tree structure")
-        .def(py::init<TreeBuildMode, SampleCountMode>(),
+        .def(py::init<TreeBuildMode, SampleCountMode, ConcurrencyMode>(),
             py::arg("mode") = TreeBuildMode::kContextFree,
             py::arg("count_mode") = SampleCountMode::kExclusive,
+            py::arg("concurrency_mode") = ConcurrencyMode::kSerial,
             "Create a new performance tree")
         
         // Basic properties
@@ -168,6 +223,23 @@ PYBIND11_MODULE(_perflow, m) {
             "Tree build mode (ContextFree or ContextAware)")
         .def_property_readonly("sample_count_mode", &PerformanceTree::sample_count_mode,
             "Sample count mode")
+        
+        // Concurrency properties
+        .def_property("concurrency_mode",
+            &PerformanceTree::concurrency_mode,
+            &PerformanceTree::set_concurrency_mode,
+            "Concurrency mode for parallel tree building")
+        .def_property_readonly("stats",
+            py::overload_cast<>(&PerformanceTree::stats, py::const_),
+            py::return_value_policy::reference,
+            "Get concurrency statistics")
+        .def("reset_stats", &PerformanceTree::reset_stats,
+            "Reset concurrency statistics")
+        .def("sync_all_atomic_counters", &PerformanceTree::sync_all_atomic_counters,
+            "Synchronize atomic counters with regular counters (for lock-free mode)")
+        .def("merge_tree", &PerformanceTree::merge_tree,
+            py::arg("other"),
+            "Merge another tree into this one (for thread-local merge mode)")
         
         // Tree operations
         .def("clear", &PerformanceTree::clear,
@@ -376,24 +448,60 @@ PYBIND11_MODULE(_perflow, m) {
             return "<FileReadResult path='" + r.filepath + 
                    "' success=" + (r.success ? "true" : "false") + ">";
         });
+    
+    py::class_<ParallelFileReader::ParallelReadStats>(m, "ParallelReadStats",
+        "Performance statistics for parallel file reading")
+        .def_readonly("total_time_us", &ParallelFileReader::ParallelReadStats::total_time_us,
+            "Total time for reading all files (microseconds)")
+        .def_readonly("read_time_us", &ParallelFileReader::ParallelReadStats::read_time_us,
+            "Time spent in parallel read phase (microseconds)")
+        .def_readonly("merge_time_us", &ParallelFileReader::ParallelReadStats::merge_time_us,
+            "Time spent in merge phase (microseconds)")
+        .def_readonly("files_read", &ParallelFileReader::ParallelReadStats::files_read,
+            "Number of files successfully read")
+        .def_readonly("total_samples", &ParallelFileReader::ParallelReadStats::total_samples,
+            "Total samples processed")
+        .def_readonly("files_per_second", &ParallelFileReader::ParallelReadStats::files_per_second,
+            "Throughput in files per second")
+        .def_readonly("samples_per_second", &ParallelFileReader::ParallelReadStats::samples_per_second,
+            "Throughput in samples per second")
+        .def_readonly("concurrency_mode", &ParallelFileReader::ParallelReadStats::concurrency_mode,
+            "Concurrency model used")
+        .def_readonly("tree_stats", &ParallelFileReader::ParallelReadStats::tree_stats,
+            "Tree concurrency statistics")
+        .def("__repr__", [](const ParallelFileReader::ParallelReadStats& s) {
+            return "<ParallelReadStats files=" + std::to_string(s.files_read) +
+                   " samples=" + std::to_string(s.total_samples) +
+                   " throughput=" + std::to_string(s.files_per_second) + " files/s>";
+        });
 
     py::class_<ParallelFileReader>(m, "ParallelFileReader",
-        "Provides parallel file reading for sample data")
-        .def(py::init<size_t>(),
+        "Provides parallel file reading for sample data with configurable concurrency models")
+        .def(py::init<size_t, ConcurrencyMode>(),
             py::arg("num_threads") = 0,
+            py::arg("concurrency_mode") = ConcurrencyMode::kThreadLocalMerge,
             "Create parallel file reader (0 = auto-detect thread count)")
-        .def_property_readonly("thread_count", &ParallelFileReader::thread_count,
+        .def_property("thread_count", 
+            &ParallelFileReader::thread_count,
+            &ParallelFileReader::set_thread_count,
             "Number of threads used")
+        .def_property("concurrency_mode",
+            &ParallelFileReader::concurrency_mode,
+            &ParallelFileReader::set_concurrency_mode,
+            "Concurrency mode for tree building")
         .def("set_progress_callback", &ParallelFileReader::set_progress_callback,
             py::arg("callback"),
             "Set progress callback function(completed, total)")
+        .def_property_readonly("stats", &ParallelFileReader::stats,
+            py::return_value_policy::reference,
+            "Get the last read statistics")
         .def("read_files_parallel",
             &ParallelFileReader::read_files_parallel<>,
             py::arg("sample_files"),
             py::arg("tree"),
             py::arg("converter"),
             py::arg("time_per_sample") = 1000.0,
-            "Read multiple sample files in parallel");
+            "Read multiple sample files in parallel using configured concurrency mode");
 
     // ========================================================================
     // Offset Converter (basic binding for parallel reader)

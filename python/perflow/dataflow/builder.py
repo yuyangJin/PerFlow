@@ -61,7 +61,9 @@ class WorkflowBuilder:
         libmap_files: Optional[List[Tuple[str, int]]] = None,
         mode: str = 'ContextFree',
         count_mode: str = 'Both',
-        time_per_sample: float = 1000.0
+        time_per_sample: float = 1000.0,
+        concurrency_mode: str = 'Serial',
+        num_threads: int = 0
     ) -> 'WorkflowBuilder':
         """
         Add a data loading node.
@@ -72,6 +74,9 @@ class WorkflowBuilder:
             mode: Tree build mode ('ContextFree' or 'ContextAware')
             count_mode: Sample count mode ('Exclusive', 'Inclusive', or 'Both')
             time_per_sample: Estimated time per sample in microseconds
+            concurrency_mode: Concurrency mode ('Serial', 'FineGrainedLock', 
+                             'ThreadLocalMerge', or 'LockFree')
+            num_threads: Number of threads (0 = auto-detect)
         
         Returns:
             Self for method chaining
@@ -82,6 +87,8 @@ class WorkflowBuilder:
             mode=mode,
             count_mode=count_mode,
             time_per_sample=time_per_sample,
+            concurrency_mode=concurrency_mode,
+            num_threads=num_threads,
             name="LoadData"
         )
         

@@ -704,3 +704,188 @@ TEST(PerformanceTreeTest, TraverseLevelorder) {
   EXPECT_EQ(visited[1], "main");
   // compute and io are at same level, order depends on insertion
 }
+
+// ============================================================================
+// Tests for concurrency modes
+// ============================================================================
+
+TEST(ConcurrencyModeTest, DefaultIsSerial) {
+  PerformanceTree tree;
+  EXPECT_EQ(tree.concurrency_mode(), ConcurrencyMode::kSerial);
+}
+
+TEST(ConcurrencyModeTest, SetConcurrencyMode) {
+  PerformanceTree tree;
+  
+  tree.set_concurrency_mode(ConcurrencyMode::kFineGrainedLock);
+  EXPECT_EQ(tree.concurrency_mode(), ConcurrencyMode::kFineGrainedLock);
+  
+  tree.set_concurrency_mode(ConcurrencyMode::kThreadLocalMerge);
+  EXPECT_EQ(tree.concurrency_mode(), ConcurrencyMode::kThreadLocalMerge);
+  
+  tree.set_concurrency_mode(ConcurrencyMode::kLockFree);
+  EXPECT_EQ(tree.concurrency_mode(), ConcurrencyMode::kLockFree);
+  
+  tree.set_concurrency_mode(ConcurrencyMode::kSerial);
+  EXPECT_EQ(tree.concurrency_mode(), ConcurrencyMode::kSerial);
+}
+
+TEST(ConcurrencyModeTest, ConstructorWithConcurrencyMode) {
+  PerformanceTree tree_serial(TreeBuildMode::kContextFree, 
+                               SampleCountMode::kExclusive,
+                               ConcurrencyMode::kSerial);
+  EXPECT_EQ(tree_serial.concurrency_mode(), ConcurrencyMode::kSerial);
+  
+  PerformanceTree tree_fine(TreeBuildMode::kContextFree,
+                             SampleCountMode::kExclusive,
+                             ConcurrencyMode::kFineGrainedLock);
+  EXPECT_EQ(tree_fine.concurrency_mode(), ConcurrencyMode::kFineGrainedLock);
+  
+  PerformanceTree tree_local(TreeBuildMode::kContextFree,
+                              SampleCountMode::kExclusive,
+                              ConcurrencyMode::kThreadLocalMerge);
+  EXPECT_EQ(tree_local.concurrency_mode(), ConcurrencyMode::kThreadLocalMerge);
+  
+  PerformanceTree tree_free(TreeBuildMode::kContextFree,
+                             SampleCountMode::kExclusive,
+                             ConcurrencyMode::kLockFree);
+  EXPECT_EQ(tree_free.concurrency_mode(), ConcurrencyMode::kLockFree);
+}
+
+TEST(ConcurrencyModeTest, SerialInsertWorks) {
+  PerformanceTree tree(TreeBuildMode::kContextFree, 
+                       SampleCountMode::kExclusive,
+                       ConcurrencyMode::kSerial);
+  tree.set_process_count(2);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame frame;
+  frame.function_name = "test_func";
+  frame.library_name = "test_lib";
+  frames.push_back(frame);
+
+  tree.insert_call_stack(frames, 0, 10, 1000.0);
+  tree.insert_call_stack(frames, 1, 5, 500.0);
+
+  EXPECT_EQ(tree.total_samples(), 15);
+  EXPECT_EQ(tree.stats().total_insertions.load(), 2);
+}
+
+TEST(ConcurrencyModeTest, FineGrainedLockInsertWorks) {
+  PerformanceTree tree(TreeBuildMode::kContextFree,
+                       SampleCountMode::kExclusive,
+                       ConcurrencyMode::kFineGrainedLock);
+  tree.set_process_count(2);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame frame;
+  frame.function_name = "test_func";
+  frame.library_name = "test_lib";
+  frames.push_back(frame);
+
+  tree.insert_call_stack(frames, 0, 10, 1000.0);
+  tree.insert_call_stack(frames, 1, 5, 500.0);
+
+  EXPECT_EQ(tree.total_samples(), 15);
+  EXPECT_EQ(tree.stats().total_insertions.load(), 2);
+  EXPECT_GT(tree.stats().lock_acquisitions.load(), 0);
+}
+
+TEST(ConcurrencyModeTest, LockFreeInsertWorks) {
+  PerformanceTree tree(TreeBuildMode::kContextFree,
+                       SampleCountMode::kExclusive,
+                       ConcurrencyMode::kLockFree);
+  tree.set_process_count(2);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame frame;
+  frame.function_name = "test_func";
+  frame.library_name = "test_lib";
+  frames.push_back(frame);
+
+  tree.insert_call_stack(frames, 0, 10, 1000.0);
+  tree.insert_call_stack(frames, 1, 5, 500.0);
+  
+  // Sync atomic counters
+  tree.sync_all_atomic_counters();
+
+  EXPECT_EQ(tree.total_samples(), 15);
+  EXPECT_EQ(tree.stats().total_insertions.load(), 2);
+}
+
+TEST(ConcurrencyModeTest, TreeMergeWorks) {
+  // Create source tree
+  PerformanceTree source(TreeBuildMode::kContextFree, SampleCountMode::kExclusive);
+  source.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames1;
+  ResolvedFrame frame1;
+  frame1.function_name = "func_a";
+  frame1.library_name = "lib";
+  frames1.push_back(frame1);
+  source.insert_call_stack(frames1, 0, 10, 1000.0);
+  
+  // Create destination tree
+  PerformanceTree dest(TreeBuildMode::kContextFree, SampleCountMode::kExclusive);
+  dest.set_process_count(1);
+  
+  std::vector<ResolvedFrame> frames2;
+  ResolvedFrame frame2;
+  frame2.function_name = "func_b";
+  frame2.library_name = "lib";
+  frames2.push_back(frame2);
+  dest.insert_call_stack(frames2, 0, 5, 500.0);
+  
+  // Merge source into dest
+  dest.merge_tree(source);
+  
+  // Check that dest has both functions
+  auto nodes = dest.find_nodes_by_name("func_a");
+  EXPECT_EQ(nodes.size(), 1);
+  
+  nodes = dest.find_nodes_by_name("func_b");
+  EXPECT_EQ(nodes.size(), 1);
+  
+  EXPECT_EQ(dest.stats().trees_merged.load(), 1);
+}
+
+TEST(ConcurrencyModeTest, StatsReset) {
+  PerformanceTree tree(TreeBuildMode::kContextFree,
+                       SampleCountMode::kExclusive,
+                       ConcurrencyMode::kSerial);
+  tree.set_process_count(1);
+
+  std::vector<ResolvedFrame> frames;
+  ResolvedFrame frame;
+  frame.function_name = "test";
+  frames.push_back(frame);
+
+  tree.insert_call_stack(frames, 0, 10);
+  EXPECT_EQ(tree.stats().total_insertions.load(), 1);
+  
+  tree.reset_stats();
+  EXPECT_EQ(tree.stats().total_insertions.load(), 0);
+}
+
+TEST(ConcurrencyStatsTest, ThroughputCalculation) {
+  ConcurrencyStats stats;
+  stats.total_insertions = 1000;
+  stats.build_time_us = 1000000;  // 1 second
+  
+  EXPECT_DOUBLE_EQ(stats.throughput(), 1000.0);  // 1000 insertions per second
+}
+
+TEST(ConcurrencyStatsTest, ContentionRatioCalculation) {
+  ConcurrencyStats stats;
+  stats.lock_acquisitions = 100;
+  stats.lock_contentions = 10;
+  
+  EXPECT_DOUBLE_EQ(stats.contention_ratio(), 0.1);  // 10% contention
+}
+
+TEST(ConcurrencyStatsTest, ZeroDivisionHandling) {
+  ConcurrencyStats stats;
+  // No insertions or acquisitions
+  EXPECT_DOUBLE_EQ(stats.throughput(), 0.0);
+  EXPECT_DOUBLE_EQ(stats.contention_ratio(), 0.0);
+}

@@ -47,6 +47,8 @@ class LoadDataNode(DataflowNode):
         mode: str = 'ContextFree',
         count_mode: str = 'Both',
         time_per_sample: float = 1000.0,
+        concurrency_mode: str = 'Serial',
+        num_threads: int = 0,
         name: str = "LoadData"
     ):
         """
@@ -58,24 +60,31 @@ class LoadDataNode(DataflowNode):
             mode: Tree build mode ('ContextFree' or 'ContextAware')
             count_mode: Sample count mode ('Exclusive', 'Inclusive', or 'Both')
             time_per_sample: Estimated time per sample in microseconds
+            concurrency_mode: Concurrency mode for parallel building
+                ('Serial', 'FineGrainedLock', 'ThreadLocalMerge', or 'LockFree')
+            num_threads: Number of threads (0 = auto-detect)
             name: Node name
         """
         super().__init__(
             name=name,
             inputs={},
-            outputs={'tree': 'PerformanceTree', 'builder': 'TreeBuilder'}
+            outputs={'tree': 'PerformanceTree', 'builder': 'TreeBuilder', 
+                     'stats': 'ParallelReadStats'}
         )
         self._sample_files = sample_files or []
         self._libmap_files = libmap_files or []
         self._mode = mode
         self._count_mode = count_mode
         self._time_per_sample = time_per_sample
+        self._concurrency_mode = concurrency_mode
+        self._num_threads = num_threads
     
     def execute(self, inputs: Dict[str, Any]) -> Dict[str, Any]:
         """Load sample data and build the performance tree."""
         # Import here to avoid circular imports
         try:
-            from .. import TreeBuilder, TreeBuildMode, SampleCountMode
+            from .. import (TreeBuilder, TreeBuildMode, SampleCountMode, 
+                           ConcurrencyMode, ParallelFileReader, OffsetConverter)
         except ImportError:
             raise RuntimeError(
                 "PerFlow native module not available. "
@@ -92,24 +101,54 @@ class LoadDataNode(DataflowNode):
             'Inclusive': SampleCountMode.Inclusive,
             'Both': SampleCountMode.Both,
         }
+        concurrency_mode_map = {
+            'Serial': ConcurrencyMode.Serial,
+            'FineGrainedLock': ConcurrencyMode.FineGrainedLock,
+            'ThreadLocalMerge': ConcurrencyMode.ThreadLocalMerge,
+            'LockFree': ConcurrencyMode.LockFree,
+        }
         
         build_mode = mode_map.get(self._mode, TreeBuildMode.ContextFree)
         sample_count_mode = count_mode_map.get(self._count_mode, SampleCountMode.Both)
+        concurrency = concurrency_mode_map.get(self._concurrency_mode, ConcurrencyMode.Serial)
         
-        # Create builder
+        # Create builder with concurrency mode
         builder = TreeBuilder(build_mode, sample_count_mode)
         
         # Load library maps if provided
         if self._libmap_files:
             builder.load_library_maps(self._libmap_files)
         
+        stats = None
+        
         # Build tree from sample files
         if self._sample_files:
-            builder.build_from_files(self._sample_files, self._time_per_sample)
+            if concurrency != ConcurrencyMode.Serial and self._num_threads != 1:
+                # Use parallel file reader for parallel modes
+                reader = ParallelFileReader(self._num_threads, concurrency)
+                converter = OffsetConverter()
+                
+                # Load library maps into converter if provided
+                if self._libmap_files:
+                    for filepath, process_id in self._libmap_files:
+                        # Note: library maps need to be loaded separately for converter
+                        pass
+                
+                reader.read_files_parallel(
+                    self._sample_files, 
+                    builder.tree, 
+                    converter, 
+                    self._time_per_sample
+                )
+                stats = reader.stats
+            else:
+                # Use serial builder
+                builder.build_from_files(self._sample_files, self._time_per_sample)
         
         return {
             'tree': builder.tree,
-            'builder': builder
+            'builder': builder,
+            'stats': stats
         }
 
 
