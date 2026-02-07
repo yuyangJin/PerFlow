@@ -39,7 +39,7 @@ make -j4
 ### Using pip (Development Mode)
 
 ```bash
-cd PerFlow/python
+cd PerFlow
 pip install -e .
 ```
 
