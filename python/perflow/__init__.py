@@ -50,10 +50,6 @@ from ._perflow import (
     BalanceAnalyzer,
     HotspotAnalyzer,
     
-    # Parallel processing
-    ParallelFileReader,
-    FileReadResult,
-    
     # Utility functions
     version,
 )
@@ -79,10 +75,6 @@ __all__ = [
     # Analyzers
     'BalanceAnalyzer',
     'HotspotAnalyzer',
-    
-    # Parallel processing
-    'ParallelFileReader',
-    'FileReadResult',
     
     # Functions
     'version',

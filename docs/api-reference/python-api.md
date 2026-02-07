@@ -247,21 +247,6 @@ Identifies performance bottlenecks.
 - `find_self_hotspots(tree: PerformanceTree, top_n: int = 10) -> List[HotspotInfo]` - Alias for find_hotspots
 - `find_total_hotspots(tree: PerformanceTree, top_n: int = 10) -> List[HotspotInfo]` - Find hotspots by total time
 
-#### `ParallelFileReader`
-Provides parallel file reading for sample data.
-
-**Constructor:**
-```python
-reader = ParallelFileReader(num_threads: int = 0)  # 0 = auto-detect
-```
-
-**Properties:**
-- `thread_count: int` - Number of threads used
-
-**Methods:**
-- `set_progress_callback(callback: Callable[[int, int], None])` - Set progress callback
-- `read_files_parallel(sample_files, tree, converter, time_per_sample) -> List[FileReadResult]` - Read files in parallel
-
 ### Convenience Functions
 
 #### `perflow.analyze_samples()`
@@ -371,32 +356,4 @@ for node in hot_nodes:
 
 # Find all functions from a specific library
 math_functions = tree.find_nodes_by_library("libm.so.6")
-```
-
-### Parallel File Loading
-
-```python
-import perflow
-
-# For large numbers of files, use parallel loading
-reader = perflow.ParallelFileReader(num_threads=8)
-
-# Progress callback
-def on_progress(completed, total):
-    print(f"Progress: {completed}/{total} files")
-
-reader.set_progress_callback(on_progress)
-
-tree = perflow.PerformanceTree()
-converter = perflow.OffsetConverter()
-
-results = reader.read_files_parallel(
-    sample_files=[('rank_0.pflw', 0), ('rank_1.pflw', 1)],
-    tree=tree,
-    converter=converter,
-    time_per_sample=1000.0
-)
-
-for r in results:
-    print(f"{r.filepath}: {'OK' if r.success else 'FAILED'}")
 ```
