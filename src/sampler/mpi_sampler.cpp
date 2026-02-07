@@ -161,13 +161,13 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
     }
     
     // Push captured frames onto stack (skip first frame which is this function)
-    for (size_t i = 1; i < depth; ++i) {
+    for (size_t i = 3; i < depth; ++i) {
         if (addresses[i] != 0) {
             stack.push(addresses[i]);
         }
     }
     
-    return depth > 0 ? depth - 1 : 0;
+    return depth > 0 ? depth - 3 : 0;
 }
 
 #elif defined(USE_PMU_SAMPLER_CALLSTACK)
