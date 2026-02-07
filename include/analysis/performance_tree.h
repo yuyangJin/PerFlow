@@ -116,11 +116,13 @@ class TreeNode {
       auto new_sampling = std::make_unique<std::atomic<uint64_t>[]>(count);
       auto new_times = std::make_unique<std::atomic<double>[]>(count);
       // Copy old values if any exist
-      for (size_t i = 0; i < atomic_capacity_; ++i) {
-        new_sampling[i].store(atomic_sampling_counts_[i].load(std::memory_order_relaxed), 
-                             std::memory_order_relaxed);
-        new_times[i].store(atomic_execution_times_[i].load(std::memory_order_relaxed),
-                          std::memory_order_relaxed);
+      if (atomic_sampling_counts_ && atomic_execution_times_) {
+        for (size_t i = 0; i < atomic_capacity_; ++i) {
+          new_sampling[i].store(atomic_sampling_counts_[i].load(std::memory_order_relaxed), 
+                               std::memory_order_relaxed);
+          new_times[i].store(atomic_execution_times_[i].load(std::memory_order_relaxed),
+                            std::memory_order_relaxed);
+        }
       }
       // Initialize new elements
       for (size_t i = atomic_capacity_; i < count; ++i) {
@@ -811,22 +813,11 @@ class PerformanceTree {
     for (const auto& frame : frames) {
       std::shared_ptr<TreeNode> child;
       
-      // Try to find child without lock first (optimistic read)
-      // This is safe because:
-      // 1. If child is found, it's a valid shared_ptr that won't be removed
-      // 2. If child is not found, we'll take a lock and double-check
-      // 3. The children vector only grows (no removal), so once a child exists it stays
-      if (build_mode_ == TreeBuildMode::kContextAware) {
-        child = current->find_child_context_aware(frame);
-      } else {
-        child = current->find_child(frame);
-      }
-      
-      if (!child) {
-        // Need lock for structural change (adding new node)
+      // Lock the node for finding and potentially adding children
+      // This is necessary because vector iteration during push_back is unsafe
+      {
         std::lock_guard<std::mutex> lock(current->node_mutex());
         
-        // Double-check after acquiring lock - another thread may have added it
         if (build_mode_ == TreeBuildMode::kContextAware) {
           child = current->find_child_context_aware(frame);
         } else {
@@ -838,12 +829,12 @@ class PerformanceTree {
           child->set_process_count(process_count_);
           current->add_child(child);
         }
+        
+        // Update call count while holding lock (map modification)
+        current->increment_call_count(child, count);
       }
 
-      // Update call count with lock (map modification)
-      current->increment_call_count_locked(child, count);
-
-      // Update samples atomically
+      // Update samples atomically (no lock needed for atomic operations)
       if (sample_count_mode_ == SampleCountMode::kInclusive || 
           sample_count_mode_ == SampleCountMode::kBoth) {
         child->add_sample_atomic(process_id, count, time_us);
