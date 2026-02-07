@@ -147,11 +147,17 @@ class TreeNode {
   /// Add a sample atomically (for lock-free mode)
   void add_sample_atomic(size_t process_id, uint64_t count = 1,
                          double time_us = 0.0) {
+    // Check if resize is needed and acquire lock if so
+    // After resize, re-check capacity to handle concurrent resize
     if (process_id >= atomic_capacity_) {
-      // Need synchronization for resize - use node lock
       std::lock_guard<std::mutex> lock(node_mutex_);
-      set_process_count(process_id + 1);
+      // Double-check after acquiring lock
+      if (process_id >= atomic_capacity_) {
+        set_process_count(process_id + 1);
+      }
     }
+    
+    // Now safe to access - capacity is monotonically increasing
     atomic_sampling_counts_[process_id].fetch_add(count, std::memory_order_relaxed);
     // For execution time, we need CAS loop since there's no atomic add for double
     double old_val = atomic_execution_times_[process_id].load(std::memory_order_relaxed);
@@ -190,13 +196,13 @@ class TreeNode {
   void consolidate_atomic_counters() {
     total_samples_ = atomic_total_samples_.load(std::memory_order_relaxed);
     self_samples_ = atomic_self_samples_.load(std::memory_order_relaxed);
-    for (size_t i = 0; i < atomic_capacity_; ++i) {
-      if (i < sampling_counts_.size() && atomic_sampling_counts_) {
+    if (atomic_sampling_counts_) {
+      for (size_t i = 0; i < atomic_capacity_ && i < sampling_counts_.size(); ++i) {
         sampling_counts_[i] = atomic_sampling_counts_[i].load(std::memory_order_relaxed);
       }
     }
-    for (size_t i = 0; i < atomic_capacity_; ++i) {
-      if (i < execution_times_.size() && atomic_execution_times_) {
+    if (atomic_execution_times_) {
+      for (size_t i = 0; i < atomic_capacity_ && i < execution_times_.size(); ++i) {
         execution_times_[i] = atomic_execution_times_[i].load(std::memory_order_relaxed);
       }
     }
@@ -805,7 +811,11 @@ class PerformanceTree {
     for (const auto& frame : frames) {
       std::shared_ptr<TreeNode> child;
       
-      // Try to find child without lock first
+      // Try to find child without lock first (optimistic read)
+      // This is safe because:
+      // 1. If child is found, it's a valid shared_ptr that won't be removed
+      // 2. If child is not found, we'll take a lock and double-check
+      // 3. The children vector only grows (no removal), so once a child exists it stays
       if (build_mode_ == TreeBuildMode::kContextAware) {
         child = current->find_child_context_aware(frame);
       } else {
@@ -816,7 +826,7 @@ class PerformanceTree {
         // Need lock for structural change (adding new node)
         std::lock_guard<std::mutex> lock(current->node_mutex());
         
-        // Double-check after acquiring lock
+        // Double-check after acquiring lock - another thread may have added it
         if (build_mode_ == TreeBuildMode::kContextAware) {
           child = current->find_child_context_aware(frame);
         } else {

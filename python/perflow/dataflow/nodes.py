@@ -123,12 +123,10 @@ class LoadDataNode(DataflowNode):
             builder.load_library_maps(self._libmap_files)
         
         # Build tree from sample files
+        # Always use build_from_files_parallel which routes to the correct method
+        # based on the concurrency model (Serial model calls build_from_files internally)
         if self._sample_files:
-            # Use parallel build if concurrency model is not Serial
-            if concurrency != ConcurrencyModel.Serial:
-                builder.build_from_files_parallel(self._sample_files, self._time_per_sample)
-            else:
-                builder.build_from_files(self._sample_files, self._time_per_sample)
+            builder.build_from_files_parallel(self._sample_files, self._time_per_sample)
         
         return {
             'tree': builder.tree,
