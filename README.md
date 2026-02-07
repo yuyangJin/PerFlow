@@ -1,4 +1,4 @@
-# PerFlow
+# PerFlow v2.0
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![C++17](https://img.shields.io/badge/C%2B%2B-17-blue.svg)](https://en.cppreference.com/w/cpp/17)
@@ -12,8 +12,6 @@ PerFlow is designed for production-grade performance analysis of HPC application
 **Key Highlights:**
 - 🚀 **Ultra-low overhead**: <0.5% with hardware PMU sampling
 - 🔧 **Two sampling modes**: Hardware PMU (PAPI) and timer-based (POSIX)
-- 🌐 **Platform-independent**: Works on bare metal, containers, and VMs
-- 🔍 **Symbol resolution**: Function names and source locations
 - 📊 **Online analysis**: Real-time performance tree generation
 - ⚖️ **Balance analysis**: Workload distribution across processes
 - 🔥 **Hotspot detection**: Identify performance bottlenecks
@@ -21,36 +19,21 @@ PerFlow is designed for production-grade performance analysis of HPC application
 
 ## Features
 
-### Sampling-Based Profiling
+### Sampling-Based Profiling Tool
 - **Two sampling modes**: Hardware PMU (PAPI) and Timer-based (POSIX)
 - **Hardware PMU mode**: Ultra-low overhead (<0.5% @ 1kHz), cycle-accurate sampling
 - **Timer-based mode**: Platform-independent, works in containers/VMs, no special privileges
 - Configurable sampling frequencies (100Hz - 10kHz)
 - Call stack capture with libunwind
 - Per-process sample data collection
+- Compressed data (TBD)
 
-### Symbol Resolution (New!)
-- **Function Name Resolution**: Resolve memory addresses to function names
-- **Source Location Mapping**: Get source file paths and line numbers
-- **Multiple Strategies**: Fast dladdr or comprehensive addr2line with auto-fallback
-- **Symbol Caching**: High-performance caching for repeated lookups
-- **Backward Compatible**: Optional feature, existing code works unchanged
-
-### Python Dataflow Framework (New!)
+### Python Dataflow-based Analysis Framework
 - **Dataflow Programming**: Compose workflows as directed acyclic graphs (DAGs)
-- **Automatic Optimization**: Parallel execution, result caching, lazy evaluation
-- **Fluent API**: Easy-to-use WorkflowBuilder for quick analysis
-- **Pre-built Nodes**: LoadData, HotspotAnalysis, BalanceAnalysis, Filter, and more
-- **Extensible**: Create custom analysis nodes with simple Python functions
-- **Multiple Executors**: Sequential, parallel, and caching execution strategies
-
-### Online Analysis Module
-- **Performance Tree Generation**: Aggregate call stack samples into hierarchical trees
-- **Balance Analysis**: Identify workload distribution and load imbalance across processes
-- **Hotspot Analysis**: Detect performance bottlenecks with inclusive and exclusive time analysis
-- **Directory Monitoring**: Real-time monitoring of sample data files
-- **Tree Visualization**: Generate PDF visualizations with customizable color schemes
-- **Data Export/Import**: Efficient tree serialization for post-processing
+- **Pre-built Dataflow Nodes**: LoadData, HotspotAnalysis, BalanceAnalysis, Filter, and more
+- **Extensible**: Create custom analysis nodes with low-level Python functions
+- **Automatic Optimization (TBD)**: Parallel execution, result caching, lazy evaluation
+- **Online Analysis Module (TBD)**: Report the performance issues during runtime 
 
 ## Documentation
 
@@ -62,9 +45,9 @@ PerFlow is designed for production-grade performance analysis of HPC application
 - 🔧 **[Troubleshooting](docs/user-guide/TROUBLESHOOTING.md)** - Common issues and solutions
 - ❓ **[FAQ](docs/FAQ.md)** - Frequently asked questions
 - 🏗️ **[Architecture](docs/developer-guide/ARCHITECTURE.md)** - System design and components
-- 📖 **[C++ API Reference](docs/api-reference/ONLINE_ANALYSIS_API.md)** - Complete C++ API documentation
-- 🐍 **[Python API Reference](docs/api-reference/python-api.md)** - Python bindings documentation
 - 🔄 **[Dataflow API Reference](docs/api-reference/dataflow-api.md)** - Python dataflow framework
+- 🐍 **[Low-level API Reference](docs/api-reference/python-api.md)** - Python bindings documentation
+- 📖 **[C++ API Reference](docs/api-reference/ONLINE_ANALYSIS_API.md)** - Complete C++ API documentation
 - 🧪 **[Testing Guide](TESTING.md)** - Comprehensive testing documentation
 
 ## Quick Start
@@ -81,6 +64,13 @@ sudo dnf install -y gcc-c++ cmake openmpi-devel libunwind-devel papi-devel zlib-
 
 ### 2. Build PerFlow
 
+The Python version (with C++ backend)
+```bash
+git clone https://github.com/yuyangJin/PerFlow.git
+cd PerFlow
+pip install .
+```
+The C++ version
 ```bash
 git clone https://github.com/yuyangJin/PerFlow.git
 cd PerFlow
@@ -107,7 +97,12 @@ mpirun -n 4 ./your_mpi_app
 ```
 
 ### 4. Analyze Results
+The Python version (with C++ backend)
+```bash
+python3 ./examples/simple_file_analysis.py /tmp/samples [num_processes]
+```
 
+The C++ version
 ```bash
 ./examples/online_analysis_example /tmp/samples /tmp/output
 
@@ -119,7 +114,7 @@ cat /tmp/output/hotspots.txt          # Performance hotspots
 
 📖 **[Full Getting Started Guide](docs/user-guide/GETTING_STARTED.md)** for detailed instructions.
 
-## Python Dataflow-based Analysis Framework (New!)
+## Python Dataflow-based Analysis Framework
 
 PerFlow provides a powerful Python frontend with **dataflow-based programming** for flexible composition of analysis workflows. The framework uses a **directed acyclic graph (DAG)** abstraction where:
 - **Nodes** represent analysis subtasks (load data, find hotspots, analyze balance, etc.)
@@ -127,10 +122,10 @@ PerFlow provides a powerful Python frontend with **dataflow-based programming** 
 
 ### Key Features
 - 🔄 **Dataflow Graph Abstraction**: Compose complex workflows as DAGs
-- ⚡ **Automatic Optimization**: Parallel execution, caching, lazy evaluation
 - 🛠️ **Fluent API**: User-friendly WorkflowBuilder for quick analysis
 - 🧩 **Extensible**: Create custom analysis nodes easily
 - 📊 **Pre-built Nodes**: LoadData, HotspotAnalysis, BalanceAnalysis, Filter, and more
+- ⚡ **Automatic Optimization**: Parallel execution, caching, lazy evaluation
 
 ### Quick Python Example
 
@@ -190,62 +185,6 @@ See comprehensive Python examples in [`examples/`](examples/):
 
 📖 **[Python API Reference](docs/api-reference/python-api.md)** | **[Dataflow API Reference](docs/api-reference/dataflow-api.md)**
 
-## C++ Online Analysis Example
-
-```cpp
-#include "analysis/online_analysis.h"
-#include "analysis/offset_converter.h"
-#include "analysis/symbol_resolver.h"
-
-// Example 1: Online analysis with symbol resolution
-OnlineAnalysis analysis;
-
-// Build tree from sample files
-analysis.builder().build_from_files({
-    {"/data/rank0.pflw", 0},
-    {"/data/rank1.pflw", 1}
-}, 1000.0);
-
-// Analyze workload balance
-auto balance = analysis.analyze_balance();
-std::cout << "Imbalance: " << balance.imbalance_factor << "\n";
-
-// Find hotspots
-auto hotspots = analysis.find_hotspots(10);
-for (const auto& h : hotspots) {
-    std::cout << h.function_name << ": " << h.percentage << "%\n";
-}
-
-// Export visualization
-analysis.export_visualization("/tmp/tree.pdf");
-
-// Example 2: Post-analysis with symbol resolution
-auto resolver = std::make_shared<SymbolResolver>(
-    SymbolResolver::Strategy::kAutoFallback, true);
-OffsetConverter converter(resolver);
-
-// Load library map and convert with symbols
-LibraryMap lib_map;
-lib_map.parse_current_process();
-converter.add_map_snapshot(0, lib_map);
-
-CallStack<> stack = /* captured stack */;
-auto resolved = converter.convert(stack, 0, true);
-
-// Print with function names and source locations
-for (const auto& frame : resolved) {
-    std::cout << frame.library_name << " + 0x" 
-              << std::hex << frame.offset << std::dec;
-    if (!frame.function_name.empty()) {
-        std::cout << " [" << frame.function_name << "]";
-    }
-    if (!frame.filename.empty()) {
-        std::cout << " at " << frame.filename << ":" << frame.line_number;
-    }
-    std::cout << "\n";
-}
-```
-
 ## Requirements
 
 ### Required
@@ -258,7 +197,7 @@ for (const auto& frame : resolved) {
 - **PAPI library** - For hardware PMU sampling (highly recommended)
 - **zlib** - For compressed sample data
 - **GraphViz** - For PDF visualization generation
-- **Python 3.6+** - For Python dataflow-based analysis framework
+- **Python 3.9+** - For Python dataflow-based analysis framework
 - **pybind11** - For Python bindings (included as submodule)
 
 ## Use Cases
@@ -267,17 +206,8 @@ PerFlow is ideal for:
 - 🔬 **HPC Performance Analysis** - Profile large-scale parallel applications (C++/Fortran/Python workflows)
 - 🐛 **Performance Debugging** - Identify bottlenecks and load imbalances
 - 📈 **Scalability Studies** - Understand behavior at different scales
-- 🔄 **Continuous Monitoring** - Track performance across code changes
 - 🎯 **Optimization Guidance** - Find hot functions for targeted optimization
 - 🐍 **Flexible Analysis** - Compose custom analysis workflows with Python dataflow framework
-
-## Project Status
-
-PerFlow is actively maintained and production-ready:
-- ✅ Comprehensive test suite (143+ passing tests)
-- ✅ Used in production HPC environments
-- ✅ Regular updates and improvements
-- ✅ Active issue tracking and bug fixes
 
 ## Contributing
 
@@ -292,11 +222,22 @@ We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.
 If you use PerFlow in your research, please cite:
 
 ```bibtex
-@software{perflow2024,
-  title = {PerFlow: A Programmable Performance Analysis Tool for Parallel Programs},
-  author = {Jin, Yuyang},
-  year = {2024},
-  url = {https://github.com/yuyangJin/PerFlow}
+@inproceedings{jin2022perflow,
+  title={PerFlow: A domain specific framework for automatic performance analysis of parallel applications},
+  author={Jin, Yuyang and Wang, Haojie and Zhong, Runxin and Zhang, Chen and Zhai, Jidong},
+  booktitle={Proceedings of the 27th ACM SIGPLAN Symposium on Principles and Practice of Parallel Programming},
+  pages={177--191},
+  year={2022}
+}
+@article{jin2024graph,
+  title={Graph-centric performance analysis for large-scale parallel applications},
+  author={Jin, Yuyang and Wang, Haojie and Zhong, Runxin and Zhang, Chen and Liao, Xia and Zhang, Feng and Zhai, Jidong},
+  journal={IEEE Transactions on Parallel and Distributed Systems},
+  volume={35},
+  number={7},
+  pages={1221--1238},
+  year={2024},
+  publisher={IEEE}
 }
 ```
 
@@ -310,6 +251,8 @@ PerFlow leverages several excellent open-source projects:
 - [PAPI](http://icl.utk.edu/papi/) - Performance API for hardware counters
 - [libunwind](https://www.nongnu.org/libunwind/) - Call stack capture
 - [GraphViz](https://graphviz.org/) - Graph visualization
+
+PerFlow sincerely thanks [Copilot](https://github.com/features/copilot)'s contributions to the implementation.
 
 ## Contact & Support
 
