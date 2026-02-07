@@ -34,6 +34,7 @@ if os.path.exists(python_dir):
 
 import perflow
 
+NUM_THREADS = 32  # Adjust based on your system
 
 def find_sample_files(data_dir, num_processes=None):
     """
@@ -131,7 +132,7 @@ def example_fine_grained_lock_building(sample_files, libmap_files):
     )
     
     # Configure thread count (0 = auto-detect)
-    builder.set_num_threads(4)
+    builder.set_num_threads(NUM_THREADS)
     
     # Load library maps if available
     if libmap_files:
@@ -173,7 +174,7 @@ def example_thread_local_merge_building(sample_files, libmap_files):
     )
     
     # Configure thread count
-    builder.set_num_threads(4)
+    builder.set_num_threads(NUM_THREADS)
     
     # Load library maps if available
     if libmap_files:
@@ -215,7 +216,7 @@ def example_lock_free_building(sample_files, libmap_files):
     )
     
     # Configure thread count
-    builder.set_num_threads(4)
+    builder.set_num_threads(NUM_THREADS)
     
     # Load library maps if available
     if libmap_files:
@@ -258,7 +259,7 @@ def example_dataflow_with_concurrency(sample_files, libmap_files):
             sample_files,
             libmap_files,
             concurrency_model='FineGrainedLock',
-            num_threads=4
+            num_threads=NUM_THREADS
         )
         .find_hotspots(top_n=5, mode='exclusive')
         .analyze_balance()
@@ -314,7 +315,7 @@ def benchmark_concurrency_models(sample_files, libmap_files):
         )
         
         if model != perflow.ConcurrencyModel.Serial:
-            builder.set_num_threads(4)
+            builder.set_num_threads(NUM_THREADS)
         
         if libmap_files:
             builder.load_library_maps(libmap_files)
@@ -377,7 +378,7 @@ def main():
     
     try:
         # Run examples
-        example_serial_tree_building(sample_files, libmap_files)
+        # example_serial_tree_building(sample_files, libmap_files)
         example_fine_grained_lock_building(sample_files, libmap_files)
         example_thread_local_merge_building(sample_files, libmap_files)
         example_lock_free_building(sample_files, libmap_files)
