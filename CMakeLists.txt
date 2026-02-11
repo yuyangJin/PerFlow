@@ -173,6 +173,40 @@ if(MPI_FOUND)
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     )
     
+    # ========================================================================
+    # Cycle Counter-Based MPI Sampler Library
+    # ========================================================================
+    
+    # Build cycle counter-based MPI sampler as a shared library for LD_PRELOAD
+    # This sampler uses ARMv9 cycle counter (cntvct_el0) for high-precision
+    # sampling, with automatic fallback to POSIX timers on non-ARM architectures
+    message(STATUS "Building cycle counter-based MPI sampler")
+    
+    add_library(perflow_mpi_sampler_cycle_counter SHARED
+        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_sampler_cycle_counter.cpp
+        ${CMAKE_SOURCE_DIR}/src/sampler/mpi_init_setup.cpp
+    )
+    
+    target_include_directories(perflow_mpi_sampler_cycle_counter
+        PRIVATE
+        ${CMAKE_SOURCE_DIR}/include
+        ${MPI_CXX_INCLUDE_DIRS}
+    )
+    
+    target_link_libraries(perflow_mpi_sampler_cycle_counter
+        PRIVATE
+        perflow_sampling
+        ${MPI_CXX_LIBRARIES}
+        unwind
+        dl
+        rt  # Required for POSIX timers
+    )
+    
+    # Set output directory
+    set_target_properties(perflow_mpi_sampler_cycle_counter PROPERTIES
+        LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
+    )
+    
 else()
     message(STATUS "MPI not found - skipping timer-based MPI sampler build")
 endif()
