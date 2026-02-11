@@ -126,6 +126,13 @@ constexpr size_t kSampleMapCapacity = 10000;
 /// Using 100 microseconds for good balance between precision and overhead
 constexpr long kTimerCheckIntervalUs = 100;
 
+/// Return address adjustment offset (bytes)
+/// The PC/IP returned by libunwind points to the instruction after the call,
+/// so we subtract this offset to get the actual call site. The value of 2
+/// works for most architectures (x86, x86-64, ARM) where call instructions
+/// are at least 2 bytes and the return address points past the call.
+constexpr uintptr_t kPCReturnAddressAdjustment = 2;
+
 // ============================================================================
 // Timer Method Enum
 // ============================================================================
@@ -210,10 +217,8 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
         if (pc == 0) {
             break;
         }
-        // Store address (subtract 2 for return address adjustment)
-        // This aligns with the behavior in the original mpi_sampler_timer.cpp
-        // The adjustment accounts for the fact that the PC points after the call instruction
-        addresses[depth] = (uintptr_t)pc - 2;
+        // Store address with return address adjustment (see kPCReturnAddressAdjustment)
+        addresses[depth] = (uintptr_t)pc - kPCReturnAddressAdjustment;
         depth++;
     }
     
@@ -524,10 +529,9 @@ static void finalize_sampler() {
         char output_dir[256];
         const char* dir_env = std::getenv("PERFLOW_OUTPUT_DIR");
         if (dir_env != nullptr) {
-            std::strncpy(output_dir, dir_env, sizeof(output_dir) - 1);
-            output_dir[sizeof(output_dir) - 1] = '\0';
+            std::snprintf(output_dir, sizeof(output_dir), "%s", dir_env);
         } else {
-            std::strcpy(output_dir, "/tmp");
+            std::snprintf(output_dir, sizeof(output_dir), "%s", "/tmp");
         }
         
         // Build output filename
