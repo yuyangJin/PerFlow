@@ -17,6 +17,8 @@
 
 #include "sampling/mpi_init_setup.h"
 
+extern "C" void perflow_arm_timer() __attribute__((weak));
+
 // ============================================================================
 // Global State
 // ============================================================================
@@ -85,11 +87,12 @@ extern "C" int MPI_Init(int* argc, char*** argv) {
         int result = static_cast<int>(ierr);
         fortran_init = 0;  // Reset flag to prevent reuse
         
-        // If successful, get our rank
+        // If successful, get our rank and arm sampling timer
         if (result == 0) {
             MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
             fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d (Fortran init variant %d)\n", 
                     g_mpi_rank, fortran_init);
+            if (perflow_arm_timer) perflow_arm_timer();
         }
         
         return result;
@@ -99,11 +102,12 @@ extern "C" int MPI_Init(int* argc, char*** argv) {
         int result = static_cast<int>(ierr);
         fortran_init = 0;  // Reset flag to prevent reuse
         
-        // If successful, get our rank
+        // If successful, get our rank and arm sampling timer
         if (result == 0) {
             MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
             fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d (Fortran static init)\n", 
                     g_mpi_rank);
+            if (perflow_arm_timer) perflow_arm_timer();
         }
         
         return result;
@@ -124,10 +128,11 @@ extern "C" int MPI_Init(int* argc, char*** argv) {
     // Call real MPI_Init
     int result = real_MPI_Init(argc, argv);
     
-    // If successful, get our rank
+    // If successful, get our rank and arm sampling timer
     if (result == 0) {
         MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
         fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d (C/C++ init)\n", g_mpi_rank);
+        if (perflow_arm_timer) perflow_arm_timer();
     }
     
     return result;
@@ -195,10 +200,11 @@ extern "C" int MPI_Init_thread(int* argc, char*** argv, int required, int* provi
     // Call real MPI_Init_thread
     int result = real_MPI_Init_thread(argc, argv, required, provided);
     
-    // If successful, get our rank
+    // If successful, get our rank and arm sampling timer
     if (result == 0) {
         MPI_Comm_rank(MPI_COMM_WORLD, &g_mpi_rank);
         fprintf(stderr, "[MPI Sampler] Captured MPI rank: %d (C/C++ MPI_Init_thread)\n", g_mpi_rank);
+        if (perflow_arm_timer) perflow_arm_timer();
     }
     
     return result;
@@ -239,3 +245,34 @@ extern "C" void mpi_init_thread_(MPI_Fint *required, MPI_Fint *provided, MPI_Fin
 extern "C" void mpi_init_thread__(MPI_Fint *required, MPI_Fint *provided, MPI_Fint *ierr) {
     MPI_Init_thread_fortran_wrapper(required, provided, ierr);
 }
+
+// ============================================================================
+// MPI_Finalize Interception — disarm sampler before MPI teardown
+// ============================================================================
+
+extern "C" void perflow_disarm_sampler() __attribute__((weak));
+
+static int (*real_MPI_Finalize)() = nullptr;
+
+extern "C" int MPI_Finalize() {
+    if (perflow_disarm_sampler) perflow_disarm_sampler();
+
+    if (real_MPI_Finalize == nullptr) {
+        real_MPI_Finalize = (int (*)())dlsym(RTLD_NEXT, "MPI_Finalize");
+        if (real_MPI_Finalize == nullptr) {
+            fprintf(stderr, "[MPI Sampler] Error: Could not find real MPI_Finalize\n");
+            return -1;
+        }
+    }
+    return real_MPI_Finalize();
+}
+
+// Fortran MPI_Finalize wrappers
+static void MPI_Finalize_fortran_wrapper(MPI_Fint *ierr) {
+    *ierr = static_cast<MPI_Fint>(MPI_Finalize());
+}
+
+extern "C" void MPI_FINALIZE(MPI_Fint *ierr) { MPI_Finalize_fortran_wrapper(ierr); }
+extern "C" void mpi_finalize(MPI_Fint *ierr)  { MPI_Finalize_fortran_wrapper(ierr); }
+extern "C" void mpi_finalize_(MPI_Fint *ierr)  { MPI_Finalize_fortran_wrapper(ierr); }
+extern "C" void mpi_finalize__(MPI_Fint *ierr) { MPI_Finalize_fortran_wrapper(ierr); }

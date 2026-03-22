@@ -55,10 +55,10 @@ class StaticHashMap {
 
   /// Hash map entry containing key, value, and state
   struct Entry {
-    alignas(8) Key key;
-    alignas(8) Value value;
+    // Don't force a smaller alignment than Key/Value require.
+    Key key;
+    Value value;
     std::atomic<EntryState> state{EntryState::kEmpty};
-    uint8_t padding_[7];  // Padding for alignment
 
     Entry() noexcept : key(), value() {}
   };

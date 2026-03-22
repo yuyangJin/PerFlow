@@ -9,7 +9,11 @@
 #endif
 
 #include <dlfcn.h>
+#if defined(__linux__)
 #include <link.h>
+#elif defined(__APPLE__)
+#include <mach-o/dyld.h>
+#endif
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -145,8 +149,8 @@ struct SymbolResolver::Impl {
   SymbolInfo resolve_with_dladdr(const std::string& library_path, 
                                   uintptr_t offset) const {
     // For dladdr, we need an actual runtime address, not just an offset.
-    // We need to open the library and calculate the address.
-    
+    // We open/ensure the image is loaded, then compute base + offset.
+
     void* handle = dlopen(library_path.c_str(), RTLD_LAZY | RTLD_NOLOAD);
     bool should_close = false;
     
@@ -159,17 +163,41 @@ struct SymbolResolver::Impl {
       should_close = true;
     }
     
-    // Get any symbol from the library to find its base address
-    void* sym = dlsym(handle, "__not_a_real_symbol_123456__");
-    // Even if symbol lookup fails, we can still use dladdr on the handle
-    (void)sym;  // Suppress unused warning
-    
-    // We need to get the base address via link_map
+    uintptr_t base_addr = 0;
+
+#if defined(__linux__)
+    // On Linux, use link_map via dlinfo to find the base load address.
     struct link_map* map = nullptr;
     if (dlinfo(handle, RTLD_DI_LINKMAP, &map) == 0 && map != nullptr) {
-      // Calculate the actual address
-      void* addr = reinterpret_cast<void*>(map->l_addr + offset);
-      
+      base_addr = static_cast<uintptr_t>(map->l_addr);
+    }
+#elif defined(__APPLE__)
+    // On macOS, walk dyld-loaded images to find the requested image base.
+    // Match by full path when possible, otherwise by filename suffix.
+    const uint32_t n = _dyld_image_count();
+    for (uint32_t i = 0; i < n; ++i) {
+      const char* name = _dyld_get_image_name(i);
+      if (!name) continue;
+      const std::string img(name);
+      const bool match_full = (img == library_path);
+      const bool match_suffix =
+          (!match_full && img.size() >= library_path.size() &&
+           img.compare(img.size() - library_path.size(), library_path.size(), library_path) == 0);
+      if (!match_full && !match_suffix) continue;
+
+      const struct mach_header* hdr = _dyld_get_image_header(i);
+      const intptr_t slide = _dyld_get_image_vmaddr_slide(i);
+      if (hdr) {
+        base_addr = reinterpret_cast<uintptr_t>(hdr) + static_cast<uintptr_t>(slide);
+        break;
+      }
+    }
+#else
+    (void)offset;
+#endif
+
+    if (base_addr != 0) {
+      void* addr = reinterpret_cast<void*>(base_addr + offset);
       Dl_info info;
       if (dladdr(addr, &info) != 0 && info.dli_sname != nullptr) {
         std::string func_name = info.dli_sname;

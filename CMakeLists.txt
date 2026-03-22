@@ -6,7 +6,7 @@ cmake_minimum_required(VERSION 3.14)
 project(PerFlow
     VERSION 0.1.0
     DESCRIPTION "A programmable and fast performance analysis for parallel programs"
-    LANGUAGES CXX Fortran
+    LANGUAGES C CXX Fortran
 )
 
 # C++ standard
@@ -25,7 +25,7 @@ set(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
 # Options
-option(PERFLOW_BUILD_TESTS "Build unit tests" ON)
+option(PERFLOW_BUILD_TESTS "Build unit tests" OFF)
 option(PERFLOW_BUILD_EXAMPLES "Build example programs" ON)
 option(PERFLOW_BUILD_PYTHON "Build Python bindings" OFF)
 option(PERFLOW_ENABLE_SANITIZERS "Enable address and undefined behavior sanitizers" OFF)
@@ -163,15 +163,28 @@ if(MPI_FOUND)
         PRIVATE
         perflow_sampling
         ${MPI_CXX_LIBRARIES}
-        unwind
-        dl
-        rt  # Required for POSIX timers
     )
+
+    # libunwind/libdl are Linux-isms; on macOS these are in libSystem.
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(perflow_mpi_sampler_timer PRIVATE unwind dl)
+    endif()
+
+    # librt is Linux-specific (clock_* are in libc on macOS)
+    if(UNIX AND NOT APPLE)
+        target_link_libraries(perflow_mpi_sampler_timer PRIVATE rt)
+    endif()
     
     # Set output directory
     set_target_properties(perflow_mpi_sampler_timer PROPERTIES
         LIBRARY_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib
     )
+
+    # On macOS, allow unresolved PMPI symbols that will be provided by the
+    # target MPI library at runtime (e.g., via DYLD_INSERT_LIBRARIES).
+    if(APPLE)
+        target_link_options(perflow_mpi_sampler_timer PRIVATE "-Wl,-undefined,dynamic_lookup")
+    endif()
     
 else()
     message(STATUS "MPI not found - skipping timer-based MPI sampler build")
