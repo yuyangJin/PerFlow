@@ -52,10 +52,19 @@ Use PerFlow's analysis tools to visualize:
 
 ### Environment Variables
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `PERFLOW_SAMPLING_FREQ` | Sampling frequency in Hz | 1000 |
-| `PERFLOW_OUTPUT_DIR` | Directory for output files | /tmp |
+The MPI timer preload library (`libperflow_mpi_sampler_timer.so`) reads the following at runtime:
+
+| Variable | Applies | Default | Description |
+|----------|---------|---------|-------------|
+| `PERFLOW_SAMPLING_FREQ` | All platforms | `1000` | Target sampling rate in Hz (interval or PMU period is derived from this). |
+| `PERFLOW_OUTPUT_DIR` | All platforms | `/tmp` | Directory for `perflow_mpi_rank_*` sample and libmap files. Must exist if you set it. |
+| `PERFLOW_SAMPLER_BACKEND` | **Linux only** | *(unset)* | `thread` selects the signal-free `/proc` polling backend (single IP per sample). Unset or `pmu` / `hw` uses the default Linux PMU backend (`perf_event` + `SIGIO` + libunwind). Unknown values produce a warning and fall back to PMU. |
+| `PERFLOW_PMU_FAST` | Linux, PMU backend | off (`1` enables) | If `1`, record only the interrupted IP (skip libunwind stack walk). |
+| `PERFLOW_PMU_PERIOD` | Linux, PMU backend | *(computed)* | Optional cycle period for `perf_event` (overrides Hz-based calculation). |
+| `PERFLOW_CPU_FREQ_GHZ` | Linux, PMU backend | `2.6` | Used with `PERFLOW_SAMPLING_FREQ` to compute cycle period when `PERFLOW_PMU_PERIOD` is unset. |
+| `PERFLOW_SIGNAL_FAST` | Non-Linux signal backend | off (`1` enables) | IP-only sampling (no libunwind) on the portable SIGUSR1 path. |
+
+For a consolidated guide (including the hardware PMU sampler), see [Configuration](CONFIGURATION.md).
 
 ### Recommended Sampling Frequencies
 
@@ -115,14 +124,16 @@ ls -l /tmp/test/perflow_mpi_rank_*
 - Check system load (other processes interfering)
 - Ensure application is CPU-bound (sampling I/O-bound apps is inefficient)
 
-### Permission issues
+### Permission issues (Linux PMU backend)
 
-**Problem**: Timer creation fails with permission error.
+**Problem**: Messages such as `perf_event_open failed`, or no samples when using the default backend.
 
 **Solutions**:
-- Timer-based sampler should not require special permissions
-- If running in container, ensure SIGRTMIN is not blocked
-- Check ulimit settings
+- Check `perf_event_paranoid` and user permissions for performance events; run on a host that allows `perf_event_open`, or use root / appropriate capabilities where policy allows.
+- **Alternative**: use the thread backend (no PMU):  
+  `export PERFLOW_SAMPLER_BACKEND=thread`
+
+On non-Linux systems the library uses a SIGUSR1-based path; ensure your MPI runtime does not block that signal if you see empty profiles.
 
 ### MPI rank not captured
 

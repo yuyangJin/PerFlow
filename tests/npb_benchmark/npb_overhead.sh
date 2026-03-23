@@ -186,7 +186,7 @@ fi
 echo ""
 
 # Check PerFlow sampler library
-SAMPLER_LIB="$PERFLOW_BUILD_DIR/lib/libperflow_mpi_sampler.so"
+SAMPLER_LIB="$PERFLOW_BUILD_DIR/lib/libperflow_mpi_sampler_timer.so"
 if [ ! -f "$SAMPLER_LIB" ]; then
     log_error "PerFlow sampler library not found: $SAMPLER_LIB"
     log_error "Please build PerFlow first"

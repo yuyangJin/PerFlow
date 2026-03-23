@@ -1,0 +1,1039 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>PerFlow Call Tree Viewer</title>
+    <style>
+      :root{
+        --bg:#0b0f14; --panel:#111826; --muted:#8aa0b6; --fg:#e7f0ff;
+        --accent:#6ee7ff; --accent2:#a78bfa; --danger:#fb7185; --line:#213047;
+        --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono","Courier New", monospace;
+        --sans: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans", "Liberation Sans", sans-serif;
+      }
+      html,body{height:100%;}
+      body{
+        margin:0; background:radial-gradient(1200px 700px at 20% -10%, rgba(110,231,255,.14), transparent 60%),
+                radial-gradient(1000px 800px at 90% 0%, rgba(167,139,250,.13), transparent 55%),
+                var(--bg);
+        color:var(--fg); font-family:var(--sans);
+      }
+      .wrap{max-width:1400px; margin:0 auto; padding:22px;}
+      .top{
+        display:flex; gap:14px; align-items:flex-start; justify-content:space-between;
+        margin-bottom:14px;
+      }
+      .title h1{margin:0; font-size:18px; letter-spacing:.2px;}
+      .title p{margin:6px 0 0; color:var(--muted); font-size:12px; line-height:1.4;}
+      .panel{
+        background:linear-gradient(180deg, rgba(17,24,38,.9), rgba(17,24,38,.65));
+        border:1px solid rgba(33,48,71,.85);
+        box-shadow:0 12px 40px rgba(0,0,0,.35);
+        border-radius:14px;
+      }
+      .controls{padding:14px;}
+      .grid{
+        display:grid; grid-template-columns: 1fr; gap:14px;
+      }
+      @media (max-width: 980px){ .grid{grid-template-columns:1fr;} }
+      .row{display:flex; flex-wrap:wrap; gap:10px; align-items:center;}
+      label{font-size:12px; color:var(--muted);}
+      input[type="file"], input[type="text"], input[type="number"], select{
+        background:#0f1521; border:1px solid var(--line); color:var(--fg);
+        border-radius:10px; padding:8px 10px; font-size:12px;
+      }
+      input[type="text"]{min-width:200px;}
+      button{
+        background:linear-gradient(180deg, rgba(110,231,255,.18), rgba(110,231,255,.06));
+        border:1px solid rgba(110,231,255,.35);
+        color:var(--fg); border-radius:10px;
+        padding:8px 10px; font-size:12px; cursor:pointer;
+      }
+      button:hover{border-color:rgba(110,231,255,.6);}
+      button:active{transform:scale(0.98);}
+      .hint{font-size:12px; color:var(--muted); margin-top:10px;}
+      .card{padding:14px;}
+      .card h2{margin:0 0 10px; font-size:13px; color:#cfe6ff;}
+      .stats{font-family:var(--mono); font-size:12px; color:var(--muted); line-height:1.55;}
+      .tree{font-family:var(--mono); font-size:12px; line-height:1.55; min-height:120px;}
+      .node{
+        padding:6px 8px; border-radius:10px; border:1px solid rgba(33,48,71,.6);
+        background:rgba(15,21,33,.65); margin:6px 0;
+        transition: border-color 0.15s ease, box-shadow 0.15s ease;
+      }
+      .node.node-selected{
+        border-color:rgba(110,231,255,.55);
+        box-shadow:0 0 0 1px rgba(110,231,255,.25);
+      }
+      .node-header{display:flex; gap:10px; align-items:baseline; justify-content:space-between;}
+      .node-title{display:flex; gap:10px; align-items:baseline; overflow:hidden; flex:1; min-width:0;}
+      .fn{color:var(--accent); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; flex:1; min-width:0;}
+      .meta{color:var(--muted); white-space:nowrap;}
+      .pct{color:#eab308;}
+      .self{color:var(--accent2);}
+      .toggle{font-family:var(--mono); margin-right:6px; color:var(--muted); cursor:pointer; flex-shrink:0;}
+      .children{margin-left:18px; border-left:1px dashed rgba(33,48,71,.8); padding-left:12px;}
+      .pill{display:inline-flex; gap:6px; align-items:center; padding:3px 8px; border-radius:999px; border:1px solid rgba(33,48,71,.8); background:rgba(15,21,33,.55); font-size:11px; color:var(--muted);}
+      .pill b{color:var(--fg); font-weight:600;}
+      .err{color:var(--danger); font-family:var(--mono); font-size:12px; white-space:pre-wrap;}
+      a{color:var(--accent); text-decoration:none;}
+      a:hover{text-decoration:underline;}
+
+      @keyframes click-flash-kf{
+        0%{ box-shadow:0 0 0 2px rgba(110,231,255,.85), 0 0 14px rgba(110,231,255,.35); }
+        100%{ box-shadow:none; }
+      }
+      .click-flash{ animation:click-flash-kf 0.38s ease-out; }
+
+      .calltree-split{
+        display:grid;
+        grid-template-columns: 1fr minmax(260px, 320px);
+        gap:14px;
+        align-items:start;
+      }
+      @media (max-width: 900px){
+        .calltree-split{ grid-template-columns: 1fr; }
+        .calltree-sidebar{ border-left:none; border-top:1px solid var(--line); padding-top:14px; padding-left:0; }
+      }
+      .calltree-sidebar{
+        border-left:1px solid rgba(33,48,71,.85);
+        padding-left:14px;
+        font-size:12px;
+        color:var(--muted);
+        position:sticky;
+        top:12px;
+      }
+      .calltree-sidebar h3{margin:0 0 10px; font-size:12px; color:#cfe6ff;}
+      .calltree-sidebar .detail-row{margin:6px 0; word-break:break-all;}
+      .calltree-sidebar .detail-k{color:var(--muted); display:block; font-size:11px; margin-bottom:2px;}
+      .calltree-sidebar .detail-v{color:var(--fg); font-family:var(--mono); font-size:11px;}
+      .calltree-toolbar{display:flex; flex-wrap:wrap; gap:10px; align-items:flex-end; margin-bottom:12px;}
+
+      .subpanels{display:flex; flex-wrap:wrap; gap:12px;}
+      .imbalance-two-cols{
+        display:grid; grid-template-columns: 1fr 1fr; gap:14px; align-items:start;
+      }
+      @media (max-width: 960px){ .imbalance-two-cols{ grid-template-columns: 1fr; } }
+      .imbalance-col{
+        background:rgba(12,18,28,.55);
+        border:1px solid rgba(33,48,71,.75);
+        border-radius:12px;
+        padding:12px;
+        min-height:160px;
+      }
+      .imbalance-col-title{
+        font-size:11px; font-weight:700; color:#cfe6ff; letter-spacing:.04em;
+        margin:0 0 10px; text-transform:uppercase;
+      }
+      .subpanels-col{
+        flex-direction:column; flex-wrap:nowrap;
+      }
+      .subpanels-col .subpanel{
+        flex:0 0 auto; width:100%; min-width:0; max-width:100%;
+      }
+      .subpanel{
+        flex:1 1 480px;
+        min-width:280px;
+        background:rgba(15,21,33,.65);
+        border:1px solid rgba(33,48,71,.85);
+        border-radius:14px;
+        padding:12px;
+        box-shadow:0 10px 26px rgba(0,0,0,.25);
+        transition: border-color 0.15s ease;
+      }
+      .subpanel.dragging{opacity:.65; transform:scale(.99);}
+      .subpanel.drop-target{border-color:rgba(110,231,255,.65);}
+      .subpanel-header{
+        display:flex; align-items:flex-start; justify-content:space-between; gap:10px;
+        margin-bottom:10px;
+      }
+      .subpanel-title{
+        color:#cfe6ff; font-size:12px; font-weight:700; line-height:1.25;
+        overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
+      }
+      .close-btn{
+        border-radius:10px;
+        padding:6px 8px;
+        font-size:12px;
+        line-height:1;
+        background:rgba(251,113,133,.12);
+        border:1px solid rgba(251,113,133,.35);
+        color:var(--fg);
+        cursor:pointer;
+      }
+      .close-btn:hover{border-color:rgba(251,113,133,.7);}
+      .subpanel canvas{width:100%; height:220px; display:block; border-radius:10px;}
+      .legend{display:flex; flex-wrap:wrap; gap:10px; margin-top:8px;}
+      .legend-item{display:flex; align-items:center; gap:6px; color:var(--muted); font-size:11px; min-width:120px;}
+      .swatch{width:10px; height:10px; border-radius:3px; display:inline-block; box-shadow:0 0 0 1px rgba(255,255,255,.12) inset;}
+      .legend-label{color:var(--fg); font-weight:600; max-width:180px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+
+      .btn-all-ranks{
+        width:100%; margin-top:14px; padding:10px 12px; font-weight:600;
+        display:flex; align-items:center; justify-content:center; gap:8px;
+      }
+      .btn-all-ranks:disabled{
+        opacity:0.45; cursor:not-allowed; border-color:rgba(33,48,71,.9);
+      }
+
+      .subpanel-fly-ghost{
+        box-sizing:border-box;
+        border-radius:14px;
+        border:1px solid rgba(110,231,255,.55);
+        background:linear-gradient(180deg, rgba(17,24,38,.95), rgba(15,21,33,.92));
+        box-shadow:0 16px 48px rgba(0,0,0,.45), 0 0 0 1px rgba(110,231,255,.2);
+        overflow:hidden;
+        will-change: transform, opacity;
+      }
+      .subpanel-fly-ghost-inner{
+        height:100%; display:flex; flex-direction:column; align-items:center; justify-content:center;
+        gap:10px; padding:12px;
+      }
+      .subpanel-fly-bars3{
+        display:flex; align-items:flex-end; justify-content:center; gap:5px; height:72px;
+      }
+      .subpanel-fly-bars3 span{
+        width:11px; border-radius:3px;
+        background:linear-gradient(180deg, #6ee7ff, #3b82f6);
+        box-shadow:0 0 12px rgba(110,231,255,.35);
+      }
+      .subpanel-fly-bars3 span:nth-child(1){ height:32%; }
+      .subpanel-fly-bars3 span:nth-child(2){ height:56%; }
+      .subpanel-fly-bars3 span:nth-child(3){ height:84%; }
+      .subpanel-fly-cap{ font-size:11px; color:var(--muted); letter-spacing:.02em; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="top">
+        <div class="title">
+          <h1>PerFlow Call Tree Viewer</h1>
+          <p>
+            读取 <code>calltree.json</code>（必需）；可选 <code>node_imbalance.json</code> 与 calltree 配合在下方生成各进程占比柱状图。
+            建议用本地静态服务器打开（例如 <code>python3 -m http.server</code>），避免跨域限制。
+          </p>
+        </div>
+      </div>
+
+      <div class="panel controls">
+        <div class="row">
+          <div>
+            <label>calltree.json</label><br />
+            <input id="calltreeFile" type="file" accept=".json" />
+          </div>
+          <div>
+            <label>node_imbalance.json（可选）</label><br />
+            <input id="nodeImbalanceFile" type="file" accept=".json" />
+          </div>
+          <div>
+            <label>展开深度上限</label><br />
+            <input id="maxDepth" type="number" min="1" max="200" value="20" />
+          </div>
+          <div>
+            <label>过滤（函数名/库名包含）</label><br />
+            <input id="filter" type="text" placeholder="例如: MAIN_ 或 dida.exe 或 MPI_" />
+          </div>
+          <div style="align-self:flex-end; display:flex; gap:10px;">
+            <button type="button" id="renderBtn">渲染</button>
+            <button type="button" id="loadJsonOutBtn" title="从 json_out/ 加载（需静态服务器）">从 json_out 加载</button>
+            <button type="button" id="expandAllBtn" title="仅展开到深度上限">展开全部</button>
+            <button type="button" id="collapseAllBtn">全部折叠</button>
+          </div>
+        </div>
+        <div class="hint">
+          也可将 JSON 放在网页同目录，通过静态服务器打开后选择文件并点击「渲染」。
+        </div>
+      </div>
+
+      <div class="grid" style="margin-top:14px;">
+        <div class="panel card">
+          <h2>调用树（可展开）</h2>
+          <div class="calltree-toolbar">
+            <div>
+              <label>数据展示</label><br />
+              <select id="calltreeViewMode" title="合并树结构不变；单进程/平均依赖 node_imbalance.json 的 per-rank 占比">
+                <option value="merged">全局合并（calltree.json 原始样本与占比）</option>
+                <option value="rank">单个进程（按 rank 占比）</option>
+                <option value="avg_all">全部进程平均占比</option>
+                <option value="avg_custom">自定义进程集合平均占比</option>
+              </select>
+            </div>
+            <div id="calltreeRankWrap">
+              <label>Rank</label><br />
+              <input id="calltreeRank" type="number" min="0" value="0" style="width:72px;" title="展示该 MPI rank 在各节点占其进程总样本的比例" />
+            </div>
+            <div id="calltreeCustomRanksWrap" style="display:none;">
+              <label>进程列表（逗号分隔）</label><br />
+              <input id="calltreeCustomRanks" type="text" placeholder="例如 0,2,5" style="min-width:200px;" title="对列出 rank 的占比取算术平均" />
+            </div>
+          </div>
+          <div id="treeMeta" class="stats"></div>
+          <div class="calltree-split">
+            <div>
+              <div id="treeRoot" class="tree"></div>
+              <div id="treeErr" class="err"></div>
+            </div>
+            <aside class="calltree-sidebar" id="treeDetail">
+              <h3>节点详情</h3>
+              <p style="margin:0; font-size:11px; line-height:1.45;">
+                点击左侧某一帧可选中并查看详情。加载 <code>node_imbalance.json</code> 后，可点击<strong>所有进程数据</strong>将当前帧的柱状图飞入下方左侧「单帧」列。
+              </p>
+            </aside>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel card" style="margin-top:14px;">
+        <h2>进程间均衡性分析（可选）</h2>
+        <p style="color:var(--muted); font-size:12px; margin:0 0 10px;">
+          在 calltree 侧栏点击<strong>所有进程数据</strong>，单帧柱状图加载入<strong>左侧</strong>「单帧」列；将任意柱状图拖拽至另一个柱状图上融合时，新柱状图加载入<strong>右侧</strong>「融合」列，左右列之间可互相拖拽完成融合。
+        </p>
+        <div id="imbalanceErr" class="err"></div>
+        <div id="imbalanceChartWrap" style="background:rgba(15,21,33,.65); border-radius:10px; padding:14px; min-height:280px;">
+          <div class="imbalance-two-cols">
+            <div class="imbalance-col">
+              <div class="imbalance-col-title">单帧</div>
+              <div id="imbalanceSubpanelsSingle" class="subpanels subpanels-col"></div>
+            </div>
+            <div class="imbalance-col">
+              <div class="imbalance-col-title">融合</div>
+              <div id="imbalanceSubpanelsFused" class="subpanels subpanels-col"></div>
+            </div>
+          </div>
+          <div id="imbalanceSubpanelsHint" style="color:var(--muted); font-size:12px; text-align:center; padding:24px 8px 8px;">
+            尚未添加图：在 calltree 中选中节点后点击侧栏「所有进程数据」（需 node_imbalance.json）。融合图出现在右侧列。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      /** @typedef {{name:string,library:string,file:string,line:number,total_samples:number,self_samples:number,total_pct:number,self_pct:number,children?:Node[],node_id?:number,offset?:number}} Node */
+
+      const $ = (id) => document.getElementById(id);
+      const state = {
+        calltree: null,
+        nodeImbalance: null,
+        expanded: new Set(),
+        expandAll: false,
+        selectedNodeKey: null,
+        selectedSnapshot: null,
+
+        subpanels: new Map(),
+        nextPanelId: 1,
+        nextColorIndex: 0,
+      };
+
+      const COLOR_PALETTE = [
+        '#6ee7ff', '#a78bfa', '#fb7185', '#34d399', '#fbbf24', '#60a5fa',
+        '#f472b6', '#22c55e'
+      ];
+
+      function nextColor(){
+        const idx = state.nextColorIndex % COLOR_PALETTE.length;
+        state.nextColorIndex++;
+        return COLOR_PALETTE[idx];
+      }
+
+      function flashClick(el){
+        if (!el || !el.classList) return;
+        el.classList.remove('click-flash');
+        void el.offsetWidth;
+        el.classList.add('click-flash');
+        el.addEventListener('animationend', function rm(){
+          el.classList.remove('click-flash');
+          el.removeEventListener('animationend', rm);
+        });
+      }
+
+      function fmtPct(x){
+        if (typeof x !== 'number' || !isFinite(x)) return '0.00%';
+        return x.toFixed(2) + '%';
+      }
+      function safeStr(x){ return (x == null) ? '' : String(x); }
+
+      async function readJsonFromFile(file){
+        const text = await file.text();
+        return JSON.parse(text);
+      }
+
+      function nodeKey(n, path){
+        return path + '>' + safeStr(n.name) + '|' + safeStr(n.library) + '|' + safeStr(n.file) + ':' + (n.line||0);
+      }
+
+      function snapshotNode(n){
+        return {
+          name: n.name, library: n.library, file: n.file, line: n.line, offset: n.offset,
+          node_id: n.node_id,
+          total_samples: n.total_samples, self_samples: n.self_samples,
+          total_pct: n.total_pct, self_pct: n.self_pct
+        };
+      }
+
+      function matchFilter(n, q){
+        if (!q) return true;
+        q = q.toLowerCase();
+        const hay = (safeStr(n.name) + ' ' + safeStr(n.library) + ' ' + safeStr(n.file)).toLowerCase();
+        return hay.includes(q);
+      }
+
+      function parseRankList(str, numRanks){
+        if (!str || !String(str).trim()) return [];
+        return String(str).split(/[,;\s]+/)
+          .map(s => parseInt(s.trim(), 10))
+          .filter(r => Number.isFinite(r) && r >= 0 && r < numRanks);
+      }
+
+      function getNumRanks(){
+        return state.nodeImbalance && state.nodeImbalance.num_ranks
+          ? Math.max(0, parseInt(state.nodeImbalance.num_ranks, 10) || 0)
+          : 0;
+      }
+
+      function getCalltreeViewMode(){
+        const el = $('calltreeViewMode');
+        return el ? el.value : 'merged';
+      }
+
+      function syncCalltreeToolbar(){
+        const mode = getCalltreeViewMode();
+        const rw = $('calltreeRankWrap');
+        const cw = $('calltreeCustomRanksWrap');
+        if (rw) rw.style.display = (mode === 'rank') ? 'block' : 'none';
+        if (cw) cw.style.display = (mode === 'avg_custom') ? 'block' : 'none';
+      }
+
+      function getCalltreeDisplayNumbers(n){
+        const merged = {
+          primaryLabel: '合并 total',
+          primaryPct: n.total_pct,
+          secondaryLabel: 'self',
+          secondaryPct: n.self_pct,
+          samples: n.total_samples,
+          useSecondary: true
+        };
+        const mode = getCalltreeViewMode();
+        if (mode === 'merged' || !state.nodeImbalance) return merged;
+
+        const nodeId = n.node_id;
+        const arr = nodeId != null ? getPerRankPctFromNodeId(nodeId) : null;
+        if (!arr || arr.length === 0) return merged;
+
+        const N = arr.length;
+        if (mode === 'rank'){
+          let r = parseInt($('calltreeRank').value || '0', 10);
+          if (!Number.isFinite(r)) r = 0;
+          r = Math.max(0, Math.min(N - 1, r));
+          const p = arr[r] || 0;
+          return {
+            primaryLabel: 'R' + r + ' 占该进程',
+            primaryPct: p,
+            secondaryLabel: '合并 total',
+            secondaryPct: n.total_pct,
+            samples: null,
+            useSecondary: true
+          };
+        }
+        if (mode === 'avg_all'){
+          let sum = 0;
+          for (let i = 0; i < N; i++) sum += arr[i] || 0;
+          const avg = N ? sum / N : 0;
+          return {
+            primaryLabel: '全 rank 均值',
+            primaryPct: avg,
+            secondaryLabel: '合并 total',
+            secondaryPct: n.total_pct,
+            samples: null,
+            useSecondary: true
+          };
+        }
+        if (mode === 'avg_custom'){
+          const ranks = parseRankList($('calltreeCustomRanks').value, N);
+          if (ranks.length === 0) return merged;
+          let sum = 0;
+          for (const r of ranks) sum += arr[r] || 0;
+          const avg = sum / ranks.length;
+          return {
+            primaryLabel: '自定义均值',
+            primaryPct: avg,
+            secondaryLabel: '合并 total',
+            secondaryPct: n.total_pct,
+            samples: null,
+            useSecondary: true
+          };
+        }
+        return merged;
+      }
+
+      function renderDetailSidebar(){
+        const host = $('treeDetail');
+        if (!host) return;
+        const snap = state.selectedSnapshot;
+        if (!snap){
+          host.innerHTML = `
+            <h3>节点详情</h3>
+            <p style="margin:0; font-size:11px; line-height:1.45;">
+              点击左侧某一帧可选中并查看详情。加载 <code>node_imbalance.json</code> 后，可点击<strong>所有进程数据</strong>将柱状图飞入下方左侧列。
+            </p>`;
+          return;
+        }
+        const rows = [
+          ['函数', safeStr(snap.name || '[unknown]')],
+          ['库', safeStr(snap.library || '—')],
+          ['文件', safeStr(snap.file || '—')],
+          ['行号', snap.line != null ? String(snap.line) : '—'],
+          ['偏移', snap.offset != null ? String(snap.offset) : '—'],
+          ['node_id', snap.node_id != null ? String(snap.node_id) : '—'],
+          ['合并 total_pct', fmtPct(snap.total_pct)],
+          ['合并 self_pct', fmtPct(snap.self_pct)],
+          ['合并 total_samples', String(snap.total_samples ?? '—')],
+          ['合并 self_samples', String(snap.self_samples ?? '—')]
+        ];
+        const rowsHtml = rows.map(([k,v]) =>
+          `<div class="detail-row"><span class="detail-k">${k}</span><span class="detail-v">${v}</span></div>`
+        ).join('');
+
+        const perArr = (snap.node_id != null) ? getPerRankPctFromNodeId(snap.node_id) : null;
+        const canChart = !!perArr && perArr.length > 0;
+        let whyNo = '';
+        if (!state.nodeImbalance) whyNo = '请先加载 node_imbalance.json';
+        else if (snap.node_id == null) whyNo = '节点缺少 node_id';
+        else if (!canChart) whyNo = '该节点无 per-rank 数据';
+        const btnTitle = canChart
+          ? '飞入下方左侧「单帧」列'
+          : whyNo;
+        const btnTitleAttr = String(btnTitle).replace(/"/g, '&quot;');
+
+        host.innerHTML = `
+          <h3>节点详情</h3>
+          ${rowsHtml}
+          <button type="button" class="btn-all-ranks" id="openAllRanksBarchartBtn" ${canChart ? '' : 'disabled'} title="${btnTitleAttr}">
+            所有进程数据
+          </button>
+          ${!state.nodeImbalance ? '<p style="font-size:11px;margin:8px 0 0;color:var(--muted);">加载 node_imbalance.json 后可生成各 rank 占比图。</p>' : ''}
+          ${state.nodeImbalance && !canChart && snap.node_id != null ? '<p style="font-size:11px;margin:8px 0 0;color:var(--muted);">该节点在 per-rank 数据中无采样。</p>' : ''}
+        `;
+
+        const btn = host.querySelector('#openAllRanksBarchartBtn');
+        if (btn && canChart){
+          btn.addEventListener('click', (ev) => {
+            ev.preventDefault();
+            flashClick(btn);
+            addImbalanceChartFromSidebarWithFlyIn(btn);
+          });
+        }
+      }
+
+      function renderTree(){
+        $('treeErr').textContent = '';
+        $('treeRoot').innerHTML = '';
+        $('treeMeta').textContent = '';
+        syncCalltreeToolbar();
+
+        if (!state.calltree){
+          $('treeErr').textContent = '未加载 calltree.json';
+          renderDetailSidebar();
+          return;
+        }
+
+        const q = $('filter').value.trim();
+        const maxDepth = Math.max(1, Math.min(200, parseInt($('maxDepth').value || '20', 10)));
+
+        const root = state.calltree;
+        const total = root.total_samples || 0;
+        const mode = getCalltreeViewMode();
+        const nr = getNumRanks();
+        const modeLabel = $('calltreeViewMode')?.selectedOptions[0]?.text || mode;
+        const pills = [
+          `<span class="pill"><b>总样本</b> ${total}</span>`,
+          `<span class="pill"><b>根节点</b> ${safeStr(root.name || '[root]')}</span>`,
+          `<span class="pill"><b>深度上限</b> ${maxDepth}</span>`,
+          q ? `<span class="pill"><b>过滤</b> ${q}</span>` : '',
+          `<span class="pill"><b>展示</b> ${safeStr(modeLabel)}</span>`
+        ];
+        if (mode !== 'merged' && !state.nodeImbalance){
+          pills.push(`<span class="pill"><b>提示</b> 需 node_imbalance.json</span>`);
+        } else if (mode !== 'merged' && nr > 0){
+          pills.push(`<span class="pill"><b>ranks</b> ${nr}</span>`);
+        }
+        $('treeMeta').innerHTML = pills.filter(Boolean).join(' ');
+
+        const el = buildNodeEl(root, '', 0, maxDepth, q);
+        $('treeRoot').appendChild(el);
+        renderDetailSidebar();
+      }
+
+      function buildNodeEl(n, path, depth, maxDepth, q){
+        const key = nodeKey(n, path);
+        const hasChildren = Array.isArray(n.children) && n.children.length > 0;
+        const isExpanded = state.expandAll ? (depth < maxDepth) : state.expanded.has(key);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'node' + (state.selectedNodeKey === key ? ' node-selected' : '');
+
+        const header = document.createElement('div');
+        header.className = 'node-header';
+
+        const left = document.createElement('div');
+        left.className = 'node-title';
+
+        const toggle = document.createElement('span');
+        toggle.className = 'toggle';
+        toggle.textContent = hasChildren ? (isExpanded ? '[-]' : '[+]') : '[ ]';
+        toggle.onclick = (ev) => {
+          ev.stopPropagation();
+          flashClick(toggle);
+          if (!hasChildren) return;
+          state.expandAll = false;
+          if (state.expanded.has(key)) state.expanded.delete(key);
+          else state.expanded.add(key);
+          renderTree();
+        };
+
+        const fn = document.createElement('span');
+        fn.className = 'fn';
+        fn.title = safeStr(n.name);
+        fn.textContent = safeStr(n.name || '[unknown]');
+
+        left.appendChild(toggle);
+        left.appendChild(fn);
+
+        const disp = getCalltreeDisplayNumbers(n);
+        const right = document.createElement('div');
+        right.className = 'meta';
+        right.style.textAlign = 'right';
+        right.style.flexShrink = '0';
+        if (disp.samples != null){
+          right.innerHTML = `
+            <span class="pct">${safeStr(disp.primaryLabel)} ${fmtPct(disp.primaryPct)}</span>
+            ${disp.useSecondary ? `<span class="self" style="margin-left:8px;">${safeStr(disp.secondaryLabel)} ${fmtPct(disp.secondaryPct)}</span>` : ''}
+            <span style="margin-left:8px;">n=${disp.samples}</span>`;
+        } else {
+          right.innerHTML = `
+            <span class="pct">${safeStr(disp.primaryLabel)} ${fmtPct(disp.primaryPct)}</span>
+            ${disp.useSecondary ? `<span class="self" style="margin-left:8px;">${safeStr(disp.secondaryLabel)} ${fmtPct(disp.secondaryPct)}</span>` : ''}`;
+        }
+
+        header.appendChild(left);
+        header.appendChild(right);
+        wrap.appendChild(header);
+        wrap.style.cursor = 'pointer';
+        wrap.onclick = (ev) => {
+          ev.stopPropagation();
+          flashClick(wrap);
+          state.selectedNodeKey = key;
+          state.selectedSnapshot = snapshotNode(n);
+          document.querySelectorAll('.node.node-selected').forEach((el) => el.classList.remove('node-selected'));
+          wrap.classList.add('node-selected');
+          renderDetailSidebar();
+        };
+
+        if (hasChildren && isExpanded && depth < maxDepth){
+          const kids = document.createElement('div');
+          kids.className = 'children';
+          for (const c of n.children){
+            if (!matchFilter(c, q) && !descHasMatch(c, q)) continue;
+            kids.appendChild(buildNodeEl(c, key, depth + 1, maxDepth, q));
+          }
+          wrap.appendChild(kids);
+        }
+
+        return wrap;
+      }
+
+      function descHasMatch(n, q){
+        if (!q) return true;
+        if (!n || !Array.isArray(n.children)) return false;
+        for (const c of n.children){
+          if (matchFilter(c, q) || descHasMatch(c, q)) return true;
+        }
+        return false;
+      }
+
+      function ensureNodeImbalanceIndex(){
+        if (!state.nodeImbalance) return;
+        if (state.nodeImbalance.byNodeId) return;
+        const byNodeId = {};
+        const items = state.nodeImbalance.items || [];
+        for (const it of items) {
+          byNodeId[String(it.node_id)] = it.pct_nonzero || [];
+        }
+        state.nodeImbalance.byNodeId = byNodeId;
+      }
+
+      function formatNodeLabel(n){
+        const name = safeStr(n.name || '[unknown]');
+        const lib = safeStr(n.library || '');
+        const file = safeStr(n.file || '');
+        const line = n.line ? ':' + n.line : '';
+
+        const libShort = lib ? lib.split('/').filter(Boolean).slice(-1)[0] : '';
+        const loc = file ? (file.split('/').filter(Boolean).slice(-1)[0] + line) : '';
+
+        const parts = [];
+        if (libShort) parts.push(libShort);
+        if (loc) parts.push(loc);
+        const meta = parts.length ? (' (' + parts.join(' / ') + ')') : '';
+        const full = name + meta;
+        return full.length > 90 ? full.slice(0, 87) + '...' : full;
+      }
+
+      function getPerRankPctFromNodeId(nodeId){
+        if (!state.nodeImbalance) return null;
+        ensureNodeImbalanceIndex();
+        const N = state.nodeImbalance.num_ranks || 0;
+        if (!N) return null;
+        const sparse = (state.nodeImbalance.byNodeId && state.nodeImbalance.byNodeId[String(nodeId)])
+          ? state.nodeImbalance.byNodeId[String(nodeId)]
+          : [];
+        const arr = new Array(N).fill(0);
+        for (const pair of sparse) {
+          if (!pair || pair.length < 2) continue;
+          const rank = pair[0];
+          const pct = pair[1];
+          if (rank >= 0 && rank < N) arr[rank] = pct || 0;
+        }
+        return arr;
+      }
+
+      function addImbalanceChartFromSidebarWithFlyIn(buttonEl){
+        $('imbalanceErr').textContent = '';
+        const snap = state.selectedSnapshot;
+        if (!snap || snap.node_id == null) {
+          $('imbalanceErr').textContent = 'calltree.json 缺少 node_id，当前数据集可能过旧。';
+          return;
+        }
+        const perRankPct = getPerRankPctFromNodeId(snap.node_id);
+        if (!perRankPct) {
+          $('imbalanceErr').textContent = '未加载 node_imbalance.json，或该节点没有 per-rank 数据。';
+          return;
+        }
+        const label = formatNodeLabel(snap);
+        const segments = [{ label, perRankPct, color: nextColor() }];
+        flySubpanelGhostThenAdd(buttonEl, segments, 'single');
+      }
+
+      function updateSubpanelsHint(){
+        const single = $('imbalanceSubpanelsSingle');
+        const fused = $('imbalanceSubpanelsFused');
+        const hint = $('imbalanceSubpanelsHint');
+        if (!hint) return;
+        const empty = (!single || single.children.length === 0) && (!fused || fused.children.length === 0);
+        hint.style.display = empty ? 'block' : 'none';
+      }
+
+      function resetSubpanels(){
+        state.subpanels.clear();
+        state.nextPanelId = 1;
+        state.nextColorIndex = 0;
+        const a = $('imbalanceSubpanelsSingle');
+        const b = $('imbalanceSubpanelsFused');
+        if (a) a.innerHTML = '';
+        if (b) b.innerHTML = '';
+        updateSubpanelsHint();
+      }
+
+      function drawStackedBars(canvas, segments){
+        const ctx = canvas.getContext('2d');
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        const numRanks = segments[0]?.perRankPct?.length || 0;
+        if (numRanks === 0) return;
+
+        const pad = { left: 52, right: 18, top: 30, bottom: 40 };
+        const chartW = w - pad.left - pad.right;
+        const chartH = h - pad.top - pad.bottom;
+
+        let maxTotal = 0.01;
+        for (let i = 0; i < numRanks; i++){
+          let sum = 0;
+          for (const seg of segments){
+            sum += seg.perRankPct[i] || 0;
+          }
+          if (sum > maxTotal) maxTotal = sum;
+        }
+
+        const barWidth = Math.max(2, Math.min(12, (chartW / numRanks) - 2));
+        const gap = (chartW - barWidth * numRanks) / (numRanks + 1);
+
+        const title = segments.length === 1
+          ? segments[0].label
+          : ('Fusion x' + segments.length);
+        ctx.fillStyle = '#e7f0ff';
+        ctx.font = '12px system-ui, sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(title + ' — 各进程占比', w/2, 16);
+
+        for (let i = 0; i < numRanks; i++){
+          const xCenter = pad.left + gap + i * (barWidth + gap) + barWidth/2;
+          const x = xCenter - barWidth/2;
+
+          let y = pad.top + chartH;
+          for (const seg of segments){
+            const pct = seg.perRankPct[i] || 0;
+            const segH = (pct / maxTotal) * chartH;
+            y -= segH;
+            ctx.fillStyle = seg.color || 'rgba(110,231,255,0.8)';
+            if (segH > 0.0001) ctx.fillRect(x, y, barWidth, segH);
+          }
+
+          if (i % Math.ceil(numRanks / 24) === 0 || numRanks <= 32){
+            ctx.fillStyle = '#8aa0b6';
+            ctx.font = '10px monospace';
+            ctx.textAlign = 'center';
+            ctx.fillText(String(i), xCenter, pad.top + chartH + 14);
+          }
+        }
+
+        ctx.fillStyle = '#8aa0b6';
+        ctx.font = '10px system-ui, sans-serif';
+        ctx.textAlign = 'right';
+        ctx.fillText('0%', pad.left - 8, pad.top + chartH + 4);
+        ctx.fillText(maxTotal.toFixed(1) + '%', pad.left - 8, pad.top + 4);
+      }
+
+      function flySubpanelGhostThenAdd(buttonEl, segments, destColumn){
+        destColumn = (destColumn === 'fused') ? 'fused' : 'single';
+        const subWrap = destColumn === 'fused' ? $('imbalanceSubpanelsFused') : $('imbalanceSubpanelsSingle');
+        const chartWrap = $('imbalanceChartWrap');
+        const addOpts = { column: destColumn };
+        if (!subWrap || !chartWrap){
+          addSubpanelFromSegments(segments, addOpts);
+          return;
+        }
+        if (!buttonEl){
+          addSubpanelFromSegments(segments, addOpts);
+          return;
+        }
+        if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches){
+          addSubpanelFromSegments(segments, addOpts);
+          return;
+        }
+
+        chartWrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+
+        const run = () => {
+          const br = buttonEl.getBoundingClientRect();
+          const tr = subWrap.getBoundingClientRect();
+          const w = Math.min(360, Math.max(220, tr.width - 16));
+          const h = 268;
+          const tx = tr.left + Math.max(4, (tr.width - w) * 0.02);
+          const ty = tr.top + 4;
+          const bx = br.left + br.width / 2 - (w * 0.04);
+          const by = br.top + br.height / 2 - (h * 0.04);
+
+          const ghost = document.createElement('div');
+          ghost.className = 'subpanel-fly-ghost';
+          ghost.setAttribute('aria-hidden', 'true');
+          ghost.innerHTML = `
+            <div class="subpanel-fly-ghost-inner">
+              <div class="subpanel-fly-bars3"><span></span><span></span><span></span></div>
+              <span class="subpanel-fly-cap">各进程占比</span>
+            </div>`;
+          document.body.appendChild(ghost);
+          ghost.style.position = 'fixed';
+          ghost.style.left = '0';
+          ghost.style.top = '0';
+          ghost.style.width = w + 'px';
+          ghost.style.height = h + 'px';
+          ghost.style.zIndex = '10000';
+          ghost.style.pointerEvents = 'none';
+          ghost.style.transformOrigin = 'top left';
+
+          const start = `translate(${bx}px, ${by}px) scale(0.06)`;
+          const end = `translate(${tx}px, ${ty}px) scale(1)`;
+          ghost.style.transform = start;
+          ghost.style.opacity = '0.9';
+
+          const done = () => {
+            ghost.remove();
+            addSubpanelFromSegments(segments, addOpts);
+          };
+
+          try {
+            const anim = ghost.animate(
+              [
+                { transform: start, opacity: 0.88 },
+                { transform: end, opacity: 1 }
+              ],
+              { duration: 600, easing: 'cubic-bezier(0.22, 1, 0.36, 1)' }
+            );
+            anim.onfinish = done;
+            anim.oncancel = done;
+          } catch (e) {
+            done();
+          }
+        };
+
+        requestAnimationFrame(() => requestAnimationFrame(run));
+      }
+
+      function addSubpanelFromSegments(segments, opts){
+        opts = opts || {};
+        const destColumn = (opts.column === 'fused') ? 'fused' : 'single';
+        if (!segments || segments.length === 0) return;
+        const baseLen = segments[0].perRankPct?.length || 0;
+        if (!baseLen) return;
+        for (const seg of segments){
+          if (!Array.isArray(seg.perRankPct) || seg.perRankPct.length !== baseLen) {
+            console.warn('segment perRankPct length mismatch');
+          }
+        }
+
+        const panelId = state.nextPanelId++;
+        const container = destColumn === 'fused' ? $('imbalanceSubpanelsFused') : $('imbalanceSubpanelsSingle');
+        if (!container) return;
+
+        const el = document.createElement('div');
+        el.className = 'subpanel';
+        el.dataset.panelId = String(panelId);
+        el.draggable = true;
+
+        const header = document.createElement('div');
+        header.className = 'subpanel-header';
+
+        const title = document.createElement('div');
+        title.className = 'subpanel-title';
+        const first = segments[0]?.label || 'Untitled';
+        title.textContent = segments.length === 1 ? first : (first + ' +' + (segments.length - 1));
+
+        const closeBtn = document.createElement('button');
+        closeBtn.type = 'button';
+        closeBtn.className = 'close-btn';
+        closeBtn.textContent = '关闭';
+        closeBtn.onclick = (ev) => {
+          ev.stopPropagation();
+          flashClick(closeBtn);
+          removeSubpanel(panelId);
+        };
+
+        header.appendChild(title);
+        header.appendChild(closeBtn);
+        el.appendChild(header);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = 720;
+        canvas.height = 220;
+        el.appendChild(canvas);
+
+        const legend = document.createElement('div');
+        legend.className = 'legend';
+        for (const seg of segments){
+          const li = document.createElement('div');
+          li.className = 'legend-item';
+          li.innerHTML = `
+            <span class="swatch" style="background:${seg.color || '#6ee7ff'}"></span>
+            <span class="legend-label" title="${safeStr(seg.label)}">${safeStr(seg.label)}</span>
+          `;
+          legend.appendChild(li);
+        }
+        el.appendChild(legend);
+
+        el.addEventListener('dragstart', (ev) => {
+          ev.dataTransfer.setData('text/plain', String(panelId));
+          el.classList.add('dragging');
+        });
+        el.addEventListener('dragend', () => el.classList.remove('dragging'));
+        el.addEventListener('dragover', (ev) => {
+          ev.preventDefault();
+          el.classList.add('drop-target');
+        });
+        el.addEventListener('dragleave', () => el.classList.remove('drop-target'));
+        el.addEventListener('drop', (ev) => {
+          ev.preventDefault();
+          el.classList.remove('drop-target');
+          flashClick(el);
+          const srcId = parseInt(ev.dataTransfer.getData('text/plain'), 10);
+          if (!Number.isFinite(srcId) || srcId === panelId) return;
+          fuseSubpanels(srcId, panelId);
+        });
+
+        state.subpanels.set(panelId, { segments, el, canvas, column: destColumn });
+        container.appendChild(el);
+        drawStackedBars(canvas, segments);
+        updateSubpanelsHint();
+        flashClick(el);
+      }
+
+      function removeSubpanel(panelId){
+        const data = state.subpanels.get(panelId);
+        if (!data) return;
+        data.el.remove();
+        state.subpanels.delete(panelId);
+        updateSubpanelsHint();
+      }
+
+      function fuseSubpanels(srcId, tgtId){
+        const src = state.subpanels.get(srcId);
+        const tgt = state.subpanels.get(tgtId);
+        if (!src || !tgt) return;
+
+        const fusedSegments = [...src.segments, ...tgt.segments];
+        flySubpanelGhostThenAdd(tgt.el, fusedSegments, 'fused');
+      }
+
+      async function loadFromInputs(){
+        state.calltree = null;
+        state.nodeImbalance = null;
+        state.expanded.clear();
+        state.expandAll = false;
+        resetSubpanels();
+        state.selectedNodeKey = null;
+        state.selectedSnapshot = null;
+        $('imbalanceErr').textContent = '';
+
+        const calltreeFile = $('calltreeFile').files?.[0];
+        const nodeImbalanceFile = $('nodeImbalanceFile').files?.[0];
+        try{
+          if (calltreeFile) state.calltree = await readJsonFromFile(calltreeFile);
+        }catch(e){
+          $('treeErr').textContent = 'calltree.json 解析失败: ' + (e?.message || String(e));
+        }
+        try{
+          if (nodeImbalanceFile) state.nodeImbalance = await readJsonFromFile(nodeImbalanceFile);
+        }catch(e){
+          $('imbalanceErr').textContent = 'node_imbalance.json 解析失败: ' + (e?.message || String(e));
+        }
+      }
+
+      async function loadFromJsonOut(){
+        state.calltree = null;
+        state.nodeImbalance = null;
+        state.expanded.clear();
+        state.expandAll = false;
+        resetSubpanels();
+        state.selectedNodeKey = null;
+        state.selectedSnapshot = null;
+        $('imbalanceErr').textContent = '';
+        const base = 'json_out';
+        try {
+          const [ct, ni] = await Promise.all([
+            fetch(base + '/calltree.json').then(r => r.ok ? r.json() : null).catch(() => null),
+            fetch(base + '/node_imbalance.json').then(r => r.ok ? r.json() : null).catch(() => null)
+          ]);
+          state.calltree = ct;
+          state.nodeImbalance = ni;
+        } catch (e) {
+          console.error('loadFromJsonOut:', e);
+        }
+        renderTree();
+      }
+
+      $('renderBtn').onclick = async () => {
+        flashClick($('renderBtn'));
+        await loadFromInputs();
+        renderTree();
+      };
+      $('loadJsonOutBtn').onclick = () => { flashClick($('loadJsonOutBtn')); loadFromJsonOut(); };
+      $('expandAllBtn').onclick = () => { flashClick($('expandAllBtn')); state.expandAll = true; renderTree(); };
+      $('collapseAllBtn').onclick = () => { flashClick($('collapseAllBtn')); state.expandAll = false; state.expanded.clear(); renderTree(); };
+
+      $('calltreeViewMode').onchange = () => { renderTree(); };
+      $('calltreeRank').onchange = () => { renderTree(); };
+      $('calltreeCustomRanks').onchange = () => { renderTree(); };
+      $('calltreeCustomRanks').onkeyup = (ev) => { if (ev.key === 'Enter') renderTree(); };
+    </script>
+  </body>
+</html>

@@ -11,7 +11,7 @@ set -e
 # Configuration
 # ============================================================================
 
-NPB_REPO_URL="https://github.com/llnl/NPB.git"
+NPB_REPO_URL="git@github.com:llnl/NPB.git"
 NPB_COMMIT="35cd0e4a895da7dea0316fac34b4da9ab5d7cba5"
 NPB_DIR="NPB"
 NPB_MPI_DIR="NPB3.4/NPB3.4-MPI"

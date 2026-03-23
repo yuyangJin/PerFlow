@@ -13,11 +13,6 @@ add_executable(offset_converter_example offset_converter_example.cpp)
 target_link_libraries(offset_converter_example PRIVATE perflow_sampling)
 target_compile_options(offset_converter_example PRIVATE -g)
 
-# Post Analysis Example
-add_executable(post_analysis_example post_analysis_example.cpp)
-target_link_libraries(post_analysis_example PRIVATE perflow_sampling perflow_analysis ${CMAKE_DL_LIBS})
-target_compile_options(post_analysis_example PRIVATE -g)
-
 # Online Analysis Example (Analyzer)
 add_executable(online_analysis_example online_analysis_example.cpp)
 target_link_libraries(online_analysis_example PRIVATE perflow_sampling perflow_analysis ${CMAKE_DL_LIBS})
@@ -38,7 +33,6 @@ target_compile_options(npb_hotspot_analyzer PRIVATE -g)
 set_target_properties(
     pmu_sampler_demo
     offset_converter_example
-    post_analysis_example
     online_analysis_example
     symbol_resolution_example
     npb_hotspot_analyzer

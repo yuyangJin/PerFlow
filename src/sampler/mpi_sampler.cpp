@@ -24,7 +24,8 @@
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
 
-#include "sampling/sampling.h"
+#include "sampling/sampler.h"
+#include "sampling/sampler_papi_backend.h"
 #include "sampling/library_map.h"
 #include "sampling/data_export.h"
 #include "sampling/mpi_init_setup.h"
@@ -36,7 +37,7 @@ using namespace perflow::sampling;
 // ============================================================================
 // Two methods are available:
 // 1. LIBUNWIND method (default, recommended) - uses libunwind library
-// 2. PMU_SAMPLER method - uses captureCallStack from pmu_sampler.h
+// 2. PMU_SAMPLER method - uses captureCallStack from sampler_papi_backend.h
 //
 // To switch methods, define USE_PMU_SAMPLER_CALLSTACK before including this file
 // or change the default here.
@@ -172,7 +173,8 @@ static size_t capture_call_stack(SampleCallStack& stack, size_t max_depth) {
 
 #elif defined(USE_PMU_SAMPLER_CALLSTACK)
 /// Capture current call stack using PMU sampler approach (Method 2 - Alternative)
-/// This uses the captureCallStack() method from include/sampling/pmu_sampler.h
+/// This uses the captureCallStack() method from
+/// include/sampling/sampler_papi_backend.h
 /// @param stack Output call stack
 /// @param max_depth Maximum stack depth to capture
 /// @return Number of frames captured

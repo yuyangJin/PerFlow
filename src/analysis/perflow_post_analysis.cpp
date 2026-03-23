@@ -1,11 +1,11 @@
 // Copyright 2024 PerFlow Authors
 // Licensed under the Apache License, Version 2.0
 
-/// @file post_analysis_example.cpp
+/// @file perflow_post_analysis.cpp
 /// @brief Post-analysis of PerFlow sampling data: hotspot, imbalance, compute/comm
 ///
 /// Usage:
-///   post_analysis_example <data_directory> [--fast] [--json <output_dir>]
+///   perflow_post_analysis <data_directory> [--fast] [--json <output_dir>]
 ///
 /// Outputs:
 ///   1. Top 20 hottest function stacks (function, file:line, library, time%)
@@ -1371,7 +1371,7 @@ int main(int argc, char* argv[]) {
   std::cout << "\nTotal time: " << std::fixed << std::setprecision(2)
             << total_sec << "s\n";
 
-  std::cout << "\nUsage: " << (argc > 0 ? argv[0] : "post_analysis_example")
+  std::cout << "\nUsage: " << (argc > 0 ? argv[0] : "perflow_post_analysis")
             << " <data_dir> [--fast] [--json <output_dir>]\n";
   return 0;
 }

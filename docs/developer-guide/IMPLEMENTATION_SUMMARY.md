@@ -69,7 +69,7 @@ Successfully implemented a comprehensive online analysis module for PerFlow 2.0,
 - StaticHashMap tests: 14  
 - CallStackHashMap tests: 11
 - DataExport tests: 9
-- PmuSampler tests: 12
+- PapiBackendSampler tests: 12
 - LibraryMap tests: 7
 - OffsetConverter tests: 8
 - LibraryMapExport tests: 5

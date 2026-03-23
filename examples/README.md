@@ -131,7 +131,7 @@ Demonstrates library mapping and address-to-offset conversion.
 - Simulates call stack addresses
 - Converts addresses to resolved frames
 
-### 3. Post Analysis Example (`post_analysis_example`) - **With PDF Visualization**
+### 3. Post Analysis Example (`perflow_post_analysis`) - **With PDF Visualization**
 
 Demonstrates post-processing of collected sample data with tree visualization.
 
@@ -140,16 +140,16 @@ Demonstrates post-processing of collected sample data with tree visualization.
 **Usage**:
 ```bash
 # Assuming you have sample data from MPI sampler
-./build/examples/post_analysis_example [data_directory]
+./build/examples/perflow_post_analysis [data_directory]
 ```
 
 **Example**:
 ```bash
 # Use default directory (/tmp)
-./build/examples/post_analysis_example
+./build/examples/perflow_post_analysis
 
 # Or specify custom directory
-./build/examples/post_analysis_example /path/to/sample/data
+./build/examples/perflow_post_analysis /path/to/sample/data
 ```
 
 **What it does**:

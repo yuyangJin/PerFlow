@@ -135,7 +135,7 @@ This produces three files per rank:
 
 ## Usage Example
 
-See `examples/post_analysis_example.cpp` for complete examples.
+See `src/analysis/perflow_post_analysis.cpp` for complete examples.
 
 ### Basic Post-Analysis
 

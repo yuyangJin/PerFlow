@@ -2,7 +2,7 @@
 // Licensed under the Apache License, Version 2.0
 
 /// @file pmu_sampler_demo.cpp
-/// @brief Demonstration of the PmuSampler usage for performance profiling
+/// @brief Demonstration of the PapiBackendSampler usage for performance profiling
 ///
 /// This example shows how to:
 /// 1. Configure and initialize the PMU sampler
@@ -14,7 +14,7 @@
 #include <cstdio>
 #include <cstdlib>
 
-#include "sampling/sampling.h"
+#include "sampling/sampler_papi_backend.h"
 
 using namespace perflow::sampling;
 
@@ -52,7 +52,7 @@ int main() {
   std::printf("Step 1: Creating PMU sampler with custom configuration...\n");
 
   // Use smaller capacity for demo (in production, use larger values)
-  PmuSampler<16, 256> sampler;
+  PapiBackendSampler<16, 256> sampler;
 
   // Configure the sampler
   PmuSamplerConfig config;

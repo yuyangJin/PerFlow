@@ -64,13 +64,7 @@ sudo dnf install -y gcc-c++ cmake openmpi-devel libunwind-devel papi-devel zlib-
 
 ### 2. Build PerFlow
 
-The Python version (with C++ backend)
-```bash
-git clone https://github.com/yuyangJin/PerFlow.git
-cd PerFlow
-pip install .
-```
-The C++ version
+The C++ version for a visualized analysis
 ```bash
 git clone https://github.com/yuyangJin/PerFlow.git
 cd PerFlow
@@ -79,42 +73,70 @@ cmake .. -DPERFLOW_BUILD_TESTS=ON -DPERFLOW_BUILD_EXAMPLES=ON
 make -j$(nproc)
 ```
 
+The Python version (with C++ backend) for more flexible analysis
+```bash
+git clone https://github.com/yuyangJin/PerFlow.git
+cd PerFlow
+pip install .
+```
+
 ### 3. Profile Your Application
 
-**Option 1: Hardware PMU Sampler** (lowest overhead, requires PMU access)
+**Option 1: PAPI-based PMU Sampler** (lowest overhead, requires PMU access)
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler.so \
-PERFLOW_OUTPUT_DIR=/tmp/samples \
+PERFLOW_OUTPUT_DIR=/path/to/samples \
 mpirun -n 4 ./your_mpi_app
 ```
 
-**Option 2: Timer-Based Sampler** (platform-independent, works everywhere)
+**Option 2: Perf-Based PMU sampler** (no PAPI; Linux defaults to `perf_event` + libunwind; use `PERFLOW_SAMPLER_BACKEND=hw`. Environment variables are documented in [Configuration](docs/user-guide/CONFIGURATION.md).
+```bash
+export PERFLOW_SAMPLER_BACKEND=hw
+LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
+PERFLOW_OUTPUT_DIR=/path/to/samples \
+PERFLOW_SAMPLING_FREQ=1000 \
+mpirun -n 4 ./your_mpi_app
+```
+
+**Option 3: MPI timer sampler** use `PERFLOW_SAMPLER_BACKEND=thread` if PMU access is denied. Environment variables are documented in [Configuration](docs/user-guide/CONFIGURATION.md).
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
-PERFLOW_OUTPUT_DIR=/tmp/samples \
+PERFLOW_OUTPUT_DIR=/path/to/samples \
 PERFLOW_SAMPLING_FREQ=1000 \
 mpirun -n 4 ./your_mpi_app
 ```
 
 ### 4. Analyze Results
+
+The C++ version
+```bash
+./examples/perflow_post_analysis /path/to/samples --json /path/to/output
+
+# View results in PerFlow's web viewer
+cd ./web_viewer
+python3 -m http.server 8765
+```
+
+#### Web Viewer Panels
+
+Call tree panel:
+
+![](docs/figs/webviewer-calltree-panel.png)
+
+Inter-rank imbalance panel:
+
+![](docs/figs/webviewer-imbalance-panel.gif)
+
 The Python version (with C++ backend)
 ```bash
 python3 ./examples/simple_file_analysis.py /tmp/samples [num_processes]
 ```
 
-The C++ version
-```bash
-./examples/online_analysis_example /tmp/samples /tmp/output
 
-# View results
-cat /tmp/output/balance_report.txt    # Workload balance
-cat /tmp/output/hotspots.txt          # Performance hotspots
-# Open /tmp/output/performance_tree.pdf in a PDF viewer
-```
 
 📖 **[Full Getting Started Guide](docs/user-guide/GETTING_STARTED.md)** for detailed instructions.
 
-## Python Dataflow-based Analysis Framework
+## [Extension] Python Dataflow-based Analysis Framework
 
 PerFlow provides a powerful Python frontend with **dataflow-based programming** for flexible composition of analysis workflows. The framework uses a **directed acyclic graph (DAG)** abstraction where:
 - **Nodes** represent analysis subtasks (load data, find hotspots, analyze balance, etc.)

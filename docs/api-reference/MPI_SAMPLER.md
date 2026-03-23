@@ -13,7 +13,7 @@ The MPI Performance Sampler is a performance profiling tool for MPI applications
    - Overflow-based sampling using hardware performance counters
    - **Call stack capture** with two available methods:
      - **Method 1 (default)**: libunwind-based unwinding (from `demo/sampling/sampler.cpp`)
-     - **Method 2 (alternative)**: Frame pointer unwinding (from `include/sampling/pmu_sampler.h`)
+     - **Method 2 (alternative)**: Frame pointer unwinding (from `include/sampling/sampler_papi_backend.h`)
    - Data export in PerFlow binary format
    - **MPI initialization interception** for both C/C++ and Fortran:
      - C/C++: `MPI_Init`, `MPI_Init_thread`
@@ -203,7 +203,7 @@ This is the **default method** and is automatically selected when building.
 
 #### Method 2: Frame Pointer Unwinding (Alternative)
 
-Based on `captureCallStack()` from `include/sampling/pmu_sampler.h`:
+Based on `captureCallStack()` from `include/sampling/sampler_papi_backend.h`:
 - Uses `__builtin_frame_address()` and `__builtin_return_address()`
 - Limited to compile-time constant depth (up to 16 frames)
 - **WARNING**: Can cause segmentation faults in some contexts

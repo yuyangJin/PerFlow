@@ -228,6 +228,82 @@ struct CallStackEqual {
   }
 };
 
+// ---------------------------------------------------------------------------
+// Signal / interrupt context helpers (libunwind + ucontext)
+//
+// Used by MPI timer sampler and similar signal-based collectors.  Enable only
+// for targets that link libunwind (see CMake: PERFLOW_ENABLE_SIGNAL_STACK_HELPERS).
+// ---------------------------------------------------------------------------
+#if defined(PERFLOW_ENABLE_SIGNAL_STACK_HELPERS)
+
+#if defined(__APPLE__) && !defined(_XOPEN_SOURCE)
+#define PERFLOW_CALL_STACK_UCONTEXT_XOPEN 1
+#define _XOPEN_SOURCE 700
+#endif
+
+// Include <signal.h> before <ucontext.h> so glibc defines stack_t and related
+// types before any transitive include; avoids broken re-includes when later
+// headers (e.g. PMU backend) pull in <signal.h> again.
+#include <signal.h>
+#include <ucontext.h>
+#if defined(__linux__) && defined(__x86_64__)
+#include <sys/ucontext.h>
+#endif
+
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
+
+#if defined(PERFLOW_CALL_STACK_UCONTEXT_XOPEN)
+#undef _XOPEN_SOURCE
+#undef PERFLOW_CALL_STACK_UCONTEXT_XOPEN
+#endif
+
+/// Extract instruction pointer from a ucontext passed to a signal handler.
+inline uintptr_t get_ip_from_ucontext(void* context) noexcept {
+  if (!context) return 0;
+  ucontext_t* uc = static_cast<ucontext_t*>(context);
+#if defined(__APPLE__) && defined(__aarch64__)
+  return static_cast<uintptr_t>(uc->uc_mcontext->__ss.__pc);
+#elif defined(__APPLE__) && defined(__x86_64__)
+  return static_cast<uintptr_t>(uc->uc_mcontext->__ss.__rip);
+#elif defined(__linux__) && defined(__aarch64__)
+  return static_cast<uintptr_t>(uc->uc_mcontext.pc);
+#elif defined(__linux__) && defined(__x86_64__)
+  return static_cast<uintptr_t>(uc->uc_mcontext.gregs[REG_RIP]);
+#else
+  (void)uc;
+  return 0;
+#endif
+}
+
+/// Capture call stack from a signal handler using libunwind (async-signal-safe
+/// path).  Skips the top frames (this helper, signal handler, trampoline).
+template <size_t MaxDepth>
+inline size_t capture_call_stack_in_signal(CallStack<MaxDepth>& stack,
+                                           size_t max_depth) noexcept {
+  stack.clear();
+  unw_cursor_t cur;
+  unw_context_t ctx;
+  unw_getcontext(&ctx);
+  unw_init_local(&cur, &ctx);
+
+  size_t depth = 0;
+  uintptr_t addrs[MaxDepth];
+  while (unw_step(&cur) > 0 && depth < max_depth && depth < MaxDepth) {
+    unw_word_t pc = 0;
+    unw_get_reg(&cur, UNW_REG_IP, &pc);
+    if (pc == 0) break;
+    addrs[depth++] = static_cast<uintptr_t>(pc) - 2;
+  }
+  constexpr size_t kSkip = 3;  // this func, handler, trampoline
+  for (size_t i = kSkip; i < depth; ++i) {
+    if (addrs[i]) stack.push(addrs[i]);
+  }
+  return depth > kSkip ? depth - kSkip : 0;
+}
+
+#endif  // PERFLOW_ENABLE_SIGNAL_STACK_HELPERS
+
 }  // namespace sampling
 }  // namespace perflow
 

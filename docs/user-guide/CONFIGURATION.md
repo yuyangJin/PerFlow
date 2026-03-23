@@ -6,51 +6,49 @@ This guide covers all configuration options available in PerFlow for fine-tuning
 
 All PerFlow configuration is done through environment variables. These are set before running your MPI application with LD_PRELOAD.
 
-### Required Variables
+### Output directory
 
 #### PERFLOW_OUTPUT_DIR
 **Type**: String (directory path)  
-**Required**: Yes  
-**Description**: Directory where sample data files will be written
-
-Each MPI rank will create a file named `rank_N.pflw` in this directory.
+**Required**: Recommended (MPI samplers default to `/tmp` if unset)  
+**Description**: Directory where sample data files will be written (`perflow_mpi_rank_*` files).
 
 ```bash
 PERFLOW_OUTPUT_DIR=/tmp/samples
 ```
 
-⚠️ **Important**: The directory must exist and be writable before running your application.
+⚠️ **Important**: If you set this variable, the directory must exist and be writable before running your application.
 
 ### Sampling Configuration
 
 #### PERFLOW_SAMPLING_FREQ
 **Type**: Integer (Hz)  
-**Required**: Timer sampler only  
+**Applies to**: `libperflow_mpi_sampler_timer.so`, `libperflow_mpi_sampler.so` (PAPI build)  
 **Default**: 1000  
-**Range**: 100 - 10000  
-**Description**: Sampling frequency in samples per second
+**Range**: Practical range roughly 100–10000 (higher increases overhead)  
+**Description**: Target sampling rate in samples per second.
 
 Higher frequencies provide more detailed profiles but increase overhead.
 
 ```bash
-PERFLOW_SAMPLING_FREQ=5000  # 5kHz sampling
+PERFLOW_SAMPLING_FREQ=5000  # 5 kHz sampling
 ```
 
 **Recommended values**:
-- **100-500 Hz**: Long-running applications, minimal overhead
-- **1000 Hz**: Default, good balance (1ms between samples)
-- **2000-5000 Hz**: Short runs, detailed profiling
-- **>5000 Hz**: Expert use only, check overhead
+- **100–500 Hz**: Long-running applications, minimal overhead
+- **1000 Hz**: Default, good balance (about 1 ms between samples)
+- **2000–5000 Hz**: Short runs, detailed profiling
+- **>5000 Hz**: Expert use only; measure overhead on your system
 
-💡 **Tip**: For hardware PMU sampler, frequency is configured in code, not via environment variables.
+💡 **Tip**: For some hardware PMU builds, additional tuning may exist in code; environment variables above are what the MPI preload libraries read at runtime.
 
 ### Call Stack Configuration
 
 #### PERFLOW_MAX_STACK_DEPTH
 **Type**: Integer  
-**Default**: 128  
+**Default**: 128 (in documentation for tools that honor this variable)  
 **Range**: 16 - 256  
-**Description**: Maximum number of frames to capture in each call stack
+**Description**: Maximum number of frames to capture in each call stack, where supported.
 
 Deeper stacks provide more context but use more memory and processing time.
 
@@ -59,8 +57,10 @@ PERFLOW_MAX_STACK_DEPTH=64  # Limit to 64 frames
 ```
 
 **When to adjust**:
-- **Decrease (32-64)**: Very deep call hierarchies, memory constrained
+- **Decrease (32–64)**: Very deep call hierarchies, memory constrained
 - **Increase (256)**: Need full context for deeply nested code
+
+**Note:** The MPI preload libraries (`libperflow_mpi_sampler*.so`) use a **fixed** maximum stack depth in the build (see `kMaxCallStackDepth` in the sampler sources). They do **not** read `PERFLOW_MAX_STACK_DEPTH` at runtime.
 
 ### Compression Configuration
 
@@ -126,12 +126,12 @@ sudo sh -c 'echo -1 > /proc/sys/kernel/perf_event_paranoid'
 kernel.perf_event_paranoid = -1
 ```
 
-### Timer-Based Sampler
+### Timer-based MPI sampler (`libperflow_mpi_sampler_timer.so`)
 
 **Library**: `libperflow_mpi_sampler_timer.so`  
-**Requirements**: POSIX timers (always available)  
-**Overhead**: ~1-2% @ 1kHz  
-**Use case**: Containers, VMs, or when PMU access is unavailable
+**Requirements**: MPI, libunwind (and a Linux kernel that exposes `perf_event_open` when using the default PMU backend)  
+**Overhead**: Depends on backend and frequency; roughly ~1–2% @ 1 kHz for the Linux PMU path on typical systems  
+**Use case**: Same preload entry point everywhere: on **Linux** the default is low-overhead **hardware cycle overflow** (`perf_event` + `SIGIO` + libunwind). You can switch to a **signal-free** thread that polls `/proc` when PMU access is blocked. On **macOS and other non-Linux POSIX** systems, a **SIGUSR1**-driven thread samples the main thread instead.
 
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
@@ -139,6 +139,29 @@ PERFLOW_OUTPUT_DIR=/tmp/samples \
 PERFLOW_SAMPLING_FREQ=1000 \
 mpirun -n 4 ./your_app
 ```
+
+#### Environment variables (MPI timer library)
+
+Variables read by `mpi_sampler_timer.cpp` and the sampling backends (current implementation):
+
+| Variable | Platform | Default | Description |
+|----------|----------|---------|-------------|
+| `PERFLOW_SAMPLING_FREQ` | All | `1000` | Target sampling rate (Hz). Used by all backends to derive interval or period. |
+| `PERFLOW_OUTPUT_DIR` | All | `/tmp` | Output directory for `perflow_mpi_rank_*` data and library map files. Directory must exist if set. |
+| `PERFLOW_SAMPLER_BACKEND` | Linux only | *(unset = PMU)* | Backend selection: unset, `pmu`, or `hw` → Linux PMU path (`perf_event_open`, full call stacks via libunwind). `thread` → dedicated thread polls `/proc/self/task/<tid>/syscall` for IP only (no PMU, no signal delivery to the app). Any other non-empty value logs a warning and falls back to PMU. |
+| `PERFLOW_PMU_FAST` | Linux, PMU backend | off | If set to `1`, only records the instruction pointer from the signal `ucontext` (skips libunwind walk). Lower overhead, less context. |
+| `PERFLOW_PMU_PERIOD` | Linux, PMU backend | *(derived)* | If set to a positive integer, overrides the cycle **sample period** (in CPU cycles) passed to `perf_event`. When unset, the period is computed from `PERFLOW_SAMPLING_FREQ` and `PERFLOW_CPU_FREQ_GHZ`. |
+| `PERFLOW_CPU_FREQ_GHZ` | Linux, PMU backend | `2.6` | Nominal CPU frequency in GHz used only to convert requested Hz into a cycle period when `PERFLOW_PMU_PERIOD` is not set. Set to match your CPU if defaults are inaccurate. |
+| `PERFLOW_SIGNAL_FAST` | Non-Linux, signal backend | off | If set to `1`, same idea as `PERFLOW_PMU_FAST`: IP-only from `ucontext`, no libunwind stack walk. |
+
+**Linux notes**
+
+- Default PMU path needs permission to use performance events (e.g. `perf_event_paranoid` ≤ 2, or appropriate capabilities). Use `PERFLOW_SAMPLER_BACKEND=thread` when PMU is blocked (containers, strict hosts).
+- The thread backend records **a single IP per sample** (no full unwind).
+
+**Non-Linux notes**
+
+- No `PERFLOW_SAMPLER_BACKEND` (Linux-only). Sampling uses the SIGUSR1 + helper thread design documented in the timer sampler user guide.
 
 ## Configuration Examples
 
@@ -159,30 +182,28 @@ Detailed profiling for short runs:
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
 PERFLOW_OUTPUT_DIR=/tmp/samples \
 PERFLOW_SAMPLING_FREQ=5000 \
-PERFLOW_MAX_STACK_DEPTH=64 \
 mpirun -n 4 ./short_test
 ```
 
-### Example 3: Long-Running with Compression
-Optimized for long runs with limited disk space:
+### Example 3: Linux, PMU Blocked (Thread Backend)
+When `perf_event_open` is not available, force the `/proc`-polling backend:
 
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
 PERFLOW_OUTPUT_DIR=/tmp/samples \
+PERFLOW_SAMPLER_BACKEND=thread \
 PERFLOW_SAMPLING_FREQ=500 \
-PERFLOW_ENABLE_COMPRESSION=1 \
 mpirun -n 16 ./long_simulation
 ```
 
-### Example 4: Debug Mode
-Troubleshooting configuration issues:
+### Example 4: Capture stderr
+Save sampler diagnostics alongside your app output:
 
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
 PERFLOW_OUTPUT_DIR=/tmp/samples \
 PERFLOW_SAMPLING_FREQ=100 \
-PERFLOW_DEBUG=1 \
-mpirun -n 2 ./test_app 2>&1 | tee debug.log
+mpirun -n 2 ./test_app 2>&1 | tee run.log
 ```
 
 ### Example 5: Hardware PMU (Production)

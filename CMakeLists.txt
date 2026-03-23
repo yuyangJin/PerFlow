@@ -165,6 +165,12 @@ if(MPI_FOUND)
         ${MPI_CXX_LIBRARIES}
     )
 
+    target_compile_definitions(perflow_mpi_sampler_timer
+        PRIVATE
+        PERFLOW_MPI_SAMPLER_BUILD=1
+        PERFLOW_ENABLE_SIGNAL_STACK_HELPERS=1
+    )
+
     # libunwind/libdl are Linux-isms; on macOS these are in libSystem.
     if(UNIX AND NOT APPLE)
         target_link_libraries(perflow_mpi_sampler_timer PRIVATE unwind dl)
@@ -189,6 +195,23 @@ if(MPI_FOUND)
 else()
     message(STATUS "MPI not found - skipping timer-based MPI sampler build")
 endif()
+
+# ============================================================================
+# Post Analysis Executable
+# ============================================================================
+add_executable(perflow_post_analysis
+    ${CMAKE_SOURCE_DIR}/src/analysis/perflow_post_analysis.cpp
+)
+target_link_libraries(perflow_post_analysis
+    PRIVATE
+    perflow_sampling
+    perflow_analysis
+    ${CMAKE_DL_LIBS}
+)
+target_compile_options(perflow_post_analysis PRIVATE -g)
+set_target_properties(perflow_post_analysis PROPERTIES
+    RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/bin
+)
 
 # Tests
 if(PERFLOW_BUILD_TESTS)

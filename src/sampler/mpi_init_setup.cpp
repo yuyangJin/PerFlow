@@ -8,7 +8,9 @@
 /// C/C++ and Fortran language bindings. It handles all Fortran name mangling
 /// conventions and captures the MPI rank for use by the sampler.
 
+#ifndef _GNU_SOURCE
 #define _GNU_SOURCE
+#endif
 
 #include <mpi.h>
 #include <cstdio>

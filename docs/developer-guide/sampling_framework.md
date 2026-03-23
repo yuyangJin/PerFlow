@@ -12,11 +12,11 @@ The sampling framework provides a high-performance, signal-safe infrastructure f
 PerFlow/
 ├── include/
 │   └── sampling/
-│       ├── sampling.h          # Main header (includes all components)
+│       ├── sampler.h           # Sampler base interface and common types
 │       ├── call_stack.h        # Function call stack representation
 │       ├── static_hash_map.h   # Pre-allocated hash map
 │       ├── data_export.h       # Data serialization (import/export)
-│       └── pmu_sampler.h       # PMU sampling interface
+│       └── sampler_papi_backend.h  # PAPI backend sampler implementation
 ├── tests/
 │   ├── CMakeLists.txt          # Test build configuration
 │   ├── test_call_stack.cpp     # CallStack unit tests
@@ -148,12 +148,12 @@ public:
 };
 ```
 
-### 4. PmuSampler (`pmu_sampler.h`)
+### 4. PapiBackendSampler (`sampler_papi_backend.h`)
 
 PMU-based sampling interface with overflow handling.
 
 **Key Features:**
-- Template class `PmuSampler<MaxStackDepth, MapCapacity>`
+- Template class `PapiBackendSampler<MaxStackDepth, MapCapacity>`
 - Configurable sampling frequency and event types
 - Overflow callback for sample collection
 - Automatic call stack capture
@@ -171,10 +171,10 @@ PMU-based sampling interface with overflow handling.
 ```cpp
 template <size_t MaxStackDepth = kDefaultMaxStackDepth,
           size_t MapCapacity = kDefaultMapCapacity>
-class PmuSampler {
+class PapiBackendSampler {
 public:
-    PmuSampler();
-    ~PmuSampler();
+    PapiBackendSampler();
+    ~PapiBackendSampler();
     
     SamplerResult initialize(const PmuSamplerConfig& config);
     SamplerResult start();
@@ -193,13 +193,14 @@ public:
 ## Usage Example
 
 ```cpp
-#include "sampling/sampling.h"
+#include "sampling/sampler.h"
+#include "sampling/sampler_papi_backend.h"
 
 using namespace perflow::sampling;
 
 int main() {
     // Create sampler with small capacity for testing
-    PmuSampler<16, 1024> sampler;
+    PapiBackendSampler<16, 1024> sampler;
     
     // Configure sampling
     PmuSamplerConfig config;
@@ -249,13 +250,13 @@ The test suite includes 47 tests covering:
 - CallStack operations and hashing
 - StaticHashMap insert/find/erase operations
 - Data export/import with integrity validation
-- PmuSampler lifecycle and configuration
+- PapiBackendSampler lifecycle and configuration
 
 ## Thread Safety
 
 All components are designed for thread-safe operation:
 - `StaticHashMap` uses atomic operations for state management
-- `PmuSampler` is designed for signal handler invocation
+- `PapiBackendSampler` is designed for signal handler invocation
 - No locks are held during critical sampling paths
 
 ## Memory Management
@@ -269,7 +270,7 @@ The framework follows strict memory management rules:
 
 ### Adding New PMU Events
 
-1. Add event code to `PmuEventType` enum in `pmu_sampler.h`
+1. Add event code to `PmuEventType` enum in `sampler.h`
 2. Update `setupPerfEvent()` to handle the new event
 3. Add corresponding tests
 

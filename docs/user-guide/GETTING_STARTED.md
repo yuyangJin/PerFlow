@@ -168,31 +168,25 @@ ls -lh /tmp/perflow_output/
 
 ## Configuration Options
 
-### Environment Variables
+MPI preload sampling is controlled with environment variables. **`PERFLOW_OUTPUT_DIR`** defaults to `/tmp` if unset (you should still point it at a writable directory you care about for production runs). Common knobs:
 
-#### Required
-- `PERFLOW_OUTPUT_DIR` - Directory to store sample data files
+- **`PERFLOW_SAMPLING_FREQ`** — samples per second (default `1000`)
+- **`PERFLOW_SAMPLER_BACKEND`** — Linux only: `thread` selects the `/proc` polling backend when PMU access is unavailable; otherwise the default Linux path uses `perf_event` + libunwind
 
-#### Optional for Timer Sampler
-- `PERFLOW_SAMPLING_FREQ` - Sampling frequency in Hz (default: 1000, range: 100-10000)
-
-#### Optional for All Samplers
-- `PERFLOW_MAX_STACK_DEPTH` - Maximum call stack depth (default: 128)
-- `PERFLOW_ENABLE_COMPRESSION` - Enable zlib compression (default: 0, set to 1 to enable)
+See **[Configuration](CONFIGURATION.md)** for the full table (`PERFLOW_PMU_FAST`, `PERFLOW_CPU_FREQ_GHZ`, `PERFLOW_SIGNAL_FAST`, etc.) and platform notes.
 
 ### Example: High-Frequency Sampling
 ```bash
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
 PERFLOW_OUTPUT_DIR=/tmp/samples \
 PERFLOW_SAMPLING_FREQ=5000 \
-PERFLOW_MAX_STACK_DEPTH=64 \
 mpirun -n 8 ./your_app
 ```
 
 ## Next Steps
 
 - **[Configuration Guide](CONFIGURATION.md)** - Detailed configuration options
-- **[Timer Sampler Usage](../TIMER_SAMPLER_USAGE.md)** - In-depth timer sampler guide
+- **[Timer Sampler Usage](TIMER_SAMPLER_USAGE.md)** - In-depth timer sampler guide
 - **[Online Analysis API](../ONLINE_ANALYSIS_API.md)** - Programmatic analysis
 - **[Examples](../../examples/README.md)** - More code examples
 - **[Troubleshooting](TROUBLESHOOTING.md)** - Common issues and solutions

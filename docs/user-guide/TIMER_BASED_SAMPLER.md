@@ -2,26 +2,33 @@
 
 ## Executive Summary
 
-The timer-based MPI sampler (`libperflow_mpi_sampler_timer.so`) provides a software-based alternative to the hardware PMU interrupt-based sampler. It uses POSIX high-precision timers instead of PAPI hardware counters, making it compatible with platforms that don't support hardware performance monitoring or have restricted PMU access.
+The MPI timer sampler (`libperflow_mpi_sampler_timer.so`) is the **LD_PRELOAD** library that does not depend on PAPI. It shares the same export pipeline as the PAPI-based PMU sampler (`libperflow_mpi_sampler.so`), but uses **runtime-selectable backends** so it can run in more environments:
+
+- **Linux (default)**: `perf_event_open` on CPU cycles, overflow delivered as `SIGIO`, call stacks via **libunwind** (low overhead when PMU access is allowed).
+- **Linux (optional)**: `PERFLOW_SAMPLER_BACKEND=thread` — a dedicated thread polls `/proc` for the main thread’s instruction pointer (no PMU, no application signals; **IP-only** samples).
+- **Non-Linux POSIX**: a helper thread periodically sends **SIGUSR1** to the main thread; the handler captures IP or full stacks with libunwind.
+
+See [Configuration](CONFIGURATION.md) for the full list of environment variables.
 
 ## Implementation Overview
 
 ### Key Components
 
-1. **POSIX Timer**: Uses `timer_create()` with `CLOCK_MONOTONIC` for high-precision periodic sampling
-2. **Signal Handler**: Implements `SIGRTMIN` signal handler for timer expiration
-3. **Call Stack Capture**: Uses libunwind (identical to hardware sampler)
-4. **Data Collection**: Uses same StaticHashMap and CallStack structures
-5. **Data Export**: Produces identical output formats (.pflw, .libmap, .txt files)
+1. **Backends** (see `include/sampling/mpi_sampler_*_backend.h`): Linux PMU, Linux thread poll, or portable SIGUSR1 path
+2. **Signal / context helpers** (`include/sampling/call_stack.h`, when enabled): `get_ip_from_ucontext`, `capture_call_stack_in_signal` (libunwind)
+3. **Data collection**: Same `StaticHashMap` / `CallStack` types as the rest of PerFlow sampling
+4. **Data export**: Same `.pflw`, `.libmap`, and text outputs as the hardware sampler path
 
 ### Architecture Comparison
 
 ```
-Hardware PMU Sampler (mpi_sampler.cpp):
-  PAPI_TOT_CYC counter → Hardware overflow interrupt → Handler → Capture stack
+Hardware PMU Sampler (mpi_sampler.cpp, PAPI):
+  PAPI_TOT_CYC → overflow → Handler → libunwind stack
 
-Timer-Based Sampler (mpi_sampler_timer.cpp):
-  POSIX timer → Software signal (SIGRTMIN) → Handler → Capture stack
+MPI Timer Sampler (mpi_sampler_timer.cpp):
+  Linux default: perf_event (cycles) → SIGIO → Handler → libunwind stack
+  Linux thread:  nanosleep loop → read /proc/.../syscall → single IP
+  Non-Linux:     nanosleep loop → pthread_kill(SIGUSR1) → Handler → stack or IP
 ```
 
 ## Performance Characteristics
@@ -219,48 +226,60 @@ For comprehensive analysis:
 
 ## Configuration
 
-### Timer-Based Sampler
+### MPI timer sampler (`libperflow_mpi_sampler_timer.so`)
 
 ```bash
-# Set sampling frequency (default: 1000 Hz)
+# Sampling frequency (default: 1000 Hz)
 export PERFLOW_SAMPLING_FREQ=500
 
-# Set output directory (default: /tmp)
+# Output directory (default: /tmp)
 export PERFLOW_OUTPUT_DIR=/path/to/output
 
-# Run with timer-based sampler
+# Linux only: use /proc polling backend when PMU is unavailable
+# export PERFLOW_SAMPLER_BACKEND=thread
+
+# Linux PMU tuning (optional)
+# export PERFLOW_CPU_FREQ_GHZ=2.6
+# export PERFLOW_PMU_PERIOD=10000000
+# export PERFLOW_PMU_FAST=1
+
+# Non-Linux IP-only (optional)
+# export PERFLOW_SIGNAL_FAST=1
+
 LD_PRELOAD=/path/to/libperflow_mpi_sampler_timer.so mpirun -n 4 ./your_app
 ```
 
-### Hardware PMU Sampler
+The authoritative table of variables is in [Configuration](CONFIGURATION.md) (section *Timer-based MPI sampler*).
+
+### Hardware PMU Sampler (`libperflow_mpi_sampler.so`)
 
 ```bash
-# Same configuration as timer-based
 export PERFLOW_SAMPLING_FREQ=1000
 export PERFLOW_OUTPUT_DIR=/path/to/output
 
-# Run with hardware sampler
 LD_PRELOAD=/path/to/libperflow_mpi_sampler.so mpirun -n 4 ./your_app
 ```
 
 ## Performance Tuning
 
-### Optimizing Timer-Based Sampler
+### Optimizing the MPI Timer Sampler
 
-1. **Frequency Selection**
-   - Start with 100-500 Hz for initial profiling
+1. **Frequency selection**
+   - Start with 100–500 Hz for initial profiling
    - Use 1000 Hz for detailed analysis
    - Avoid >5000 Hz unless necessary (high overhead)
 
-2. **System Configuration**
-   - Use real-time priority for sampling signal if available
-   - Pin processes to cores to reduce migration
-   - Disable CPU frequency scaling for consistent results
+2. **Linux PMU backend**
+   - Ensure performance events are permitted (`perf_event_paranoid`, capabilities), or use `PERFLOW_SAMPLER_BACKEND=thread`
+   - Set `PERFLOW_CPU_FREQ_GHZ` (and optionally `PERFLOW_PMU_PERIOD`) if the default period does not match your CPU
+   - Use `PERFLOW_PMU_FAST=1` only when you need minimal overhead and IP-only profiles
 
-3. **Signal Handling**
-   - SIGRTMIN chosen for lowest latency
-   - SA_RESTART flag minimizes system call interruption
-   - Signal-safe call stack capture (libunwind)
+3. **Thread backend (Linux)**
+   - Higher overhead than PMU; use when `perf_event` is blocked
+   - Samples are IP-only (no full unwind)
+
+4. **Signal / unwind path**
+   - Stack capture uses libunwind from the signal handler (PMU and non-Linux backends); keep `PERFLOW_*_FAST` off unless you accept IP-only data
 
 ### Minimizing Overhead
 
@@ -294,14 +313,14 @@ The timer-based MPI sampler provides a robust, portable alternative to hardware 
 
 ## References
 
-- POSIX Timers: `man timer_create`
-- Signal Handling: `man sigaction`
+- Linux `perf_event_open`: `man perf_event_open`
+- Signal handling: `man sigaction`
 - libunwind: https://www.nongnu.org/libunwind/
-- PAPI Library: https://icl.utk.edu/papi/
+- PAPI Library (hardware PMU sampler): https://icl.utk.edu/papi/
 
 ## Version History
 
 - **v0.1.0** (2024): Initial implementation of timer-based sampler
-  - POSIX timer-based sampling mechanism
   - Compatible with existing data export formats
   - Drop-in replacement for hardware sampler
+- **2025**: MPI timer sampler refactored to pluggable backends (Linux PMU, Linux thread poll, portable SIGUSR1); runtime selection via `PERFLOW_SAMPLER_BACKEND` on Linux

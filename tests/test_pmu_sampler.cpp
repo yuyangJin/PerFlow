@@ -3,16 +3,17 @@
 
 #include <gtest/gtest.h>
 
-#include "sampling/pmu_sampler.h"
+#include "sampling/sampler_papi_backend.h"
 
 using namespace perflow::sampling;
 
 // Use smaller capacity for tests to avoid stack overflow
 constexpr size_t kTestStackDepth = 16;
 constexpr size_t kTestMapCapacity = 256;
-using TestPmuSampler = PmuSampler<kTestStackDepth, kTestMapCapacity>;
+using TestPapiBackendSampler =
+    PapiBackendSampler<kTestStackDepth, kTestMapCapacity>;
 
-class PmuSamplerTest : public ::testing::Test {
+class PapiBackendSamplerTest : public ::testing::Test {
  protected:
   void SetUp() override {
     std::system("mkdir -p /tmp/perflow_test");
@@ -23,8 +24,8 @@ class PmuSamplerTest : public ::testing::Test {
   }
 };
 
-TEST_F(PmuSamplerTest, DefaultConstruction) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, DefaultConstruction) {
+  TestPapiBackendSampler sampler;
 
   EXPECT_EQ(sampler.status(), SamplerStatus::kUninitialized);
   EXPECT_EQ(sampler.sampleCount(), 0u);
@@ -32,7 +33,7 @@ TEST_F(PmuSamplerTest, DefaultConstruction) {
   EXPECT_EQ(sampler.uniqueStackCount(), 0u);
 }
 
-TEST_F(PmuSamplerTest, ConfigDefaults) {
+TEST_F(PapiBackendSamplerTest, ConfigDefaults) {
   PmuSamplerConfig config;
 
   EXPECT_EQ(config.frequency, kDefaultSamplingFrequency);
@@ -44,8 +45,8 @@ TEST_F(PmuSamplerTest, ConfigDefaults) {
   EXPECT_EQ(config.flush_interval_seconds, 0u);
 }
 
-TEST_F(PmuSamplerTest, Initialize) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, Initialize) {
+  TestPapiBackendSampler sampler;
   PmuSamplerConfig config;
 
   std::strcpy(config.output_directory, "/tmp/perflow_test");
@@ -57,8 +58,8 @@ TEST_F(PmuSamplerTest, Initialize) {
   EXPECT_EQ(sampler.status(), SamplerStatus::kInitialized);
 }
 
-TEST_F(PmuSamplerTest, StartAndStop) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, StartAndStop) {
+  TestPapiBackendSampler sampler;
   PmuSamplerConfig config;
 
   std::strcpy(config.output_directory, "/tmp/perflow_test");
@@ -72,8 +73,8 @@ TEST_F(PmuSamplerTest, StartAndStop) {
   EXPECT_EQ(sampler.status(), SamplerStatus::kStopped);
 }
 
-TEST_F(PmuSamplerTest, HandleOverflow) {
-  PmuSampler<8, 64> sampler;
+TEST_F(PapiBackendSamplerTest, HandleOverflow) {
+  PapiBackendSampler<8, 64> sampler;
   PmuSamplerConfig config;
   config.enable_stack_unwinding = false;  // Simpler for testing
 
@@ -94,8 +95,8 @@ TEST_F(PmuSamplerTest, HandleOverflow) {
   sampler.stop();
 }
 
-TEST_F(PmuSamplerTest, FlushData) {
-  PmuSampler<8, 64> sampler;
+TEST_F(PapiBackendSamplerTest, FlushData) {
+  PapiBackendSampler<8, 64> sampler;
   PmuSamplerConfig config;
   config.enable_stack_unwinding = false;
 
@@ -122,8 +123,8 @@ TEST_F(PmuSamplerTest, FlushData) {
   std::fclose(f);
 }
 
-TEST_F(PmuSamplerTest, UpdateConfig) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, UpdateConfig) {
+  TestPapiBackendSampler sampler;
   PmuSamplerConfig config;
 
   std::strcpy(config.output_directory, "/tmp/perflow_test");
@@ -137,8 +138,8 @@ TEST_F(PmuSamplerTest, UpdateConfig) {
   EXPECT_EQ(sampler.config().frequency, 200u);
 }
 
-TEST_F(PmuSamplerTest, Cleanup) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, Cleanup) {
+  TestPapiBackendSampler sampler;
   PmuSamplerConfig config;
 
   std::strcpy(config.output_directory, "/tmp/perflow_test");
@@ -151,9 +152,9 @@ TEST_F(PmuSamplerTest, Cleanup) {
   EXPECT_EQ(sampler.status(), SamplerStatus::kUninitialized);
 }
 
-TEST_F(PmuSamplerTest, CustomStackDepth) {
-  PmuSampler<16, 32> small_sampler;
-  PmuSampler<64, 128> medium_sampler;
+TEST_F(PapiBackendSamplerTest, CustomStackDepth) {
+  PapiBackendSampler<16, 32> small_sampler;
+  PapiBackendSampler<64, 128> medium_sampler;
 
   PmuSamplerConfig config;
   std::strcpy(config.output_directory, "/tmp/perflow_test");
@@ -162,8 +163,8 @@ TEST_F(PmuSamplerTest, CustomStackDepth) {
   EXPECT_EQ(medium_sampler.initialize(config), SamplerResult::kSuccess);
 }
 
-TEST_F(PmuSamplerTest, ReInitialize) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, ReInitialize) {
+  TestPapiBackendSampler sampler;
   PmuSamplerConfig config;
 
   std::strcpy(config.output_directory, "/tmp/perflow_test");
@@ -178,17 +179,17 @@ TEST_F(PmuSamplerTest, ReInitialize) {
   EXPECT_EQ(sampler.status(), SamplerStatus::kInitialized);
 }
 
-TEST_F(PmuSamplerTest, StartWithoutInitialize) {
-  TestPmuSampler sampler;
+TEST_F(PapiBackendSamplerTest, StartWithoutInitialize) {
+  TestPapiBackendSampler sampler;
 
   // Should fail if not initialized
   SamplerResult result = sampler.start();
   EXPECT_EQ(result, SamplerResult::kErrorInitialization);
 }
 
-TEST_F(PmuSamplerTest, SamplerWithSmallCapacity) {
+TEST_F(PapiBackendSamplerTest, SamplerWithSmallCapacity) {
   // Verify a sampler with small capacity works properly
-  PmuSampler<8, 64> sampler;
+  PapiBackendSampler<8, 64> sampler;
   PmuSamplerConfig config;
 
   std::strcpy(config.output_directory, "/tmp/perflow_test");
