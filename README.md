@@ -11,7 +11,7 @@ PerFlow is designed for production-grade performance analysis of HPC application
 
 **Key Highlights:**
 - 🚀 **Ultra-low overhead**: <0.5% with hardware PMU sampling
-- 🔧 **Two sampling modes**: Hardware PMU (PAPI) and timer-based (POSIX)
+- 🔧 **Three sampling modes**: Hardware PMU (PAPI), Timer-based (POSIX), and Cycle Counter (ARM)
 - 📊 **Online analysis**: Real-time performance tree generation
 - ⚖️ **Balance analysis**: Workload distribution across processes
 - 🔥 **Hotspot detection**: Identify performance bottlenecks
@@ -20,9 +20,10 @@ PerFlow is designed for production-grade performance analysis of HPC application
 ## Features
 
 ### Sampling-Based Profiling Tool
-- **Two sampling modes**: Hardware PMU (PAPI) and Timer-based (POSIX)
+- **Three sampling modes**: Hardware PMU (PAPI), Timer-based (POSIX), and Cycle Counter (ARM)
 - **Hardware PMU mode**: Ultra-low overhead (<0.5% @ 1kHz), cycle-accurate sampling
 - **Timer-based mode**: Platform-independent, works in containers/VMs, no special privileges
+- **Cycle counter mode**: High-precision ARM cycle counter (cntvct_el0) for ARMv9 systems with automatic fallback
 - Configurable sampling frequencies (100Hz - 10kHz)
 - Call stack capture with libunwind
 - Per-process sample data collection
@@ -103,6 +104,15 @@ mpirun -n 4 ./your_mpi_app
 LD_PRELOAD=lib/libperflow_mpi_sampler_timer.so \
 PERFLOW_OUTPUT_DIR=/path/to/samples \
 PERFLOW_SAMPLING_FREQ=1000 \
+mpirun -n 4 ./your_mpi_app
+```
+
+**Option 3: Cycle Counter Sampler** (ARM-optimized, auto-fallback on x86)
+```bash
+LD_PRELOAD=lib/libperflow_mpi_sampler_cycle_counter.so \
+PERFLOW_OUTPUT_DIR=/tmp/samples \
+PERFLOW_SAMPLING_FREQ=1000 \
+PERFLOW_TIMER_METHOD=auto \
 mpirun -n 4 ./your_mpi_app
 ```
 
